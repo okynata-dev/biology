@@ -400,6 +400,7 @@
         <div style="font-size: 10px; color: var(--ink-3); text-align: center; letter-spacing: 0.04em; margin-top: -4px; text-transform: uppercase;">
           Pack uses smart auto-layout per format
         </div>
+        <div id="renderStatus" style="font-size: 11px; color: var(--ink-3); text-align: center; min-height: 16px; margin-top: 4px;"></div>
       </div>
     </div>
   </div>
@@ -741,18 +742,58 @@ seedInput.addEventListener('change', () => {
 randomBtn.addEventListener('click', () => setSeed(Math.floor(Math.random() * 3000)));
 
 // =========================================================================
-// DOWNLOAD — render hidden stage at target resolution
+// DOWNLOAD — cloud HQ render via /api/render, with local canvas fallback
 // =========================================================================
-// Native 2D canvas renderer — bypasses backdrop-filter / SVG limitations and
-// renders cleanly at any resolution. `opts.tx/ty` are in % of baseSize.
-function renderAndDownload(seed, w, h, formatId, opts) {
+// Cloud path uses Cloudflare Browser Rendering on render.html → real Chromium
+// with real backdrop-filter glass effect, pixel-identical to the live preview.
+// Local path is the legacy native-canvas renderer — works offline but has no
+// backdrop-filter blur. Falls through automatically if the API isn't reachable.
+
+const renderStatusEl = document.getElementById('renderStatus');
+function setRenderStatus(msg, tone) {
+  renderStatusEl.textContent = msg || '';
+  renderStatusEl.style.color = tone === 'warn' ? '#a36500' : tone === 'ok' ? '#3a7a3a' : 'var(--ink-3)';
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function cloudRender(seed, w, h, opts) {
+  const resp = await fetch('/api/render', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      seed, w, h,
+      tx: opts.tx, ty: opts.ty,
+      scale: opts.scale, rotation: opts.rotation,
+      flipX: opts.flipX, flipY: opts.flipY,
+    }),
+  });
+  if (!resp.ok) {
+    let detail = '';
+    try { detail = JSON.stringify(await resp.json()); } catch { detail = String(resp.status); }
+    throw new Error(`HTTP ${resp.status} ${detail}`);
+  }
+  const ct = resp.headers.get('Content-Type') || '';
+  if (!ct.includes('image/')) throw new Error(`unexpected content-type: ${ct}`);
+  return await resp.blob();
+}
+
+function localRender(seed, w, h, opts) {
   return new Promise((resolve, reject) => {
     try {
-      const outCanvas = document.createElement('canvas');
-      outCanvas.width = w;
-      outCanvas.height = h;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
       const baseSize = Math.min(w, h);
-      window.BiomEngine.renderSpecimenToCanvas(outCanvas, seed, {
+      window.BiomEngine.renderSpecimenToCanvas(c, seed, {
         specSize: baseSize,
         tx: opts.tx * baseSize / 100,
         ty: opts.ty * baseSize / 100,
@@ -761,22 +802,29 @@ function renderAndDownload(seed, w, h, formatId, opts) {
         flipX: opts.flipX,
         flipY: opts.flipY,
       });
-      outCanvas.toBlob((blob) => {
+      c.toBlob((blob) => {
         if (!blob) return reject(new Error('toBlob returned null'));
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `bioms-biom-${seed}-${formatId}-${w}x${h}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        resolve();
+        resolve(blob);
       }, 'image/png');
-    } catch (e) {
-      reject(e);
-    }
+    } catch (e) { reject(e); }
   });
+}
+
+// Returns { source: 'cloud' | 'local', cloudError?: Error }
+async function renderAndDownload(seed, w, h, formatId, opts) {
+  const filename = `bioms-biom-${seed}-${formatId}-${w}x${h}.png`;
+  let cloudError = null;
+  try {
+    const blob = await cloudRender(seed, w, h, opts);
+    downloadBlob(blob, filename);
+    return { source: 'cloud' };
+  } catch (e) {
+    cloudError = e;
+    console.warn('Cloud render failed, falling back to local:', e);
+  }
+  const blob = await localRender(seed, w, h, opts);
+  downloadBlob(blob, filename);
+  return { source: 'local', cloudError };
 }
 
 downloadBtn.addEventListener('click', async () => {
@@ -786,11 +834,18 @@ downloadBtn.addEventListener('click', async () => {
 
   downloadBtn.textContent = `Rendering ${w}×${h}...`;
   downloadBtn.disabled = true;
+  setRenderStatus('Rendering…');
   try {
-    await renderAndDownload(state.seed, w, h, f.id, state);
+    const result = await renderAndDownload(state.seed, w, h, f.id, state);
+    if (result.source === 'cloud') {
+      setRenderStatus('Cloud HQ render · real glass blur', 'ok');
+    } else {
+      setRenderStatus('Local fallback · no glass blur (cloud unavailable)', 'warn');
+    }
   } catch (err) {
     console.error('Download failed:', err);
     alert('Download failed — try a smaller resolution.\n' + err.message);
+    setRenderStatus('Render failed', 'warn');
   } finally {
     downloadBtn.textContent = 'Download PNG';
     downloadBtn.disabled = false;
@@ -806,25 +861,36 @@ packBtn.addEventListener('click', async () => {
   const formats = FORMATS.filter(f => f.id !== 'custom');
   packBtn.disabled = true;
   downloadBtn.disabled = true;
+  let cloudCount = 0, localCount = 0;
   try {
     for (let i = 0; i < formats.length; i++) {
       const f = formats[i];
       const tpl = TEMPLATES.find(t => t.id === (FORMAT_DEFAULTS[f.id] || 'center'));
       packBtn.textContent = `Pack ${i + 1}/${formats.length} · ${f.label}`;
-      await renderAndDownload(state.seed, f.w, f.h, f.id, {
+      setRenderStatus(`Rendering ${f.label} (${i + 1}/${formats.length})…`);
+      const result = await renderAndDownload(state.seed, f.w, f.h, f.id, {
         tx: tpl.x, ty: tpl.y,
         scale: tpl.scale, rotation: tpl.rot,
         flipX: tpl.fx, flipY: tpl.fy,
       });
+      if (result.source === 'cloud') cloudCount++; else localCount++;
       // small gap so the browser handles each download cleanly
       await new Promise(r => setTimeout(r, 350));
     }
     packBtn.textContent = '✓ Pack downloaded';
+    if (localCount === 0) {
+      setRenderStatus(`Pack: ${cloudCount}/${formats.length} cloud HQ`, 'ok');
+    } else if (cloudCount === 0) {
+      setRenderStatus(`Pack: ${localCount}/${formats.length} local fallback (no glass blur)`, 'warn');
+    } else {
+      setRenderStatus(`Pack: ${cloudCount} cloud HQ, ${localCount} local fallback`, 'warn');
+    }
     setTimeout(() => { packBtn.textContent = PACK_LABEL; }, 2200);
   } catch (err) {
     console.error('Pack failed:', err);
     alert('Pack failed: ' + err.message);
     packBtn.textContent = PACK_LABEL;
+    setRenderStatus('Pack failed', 'warn');
   } finally {
     packBtn.disabled = false;
     downloadBtn.disabled = false;

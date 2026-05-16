@@ -19,11 +19,18 @@ A generative NFT collection of microscopic life forms. Each Biom is rendered cli
 |---|---|
 | `index.html` | Landing page — hero, stain showcase, demo |
 | `preview.html` | Main specimen renderer (animation_url for NFT metadata). Reads `?seed=N` and renders the corresponding Biom with breathing animation and mouse parallax. |
-| `make.html` | Banner Maker — pick a Biom, choose format (Twitter Header, OpenSea Banner, 4K Desktop, custom...), drag/scale/rotate, export PNG |
+| `make.html` | Banner Maker — pick a Biom, choose format (Twitter Header, OpenSea Banner, 4K Desktop, custom...), drag/scale/rotate, export single PNG or full asset pack |
+| `render.html` | Headless render page consumed by the `/api/render` Cloudflare Pages Function. Renders one specimen at exact pixel dimensions with caller-supplied transform — used for high-fidelity PNG export with real backdrop-filter glass. |
 | `explore.html` | Trait Explorer — every trait isolated in its own card with academic-style biology description |
 | `rare-aurora.html`, `rare-ghost.html`, `rare-variable.html` | Standalone renderers for rare palettes (used by stain showcase on landing) |
 | `asset-template.html` | Template used by `batch_screenshots.py` for downloadable assets (Twitter headers, banners, etc.) at fixed dimensions |
-| `specimen-engine.js` | **Shared rendering engine.** All trait generation + DOM and Canvas renderers. Used by `make.html`; the engine is mirrored inline in `preview.html` and the rare files for legacy reasons (kept in sync). |
+| `specimen-engine.js` | **Shared rendering engine.** All trait generation + DOM and Canvas renderers. Used by `make.html` and `render.html`; the engine is mirrored inline in `preview.html` and the rare files for legacy reasons (kept in sync). |
+
+### Backend (Cloudflare Pages Functions)
+
+| File | What it does |
+|---|---|
+| `functions/api/render.js` | POST endpoint that screenshots `render.html` via Cloudflare Browser Rendering and returns a PNG. Used by the Banner Maker for HQ export with real `backdrop-filter` glass effect. Local canvas renderer in `make.html` is the automatic fallback if the API is not configured. |
 
 ### Mint pipeline (Python — runs locally, not deployed)
 
@@ -76,6 +83,24 @@ python3 generate_metadata.py ./metadata 3000 \
 4. Add custom domain `thebioms.com` (Cloudflare DNS needs to manage the domain).
 5. Push to `main` → auto-deploy.
 
+### HQ banner render (Cloudflare Browser Rendering)
+
+The Banner Maker exports default to a Pages Function (`functions/api/render.js`) that screenshots `render.html` in a real headless Chromium. This produces pixel-identical output to the live preview, including the `backdrop-filter` glass blur that the local 2D-canvas renderer can't replicate.
+
+If the API is unavailable (not configured, paid plan missing, etc.) the Banner Maker silently falls back to the local canvas renderer and labels the result as such.
+
+**One-time setup:**
+
+1. Subscribe to the **Workers Paid plan** ($5/mo). Browser Rendering requires it.
+2. Cloudflare dashboard → **Workers & Pages → Browser Rendering** → activate for your account.
+3. Create an API token at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) with permission **Account → Browser Rendering → Edit**. Scope it to a single account if possible.
+4. In your Pages project → **Settings → Environment variables (Production)**, add:
+   - `CF_ACCOUNT_ID` — your account ID (plain text)
+   - `CF_API_TOKEN` — the token from step 3 (encrypt as secret)
+5. Trigger a redeploy (push any commit, or use the Pages UI).
+
+Typical NFT-holder usage (a handful of exports/day) sits well within the included Browser Rendering minutes. If you don't want this feature, skip the setup — the local fallback will be used automatically.
+
 ### Email on `thebioms.com` (free)
 
 Cloudflare → your domain → Email → Email Routing → Enable. Add forwarding rules:
@@ -110,7 +135,7 @@ See chat history for full design.
 ## Tech stack
 
 - **Frontend**: vanilla HTML/CSS/JS — no framework, no build step. Loads in a single network round-trip per page.
-- **Rendering engine**: DOM panels with `backdrop-filter` for glass effect + native 2D Canvas for PNG export
+- **Rendering engine**: DOM panels with `backdrop-filter` for the live glass effect; HQ PNG export via Cloudflare Browser Rendering screenshot of `render.html` (real Chromium → real blur), with native 2D Canvas as offline fallback
 - **RNG**: `mulberry32` deterministic PRNG, identical implementation in JS (`specimen-engine.js`, `preview.html`) and Python (`generate_metadata.py`). 3000/3000 trait parity verified.
 - **Metadata standard**: ERC-721 + OpenSea extensions
 
