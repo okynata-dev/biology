@@ -456,7 +456,10 @@
 // If a PNG is missing or fails to load, the local 2D-canvas renderer takes
 // over automatically — no crash, just slightly less faithful glass effect.
 const PNG_BASE = '';
-const PNG_PATH = (seed) => `${PNG_BASE}/pngs/preview/${seed}.png`;
+// batch_screenshots.py writes filenames as 5-digit zero-padded (00247.png),
+// matching what generate_metadata.py puts in the NFT `image` field. Keep both
+// scripts in sync.
+const PNG_PATH = (seed) => `${PNG_BASE}/pngs/preview/${String(seed).padStart(5, '0')}.png`;
 
 // =========================================================================
 // FORMATS + TEMPLATES

@@ -19,12 +19,11 @@ A generative NFT collection of microscopic life forms. Each Biom is rendered cli
 |---|---|
 | `index.html` | Landing page — hero, stain showcase, demo |
 | `preview.html` | Main specimen renderer (animation_url for NFT metadata). Reads `?seed=N` and renders the corresponding Biom with breathing animation and mouse parallax. |
-| `make.html` | Banner Maker — pick a Biom, choose format (Twitter Header, OpenSea Banner, 4K Desktop, custom...), drag/scale/rotate, export single PNG or full asset pack. Uses the high-res pre-rendered master PNG for the seed (loaded from `/pngs/preview/N.png`) and composites it onto the target canvas. Falls back to the local 2D-canvas renderer if the PNG is missing. |
-| `explore.html` | Trait Explorer — every trait isolated in its own card with academic-style biology description |
-| `rare-aurora.html`, `rare-ghost.html`, `rare-variable.html` | Standalone renderers for rare palettes (used by stain showcase on landing) |
+| `make.html` | Banner Maker — pick a Biom, choose format (Twitter Header, OpenSea Banner, 4K Desktop, custom...), drag/scale/rotate, export single PNG or full asset pack. Uses the pre-rendered master PNG (`/pngs/preview/NNNNN.png`) and composites it onto the target canvas. Falls back to a local 2D-canvas renderer if the PNG is missing. |
+| `explore.html` | Trait Explorer — each trait card is a pre-rendered PNG from `/pngs/explore/{cat}-{id}.png` (populated by `batch_explore.py`). |
 | `404.html` | Branded 404 page served by Cloudflare Pages for unknown paths |
 | `asset-template.html` | Template used by `batch_screenshots.py` for downloadable assets (Twitter headers, banners, etc.) at fixed dimensions |
-| `specimen-engine.js` | **Shared rendering engine.** All trait generation + DOM and Canvas renderers. Used by `make.html`; the engine is mirrored inline in `preview.html` and the rare files for legacy reasons (kept in sync). |
+| `specimen-engine.js` | **Shared rendering engine.** All trait generation + DOM and Canvas renderers. Used by `make.html`; the engine is mirrored inline in `preview.html` for legacy reasons (kept in sync). |
 | `favicon.svg`, `og-image.png` | Brand assets — favicon and social-share card |
 | `sitemap.xml`, `robots.txt`, `_headers` | SEO + caching config |
 
@@ -33,7 +32,8 @@ A generative NFT collection of microscopic life forms. Each Biom is rendered cli
 | File | What it does |
 |---|---|
 | `generate_metadata.py` | Generates 3,000 ERC-721-compatible JSON metadata files. **RNG parity-verified against the JS engine — same seed always produces identical traits.** |
-| `batch_screenshots.py` | Headless Chromium (via Playwright) renders all 3,000 preview PNGs from `preview.html`. Output feeds both the NFT `image` field **and** the Banner Maker's HQ source. Render large (≥ 2400 px) so banners look crisp at 4K and beyond. |
+| `batch_screenshots.py` | Headless Chromium (via Playwright) renders all 3,000 master preview PNGs from `preview.html`. Output feeds both the NFT `image` field **and** the Banner Maker's HQ source. Render large (≥ 2400 px) so banners look crisp at 4K and beyond. |
+| `batch_explore.py` | Renders the 46 trait-isolation PNGs consumed by `explore.html` and the landing stain showcase. Run once, output goes to `pngs/explore/`. Total ~10 MB at 1200 px. |
 
 ## Local development
 
@@ -52,18 +52,24 @@ pip3 install playwright
 python3 -m playwright install chromium
 
 # 2. Render all 3,000 master PNGs at high resolution (~2–3 h on M1/M2 at 3000 px).
-#    These PNGs are the source-of-truth for both NFT metadata AND the Banner Maker.
+#    These PNGs are the source-of-truth for the NFT `image` field AND the
+#    Banner Maker's HQ export source.
 mkdir -p pngs/preview
 python3 batch_screenshots.py preview.html ./pngs/preview 3000 --workers 6 --size 3000
 
-# 3. Generate metadata JSON files
+# 3. Render the 46 trait-isolation PNGs for explore.html and the landing
+#    stain showcase (~5 min). Output is small (~10 MB total).
+mkdir -p pngs/explore
+python3 batch_explore.py ./pngs/explore --workers 4 --size 1200
+
+# 4. Generate metadata JSON files
 mkdir -p metadata
 python3 generate_metadata.py ./metadata 3000 \
     --base-image-uri https://thebioms.com/pngs/preview \
     --base-animation-uri https://thebioms.com/preview.html
 
-# 4. Host pngs/ — see "Hosting pre-rendered PNGs" below
-# 5. Deploy contract via OpenSea Studio Drop with tokenURI prefix:
+# 5. Host pngs/ — see "Hosting pre-rendered PNGs" below
+# 6. Deploy contract via OpenSea Studio Drop with tokenURI prefix:
 #    https://thebioms.com/metadata/  (Studio appends .json)
 ```
 

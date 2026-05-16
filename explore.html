@@ -141,10 +141,10 @@
     background: #ffffff;
     position: relative;
   }
-  .trait-preview iframe {
+  .trait-preview img {
     width: 100%;
     height: 100%;
-    border: 0;
+    object-fit: cover;
     display: block;
   }
   .trait-body {
@@ -365,13 +365,24 @@ const ULTRA = [
 ];
 
 // === RENDER ===
-function makeCard(trait, frameSrc) {
+// Each trait card shows a pre-rendered PNG from /pngs/explore/{cat}-{id}.png
+// (populated once by batch_explore.py). Previously these were 46 live iframes,
+// which spun up 46 specimen engines simultaneously and melted laptops.
+//
+// PNG_BASE is empty for same-origin; set to an absolute URL (e.g.
+// https://pngs.thebioms.com) if pngs/ lives on R2.
+
+const PNG_BASE = '';
+function pngUrl(cat, id) {
+  return `${PNG_BASE}/pngs/explore/${cat}-${id}.png`;
+}
+
+function makeCard(trait, imgSrc) {
   const card = document.createElement('div');
   card.className = 'trait-card';
-  // iframe gets data-src instead of src — IntersectionObserver swaps it in on demand
   card.innerHTML = `
     <div class="trait-preview">
-      <iframe data-src="${frameSrc}" loading="lazy"></iframe>
+      <img src="${imgSrc}" alt="${trait.label}" loading="lazy" decoding="async">
     </div>
     <div class="trait-body">
       <div class="trait-name">${trait.label}</div>
@@ -383,75 +394,19 @@ function makeCard(trait, frameSrc) {
   return card;
 }
 
-function fillGrid(gridId, items, srcBuilder) {
+function fillGrid(gridId, items, cat) {
   const grid = document.getElementById(gridId);
   items.forEach(t => {
-    const src = srcBuilder(t);
-    grid.appendChild(makeCard(t, src));
+    grid.appendChild(makeCard(t, pngUrl(cat, t.id)));
   });
 }
 
-// Shared URL suffix — static, no interactions, no noise. Optimized for grid view.
-const COMMON = 'fit=1&static=1&nointeract=1&noise=0';
-
-// Morphology — force the morph, let stain be random per seed
-fillGrid('morph-grid', MORPHOLOGIES, t =>
-  `preview.html?seed=${t.seed}&${COMMON}&forceMorph=${t.id}`
-);
-
-// Stain — force the palette
-fillGrid('stain-grid', STAINS, t => {
-  if (typeof t.seed === 'string') {
-    return `rare-${t.seed}.html?fit=1&static=1&nointeract=1`;
-  }
-  return `preview.html?seed=${t.seed}&${COMMON}&forceStain=${t.id}`;
-});
-
-// Organelles — clean coccus, only this organelle visible
-fillGrid('organelle-grid', ORGANELLES, t => {
-  const morph = t.forceMorph || 'coccus';
-  return `preview.html?seed=${t.seed}&${COMMON}&forceMorph=${morph}&forceStain=gramPositive&forceOrganelles=${t.forceOrganelles}&forceCells=4`;
-});
-
-// Reserve granules — clean coccus + reserve
-fillGrid('reserve-grid', RESERVES, t =>
-  `preview.html?seed=${t.seed}&${COMMON}&forceMorph=coccus&forceStain=gramPositive&forceReserve=${t.id}&forceCells=4`
-);
-
-// Lifecycle — force visible state
-fillGrid('lifecycle-grid', LIFECYCLES, t => {
-  const morph = t.forceMorph || 'bacillus';
-  const lc = t.forceLifecycle || t.id;
-  return `preview.html?seed=${t.seed}&${COMMON}&forceMorph=${morph}&forceStain=gramPositive&forceLifecycle=${lc}&forceCells=3`;
-});
-
-// Ultra rare — force the trait
-fillGrid('ultra-grid', ULTRA, t =>
-  `preview.html?seed=${t.seed}&${COMMON}&forceMorph=coccus&forceStain=methylene&${t.forceParams}&forceCells=2`
-);
-
-// === LAZY LOAD via IntersectionObserver ===
-// Iframes are heavy (each is a full document). Only assign src when the card
-// scrolls into the viewport. Once loaded, the observer stops watching it.
-const lazyObserver = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      const iframe = entry.target;
-      const src = iframe.dataset.src;
-      if (src && !iframe.src) {
-        iframe.src = src;
-        lazyObserver.unobserve(iframe);
-      }
-    }
-  });
-}, {
-  rootMargin: '300px 0px',  // pre-load slightly before they're visible
-  threshold: 0.01,
-});
-
-document.querySelectorAll('.trait-preview iframe').forEach(iframe => {
-  lazyObserver.observe(iframe);
-});
+fillGrid('morph-grid',     MORPHOLOGIES, 'morph');
+fillGrid('stain-grid',     STAINS,       'stain');
+fillGrid('organelle-grid', ORGANELLES,   'organelle');
+fillGrid('reserve-grid',   RESERVES,     'reserve');
+fillGrid('lifecycle-grid', LIFECYCLES,   'lifecycle');
+fillGrid('ultra-grid',     ULTRA,        'ultra');
 </script>
 
 </body>

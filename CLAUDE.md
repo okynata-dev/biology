@@ -47,9 +47,8 @@ When the owner says "go", do this in order:
 |---|---|
 | `index.html` | Landing page. Nav, hero, demo, stain showcase. Embeds `preview.html` and `rare-*.html` via `<iframe>`. |
 | `preview.html` | **The token renderer.** This is the file pointed to by NFT `animation_url`. Renders a Biom from `?seed=N`, with breathing animation + mouse parallax. Has URL param overrides (`?fit=1`, `?bg=white`, `?scale=N`, `?forceMorph=`, `?forceStain=`, `?forceLifecycle=`, `?forceReserve=`, `?forceOrganelles=a,b,c`, `?forcePhage=1`, `?forceEndo=1`, `?forceBiofilm=1`, `?static=1`, `?noise=0`, `?nointeract=1`). The engine logic is inlined here (legacy) — has its own copy independent of `specimen-engine.js`. |
-| `make.html` | Banner Maker — interactive canvas editor. Drag/scale/rotate/flip/templates. Live preview uses the DOM renderer. **PNG export composites the pre-rendered master PNG** (from `/pngs/preview/{seed}.png`, populated by `batch_screenshots.py` at mint time) via `canvas.drawImage` — pixel-identical to the live preview since the master PNG was itself screenshotted from `preview.html` in real Chromium. Falls back to **native 2D Canvas** (NOT html2canvas — see Section 5) if the master PNG is missing. Imports `specimen-engine.js`. The `PNG_BASE` constant at the top of the script sets the host (empty string = same origin; otherwise an absolute URL like `https://pngs.thebioms.com` for an R2 custom domain). |
-| `explore.html` | Trait Explorer — 46 trait cards with isolated traits + academic descriptions. Uses iframes to `preview.html` with URL overrides. Lazy-loads via IntersectionObserver. |
-| `rare-aurora.html`, `rare-ghost.html`, `rare-variable.html` | Forks of preview.html, each with one hardcoded `state.palette`. Used by landing's stain showcase. Engine inlined. |
+| `make.html` | Banner Maker — interactive canvas editor. Drag/scale/rotate/flip/templates. Live preview uses the DOM renderer. **PNG export composites the pre-rendered master PNG** (from `/pngs/preview/{NNNNN}.png`, zero-padded 5-digit, populated by `batch_screenshots.py` at mint time) via `canvas.drawImage` — pixel-identical to the live preview since the master PNG was itself screenshotted from `preview.html` in real Chromium. Falls back to **native 2D Canvas** (NOT html2canvas — see Section 5) if the master PNG is missing. Imports `specimen-engine.js`. The `PNG_BASE` constant at the top of the script sets the host (empty string = same origin; otherwise an absolute URL like `https://pngs.thebioms.com` for an R2 custom domain). |
+| `explore.html` | Trait Explorer — 46 trait cards with isolated traits + academic descriptions. **Each card is a pre-rendered PNG** from `/pngs/explore/{cat}-{id}.png` (populated by `batch_explore.py`). Previously was 46 simultaneous iframes mounting full specimen-engine instances — that melted laptops. `<img loading="lazy">` keeps offscreen images out of memory. |
 | `404.html` | Branded 404 page. Cloudflare Pages serves it automatically for unknown paths. |
 | `asset-template.html` | Asset format template (fixed Twitter/OpenSea dimensions). Used only by `batch_screenshots.py` for downloadable asset packs. Not in user nav. |
 | `specimen-engine.js` | **Shared rendering engine** — exports `window.BiomEngine`. Contains: palettes, weights, all generators, DOM renderer (`renderSpecimen`), **native 2D canvas renderer (`renderSpecimenToCanvas`)** for offline export fallback. Used by `make.html`. |
@@ -61,7 +60,8 @@ When the owner says "go", do this in order:
 | File | Role |
 |---|---|
 | `generate_metadata.py` | Generates 3,000 ERC-721 metadata JSON files. **MUST stay RNG-parity with JS.** |
-| `batch_screenshots.py` | Headless Chromium renders 3,000 preview PNGs. |
+| `batch_screenshots.py` | Headless Chromium renders 3,000 master preview PNGs (`pngs/preview/00000.png` ... `02999.png`). These feed both the NFT `image` field AND the Banner Maker's HQ source. Render at ≥ 2400 px so banners look crisp at 4K. |
+| `batch_explore.py` | Headless Chromium renders the 46 trait-isolation PNGs consumed by `explore.html` and the landing stain showcase (`pngs/explore/{morph,stain,organelle,reserve,lifecycle,ultra}-{id}.png`). Manifest is hardcoded in the script — must stay in sync with the trait arrays in `explore.html`. |
 
 ## Section 3 — Final state (what works right now)
 

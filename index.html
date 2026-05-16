@@ -395,7 +395,7 @@
               <td class="desc">Silver-grey, edge-lit.</td>
               <td class="pct">8%</td>
             </tr>
-            <tr class="stain-row" data-stain-id="aurora" data-seed="aurora">
+            <tr class="stain-row" data-stain-id="iridescent_aurora" data-seed="aurora">
               <td class="name">Aurora</td>
               <td class="desc">Iridescent, rare.</td>
               <td class="pct">7%</td>
@@ -425,7 +425,7 @@
               <td class="desc">Negative stain, silhouette.</td>
               <td class="pct">3%</td>
             </tr>
-            <tr class="stain-row" data-stain-id="variable" data-seed="variable">
+            <tr class="stain-row" data-stain-id="gram_variable" data-seed="variable">
               <td class="name">Gram-variable</td>
               <td class="desc">Mixed colony, ultra-rare.</td>
               <td class="pct">1%</td>
@@ -541,72 +541,54 @@
 </footer>
 
 <script>
-function specimenSrc(seed, isStatic, forceStain) {
-  if (typeof seed === 'string' && ['aurora', 'ghost', 'variable'].includes(seed)) {
-    return `rare-${seed}.html${isStatic ? '?static=1' : ''}`;
-  }
-  const params = new URLSearchParams();
-  params.set('seed', String(seed));
-  if (isStatic) params.set('static', '1');
-  if (forceStain) params.set('forceStain', forceStain);
-  return `preview.html?${params.toString()}`;
-}
+// Only the hero is a live render — every other specimen on this page is a
+// pre-rendered PNG (master set in /pngs/preview, isolated traits in
+// /pngs/explore). Cuts the page from ~14 simultaneous iframe-engines to 1.
+//
+// PNG_BASE: '' for same-origin, or an absolute URL like 'https://pngs.thebioms.com'
+// if the PNGs live on an R2 custom domain.
+const PNG_BASE = '';
+const padSeed   = (n) => String(n).padStart(5, '0');
+const masterUrl = (seed) => `${PNG_BASE}/pngs/preview/${padSeed(seed)}.png`;
+const stainUrl  = (stainId) => `${PNG_BASE}/pngs/explore/stain-${stainId}.png`;
 
-function mountSpecimen(el, seed, options = {}) {
+function mountHeroIframe(el, seed) {
   el.innerHTML = '';
   const iframe = document.createElement('iframe');
   iframe.className = 'specimen';
-  iframe.loading = options.eager ? 'eager' : 'lazy';
-  iframe.src = specimenSrc(seed, !options.alwaysAnimate, options.forceStain);
+  iframe.loading = 'eager';
+  iframe.src = `preview.html?seed=${seed}`;
   el.appendChild(iframe);
-  el._iframe = iframe;
-  el._seed = seed;
-  el._forceStain = options.forceStain;
-  el._isStatic = !options.alwaysAnimate;
-
-  if (!options.alwaysAnimate) {
-    el.addEventListener('mouseenter', () => {
-      if (el._isStatic) {
-        el._iframe.src = specimenSrc(el._seed, false, el._forceStain);
-        el._isStatic = false;
-      }
-    });
-    el.addEventListener('mouseleave', () => {
-      if (!el._isStatic) {
-        el._iframe.src = specimenSrc(el._seed, true, el._forceStain);
-        el._isStatic = true;
-      }
-    });
-  }
 }
 
-// Hero specimen — always animated, eagerly loaded
-const heroEl = document.querySelector('.hero-frame');
-mountSpecimen(heroEl, heroEl.dataset.seed, { eager: true, alwaysAnimate: true });
+function mountImage(el, src, alt) {
+  el.innerHTML = `<img src="${src}" alt="${alt}" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block;background:#fff;">`;
+}
 
-// Demo
+// Hero — the only live, animated specimen on the page.
+const heroEl = document.querySelector('.hero-frame');
+mountHeroIframe(heroEl, heroEl.dataset.seed);
+
+// Demo — picks a random pre-rendered Biom from the master set on each click.
 const demoFrame = document.getElementById('demoFrame');
 const seedDisplay = document.getElementById('seedDisplay');
 function updateDemo(seed) {
-  mountSpecimen(demoFrame, seed, { alwaysAnimate: true });
+  mountImage(demoFrame, masterUrl(seed), `BIOM #${seed}`);
   seedDisplay.textContent = String(seed);
 }
-const startSeed = Math.floor(Math.random() * 10000);
-updateDemo(startSeed);
+updateDemo(Math.floor(Math.random() * 3000));
 document.getElementById('rollBtn').addEventListener('click', () => {
-  updateDemo(Math.floor(Math.random() * 10000));
+  updateDemo(Math.floor(Math.random() * 3000));
 });
 
-// Stain preview
+// Stain showcase — 12 pre-rendered trait-isolation PNGs (the same files
+// that explore.html uses for its Staining section).
 const stainPreview = document.getElementById('stainPreview');
 const stainRows = document.querySelectorAll('.stain-row');
 function setStain(row) {
   stainRows.forEach(r => r.classList.remove('active'));
   row.classList.add('active');
-  mountSpecimen(stainPreview, row.dataset.seed, {
-    alwaysAnimate: true,
-    forceStain: row.dataset.force || null,
-  });
+  mountImage(stainPreview, stainUrl(row.dataset.stainId), row.querySelector('.name').textContent);
 }
 stainRows.forEach(row => {
   row.addEventListener('click', () => setStain(row));
