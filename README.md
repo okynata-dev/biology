@@ -111,6 +111,17 @@ Cloudflare → your domain → Email → Email Routing → Enable. Add forwardin
 
 Set up "Send as" in Gmail to reply from `hello@thebioms.com`.
 
+### Web Analytics (optional, free, privacy-friendly)
+
+Cloudflare Web Analytics tracks visitors without cookies, third-party scripts, or any PII. Two ways to enable:
+
+1. **Automatic (zero-code)** — Cloudflare dashboard → your `thebioms.com` zone → **Analytics & Logs → Web Analytics → Enable automatic setup**. Cloudflare injects the beacon at the edge. Recommended.
+2. **Manual** — if you want to control which pages are tracked, get a beacon token from the same dashboard and add this to the `<head>` of pages you want tracked:
+
+   ```html
+   <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "YOUR_TOKEN"}'></script>
+   ```
+
 ---
 
 ## Roadmap (Phase 2)

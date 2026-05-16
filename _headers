@@ -1,22 +1,45 @@
 # Cloudflare Pages — HTTP headers
 # https://developers.cloudflare.com/pages/configuration/headers/
+#
+# Note on iframe embedding: we deliberately do NOT set X-Frame-Options or
+# CSP frame-ancestors globally. preview.html and rare-*.html are NFT
+# animation_url targets — OpenSea and other marketplaces must be able to
+# iframe them from any origin. The rest of the site is read-only (no
+# auth, no destructive actions), so clickjacking risk is negligible.
 
 /*
-  X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: interest-cohort=()
 
-# Metadata — short cache so mutations can refresh quickly (Phase 2)
+# Metadata JSON — short cache so mutations can refresh quickly (Phase 2)
+# CORS open so OpenSea / marketplaces / explorers can fetch.
 /metadata/*
   Cache-Control: public, max-age=300, s-maxage=300
+  Access-Control-Allow-Origin: *
 
 # Token PNGs — immutable, cache forever
 /pngs/*
   Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
 
-# Engine + HTML — cache for a day, then revalidate
+# Engine — cache for a day, then revalidate
 /specimen-engine.js
   Cache-Control: public, max-age=86400, must-revalidate
 
+# HTML — cache for an hour
 /*.html
   Cache-Control: public, max-age=3600, must-revalidate
+
+# Static brand assets
+/og-image.png
+  Cache-Control: public, max-age=86400
+
+/favicon.svg
+  Cache-Control: public, max-age=604800
+
+/sitemap.xml
+  Cache-Control: public, max-age=3600
+
+/robots.txt
+  Cache-Control: public, max-age=86400
