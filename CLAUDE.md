@@ -47,19 +47,14 @@ When the owner says "go", do this in order:
 |---|---|
 | `index.html` | Landing page. Nav, hero, demo, stain showcase. Embeds `preview.html` and `rare-*.html` via `<iframe>`. |
 | `preview.html` | **The token renderer.** This is the file pointed to by NFT `animation_url`. Renders a Biom from `?seed=N`, with breathing animation + mouse parallax. Has URL param overrides (`?fit=1`, `?bg=white`, `?scale=N`, `?forceMorph=`, `?forceStain=`, `?forceLifecycle=`, `?forceReserve=`, `?forceOrganelles=a,b,c`, `?forcePhage=1`, `?forceEndo=1`, `?forceBiofilm=1`, `?static=1`, `?noise=0`, `?nointeract=1`). The engine logic is inlined here (legacy) — has its own copy independent of `specimen-engine.js`. |
-| `make.html` | Banner Maker — interactive canvas editor. Drag/scale/rotate/flip/templates. PNG export prefers cloud HQ render (`/api/render`) and falls back to **native 2D Canvas** (NOT html2canvas — see Section 5). Imports `specimen-engine.js`. |
-| `render.html` | Headless render page opened by Browser Rendering. Pure render-only — reads `?seed&w&h&tx&ty&scale&rot&fx&fy`, mounts one specimen via `BiomEngine.renderSpecimen`, signals `body[data-ready="1"]` for the worker to screenshot. Same `.panel` CSS as `preview.html`/`make.html` so real backdrop-filter glass renders. |
+| `make.html` | Banner Maker — interactive canvas editor. Drag/scale/rotate/flip/templates. Live preview uses the DOM renderer. **PNG export composites the pre-rendered master PNG** (from `/pngs/preview/{seed}.png`, populated by `batch_screenshots.py` at mint time) via `canvas.drawImage` — pixel-identical to the live preview since the master PNG was itself screenshotted from `preview.html` in real Chromium. Falls back to **native 2D Canvas** (NOT html2canvas — see Section 5) if the master PNG is missing. Imports `specimen-engine.js`. The `PNG_BASE` constant at the top of the script sets the host (empty string = same origin; otherwise an absolute URL like `https://pngs.thebioms.com` for an R2 custom domain). |
 | `explore.html` | Trait Explorer — 46 trait cards with isolated traits + academic descriptions. Uses iframes to `preview.html` with URL overrides. Lazy-loads via IntersectionObserver. |
 | `rare-aurora.html`, `rare-ghost.html`, `rare-variable.html` | Forks of preview.html, each with one hardcoded `state.palette`. Used by landing's stain showcase. Engine inlined. |
+| `404.html` | Branded 404 page. Cloudflare Pages serves it automatically for unknown paths. |
 | `asset-template.html` | Asset format template (fixed Twitter/OpenSea dimensions). Used only by `batch_screenshots.py` for downloadable asset packs. Not in user nav. |
-| `specimen-engine.js` | **Shared rendering engine** — exports `window.BiomEngine`. Contains: palettes, weights, all generators, DOM renderer (`renderSpecimen`), **native 2D canvas renderer (`renderSpecimenToCanvas`)** for offline export fallback. Used by `make.html` and `render.html`. |
-| `_headers` | Cloudflare Pages config — cache control + security headers. |
-
-### Backend (Cloudflare Pages Functions)
-
-| File | Role |
-|---|---|
-| `functions/api/render.js` | POST endpoint. Receives `{seed, w, h, tx, ty, scale, rotation, flipX, flipY}`, builds a same-origin URL to `render.html`, calls the Cloudflare Browser Rendering REST API (`/browser-rendering/screenshot`), returns the PNG. Requires `CF_ACCOUNT_ID` (plain env var) and `CF_API_TOKEN` (secret, with `Browser Rendering: Edit` permission) configured in the Pages project. Requires the Workers Paid plan. Same-origin only (CORS allowlist: `thebioms.com` + `*.pages.dev` previews). Hard cap 4000×4000 / 8 MP per render. |
+| `specimen-engine.js` | **Shared rendering engine** — exports `window.BiomEngine`. Contains: palettes, weights, all generators, DOM renderer (`renderSpecimen`), **native 2D canvas renderer (`renderSpecimenToCanvas`)** for offline export fallback. Used by `make.html`. |
+| `favicon.svg`, `og-image.png` | Brand assets — favicon and social-share card. |
+| `sitemap.xml`, `robots.txt`, `_headers` | SEO and HTTP caching/header config. |
 
 ### Mint pipeline (Python, runs locally — NOT deployed)
 
@@ -167,15 +162,17 @@ If you change names of these params, update consumers in `make.html` and `explor
 
 ## Section 5 — Known issues / accepted limitations
 
-### Backdrop-filter in PNG export — SOLVED via Browser Rendering, with fallback
+### Backdrop-filter in PNG export — SOLVED via pre-rendered master PNGs
 
-The Glass effect in DOM uses `backdrop-filter: blur(18px)` — each panel blurs what's behind it. **Canvas API has no equivalent**, so `renderSpecimenToCanvas` only ever approximated the glass via 6-layer panel rendering (highlights, shadows, sheen, overlay blends, border) — no real blur.
+The Glass effect in DOM uses `backdrop-filter: blur(18px)` — each panel blurs what's behind it. **Canvas API has no equivalent**, so `renderSpecimenToCanvas` only ever approximated the glass via 6-layer panel rendering (highlights, shadows, sheen, overlay blends, border) — no real blur. The browser also doesn't expose a way for JS to capture an already-rendered DOM region as an image (intentional, for privacy).
 
-**Current solution:** the Banner Maker's PNG export defaults to the Cloudflare Pages Function `functions/api/render.js`, which uses the Cloudflare Browser Rendering REST API to screenshot `render.html` in a real headless Chromium. `backdrop-filter` works there → pixel-identical output to the live preview.
+**Current solution:** at mint time, `batch_screenshots.py` already renders 3,000 master PNGs of every specimen via Playwright in headless Chromium — which has real `backdrop-filter`. Render those big enough (≥ 2400 px, ideally 3000+), host on Cloudflare R2 at `/pngs/preview/{seed}.png`, and the Banner Maker's PNG export loads that master PNG and composites it onto the target canvas via `canvas.drawImage` with the user's transform. Pixel-identical to the live preview, zero server cost, infinite scale.
 
-**Fallback:** if `/api/render` returns non-2xx (Browser Rendering not configured, account out of minutes, network error, etc.), `make.html` automatically falls back to the local 2D canvas renderer and labels the result in the UI status line as "local fallback (no glass blur)". Existing behavior is preserved.
+**Fallback:** if the master PNG is missing (404, network error, pre-mint state), `make.html` automatically falls back to `renderSpecimenToCanvas` and labels the result in the UI status line as "Local fallback · no glass blur (master PNG unavailable)". Existing behavior is preserved.
 
-Setup steps for Browser Rendering are in `README.md` → "HQ banner render (Cloudflare Browser Rendering)".
+**Previous approach (removed):** an earlier iteration of this used a Cloudflare Pages Function (`functions/api/render.js`) that called Cloudflare Browser Rendering to screenshot a dedicated `render.html` page on demand. That worked but had real costs: Workers Paid plan required, API token to manage, ~10 min/day free quota then per-minute billing, 2-concurrent-session cap, and ~5 s per render. The pre-rendered approach is strictly better since the master PNGs are needed anyway for NFT metadata `image` field. If you redeploy and revive that path, look in git history before commit `<TBD>`.
+
+Setup steps for hosting the master PNGs are in `README.md` → "Hosting pre-rendered PNGs".
 
 ### Engine duplication
 

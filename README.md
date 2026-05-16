@@ -19,25 +19,21 @@ A generative NFT collection of microscopic life forms. Each Biom is rendered cli
 |---|---|
 | `index.html` | Landing page — hero, stain showcase, demo |
 | `preview.html` | Main specimen renderer (animation_url for NFT metadata). Reads `?seed=N` and renders the corresponding Biom with breathing animation and mouse parallax. |
-| `make.html` | Banner Maker — pick a Biom, choose format (Twitter Header, OpenSea Banner, 4K Desktop, custom...), drag/scale/rotate, export single PNG or full asset pack |
-| `render.html` | Headless render page consumed by the `/api/render` Cloudflare Pages Function. Renders one specimen at exact pixel dimensions with caller-supplied transform — used for high-fidelity PNG export with real backdrop-filter glass. |
+| `make.html` | Banner Maker — pick a Biom, choose format (Twitter Header, OpenSea Banner, 4K Desktop, custom...), drag/scale/rotate, export single PNG or full asset pack. Uses the high-res pre-rendered master PNG for the seed (loaded from `/pngs/preview/N.png`) and composites it onto the target canvas. Falls back to the local 2D-canvas renderer if the PNG is missing. |
 | `explore.html` | Trait Explorer — every trait isolated in its own card with academic-style biology description |
 | `rare-aurora.html`, `rare-ghost.html`, `rare-variable.html` | Standalone renderers for rare palettes (used by stain showcase on landing) |
+| `404.html` | Branded 404 page served by Cloudflare Pages for unknown paths |
 | `asset-template.html` | Template used by `batch_screenshots.py` for downloadable assets (Twitter headers, banners, etc.) at fixed dimensions |
-| `specimen-engine.js` | **Shared rendering engine.** All trait generation + DOM and Canvas renderers. Used by `make.html` and `render.html`; the engine is mirrored inline in `preview.html` and the rare files for legacy reasons (kept in sync). |
-
-### Backend (Cloudflare Pages Functions)
-
-| File | What it does |
-|---|---|
-| `functions/api/render.js` | POST endpoint that screenshots `render.html` via Cloudflare Browser Rendering and returns a PNG. Used by the Banner Maker for HQ export with real `backdrop-filter` glass effect. Local canvas renderer in `make.html` is the automatic fallback if the API is not configured. |
+| `specimen-engine.js` | **Shared rendering engine.** All trait generation + DOM and Canvas renderers. Used by `make.html`; the engine is mirrored inline in `preview.html` and the rare files for legacy reasons (kept in sync). |
+| `favicon.svg`, `og-image.png` | Brand assets — favicon and social-share card |
+| `sitemap.xml`, `robots.txt`, `_headers` | SEO + caching config |
 
 ### Mint pipeline (Python — runs locally, not deployed)
 
 | File | What it does |
 |---|---|
 | `generate_metadata.py` | Generates 3,000 ERC-721-compatible JSON metadata files. **RNG parity-verified against the JS engine — same seed always produces identical traits.** |
-| `batch_screenshots.py` | Headless Chromium (via Playwright) renders all 3,000 preview PNGs from `preview.html` |
+| `batch_screenshots.py` | Headless Chromium (via Playwright) renders all 3,000 preview PNGs from `preview.html`. Output feeds both the NFT `image` field **and** the Banner Maker's HQ source. Render large (≥ 2400 px) so banners look crisp at 4K and beyond. |
 
 ## Local development
 
@@ -55,9 +51,10 @@ Most files work via `file://` (double-click in Finder), with two caveats:
 pip3 install playwright
 python3 -m playwright install chromium
 
-# 2. Render all 3,000 PNGs (~45 min on M1/M2)
+# 2. Render all 3,000 master PNGs at high resolution (~2–3 h on M1/M2 at 3000 px).
+#    These PNGs are the source-of-truth for both NFT metadata AND the Banner Maker.
 mkdir -p pngs/preview
-python3 batch_screenshots.py preview.html ./pngs/preview 3000 --workers 6 --size 1500
+python3 batch_screenshots.py preview.html ./pngs/preview 3000 --workers 6 --size 3000
 
 # 3. Generate metadata JSON files
 mkdir -p metadata
@@ -65,14 +62,28 @@ python3 generate_metadata.py ./metadata 3000 \
     --base-image-uri https://thebioms.com/pngs/preview \
     --base-animation-uri https://thebioms.com/preview.html
 
-# 4. Commit pngs/ and metadata/ to the repo (or upload to Cloudflare R2)
+# 4. Host pngs/ — see "Hosting pre-rendered PNGs" below
 # 5. Deploy contract via OpenSea Studio Drop with tokenURI prefix:
 #    https://thebioms.com/metadata/  (Studio appends .json)
 ```
 
+### Hosting pre-rendered PNGs
+
+3,000 master PNGs at 3000×3000 is ~3 GB total — too big to commit to GitHub. Recommended path: **Cloudflare R2** (free up to 10 GB storage, zero egress charges on Workers Paid).
+
+1. Cloudflare dashboard → **R2 → Create bucket**, name it `bioms-pngs`
+2. Upload `pngs/preview/*.png` (use the dashboard for small batches, or `wrangler r2 object put` for scripted upload)
+3. R2 → bucket → **Settings → Custom Domain → Add**: `pngs.thebioms.com`
+4. **R2 → bucket → Settings → CORS Policy**: allow `GET` from `https://thebioms.com` and `https://*.pages.dev`
+5. In `make.html` near the top of the `<script>` block, set:
+   ```js
+   const PNG_BASE = 'https://pngs.thebioms.com';
+   ```
+   (Leave empty if you'd rather serve PNGs from this Pages project at `/pngs/preview/N.png` — works fine but counts against Pages bandwidth.)
+
 ## Deployment
 
-### Cloudflare Pages (recommended)
+### Cloudflare Pages
 
 1. Push this repo to GitHub.
 2. In Cloudflare dashboard: Pages → Create project → Connect to Git → select the repo.
@@ -82,24 +93,6 @@ python3 generate_metadata.py ./metadata 3000 \
    - **Build output directory**: `/`
 4. Add custom domain `thebioms.com` (Cloudflare DNS needs to manage the domain).
 5. Push to `main` → auto-deploy.
-
-### HQ banner render (Cloudflare Browser Rendering)
-
-The Banner Maker exports default to a Pages Function (`functions/api/render.js`) that screenshots `render.html` in a real headless Chromium. This produces pixel-identical output to the live preview, including the `backdrop-filter` glass blur that the local 2D-canvas renderer can't replicate.
-
-If the API is unavailable (not configured, paid plan missing, etc.) the Banner Maker silently falls back to the local canvas renderer and labels the result as such.
-
-**One-time setup:**
-
-1. Subscribe to the **Workers Paid plan** ($5/mo). Browser Rendering requires it.
-2. Cloudflare dashboard → **Workers & Pages → Browser Rendering** → activate for your account.
-3. Create an API token at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) with permission **Account → Browser Rendering → Edit**. Scope it to a single account if possible.
-4. In your Pages project → **Settings → Environment variables (Production)**, add:
-   - `CF_ACCOUNT_ID` — your account ID (plain text)
-   - `CF_API_TOKEN` — the token from step 3 (encrypt as secret)
-5. Trigger a redeploy (push any commit, or use the Pages UI).
-
-Typical NFT-holder usage (a handful of exports/day) sits well within the included Browser Rendering minutes. If you don't want this feature, skip the setup — the local fallback will be used automatically.
 
 ### Email on `thebioms.com` (free)
 
@@ -146,7 +139,7 @@ See chat history for full design.
 ## Tech stack
 
 - **Frontend**: vanilla HTML/CSS/JS — no framework, no build step. Loads in a single network round-trip per page.
-- **Rendering engine**: DOM panels with `backdrop-filter` for the live glass effect; HQ PNG export via Cloudflare Browser Rendering screenshot of `render.html` (real Chromium → real blur), with native 2D Canvas as offline fallback
+- **Rendering**: DOM panels with `backdrop-filter` for the live preview; HQ PNG export composites the pre-rendered master PNG via `canvas.drawImage` (zero server, infinite scale). Native 2D Canvas fallback if a master PNG is missing.
 - **RNG**: `mulberry32` deterministic PRNG, identical implementation in JS (`specimen-engine.js`, `preview.html`) and Python (`generate_metadata.py`). 3000/3000 trait parity verified.
 - **Metadata standard**: ERC-721 + OpenSea extensions
 

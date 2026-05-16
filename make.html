@@ -443,6 +443,22 @@
 
 <script>
 // =========================================================================
+// CONFIG
+// =========================================================================
+// Where the pre-rendered specimen PNGs live. Used by the HQ export path:
+// we load the high-res master PNG, composite it onto the target canvas with
+// the user's transform, and download. Pixel-identical to preview.html /
+// the live DOM render because the master PNG was itself screenshotted from
+// preview.html during the mint pipeline (batch_screenshots.py).
+//
+// Set to '' for same-origin (/pngs/preview/N.png served from this Pages
+// project), or 'https://pngs.thebioms.com' for an R2 custom-domain bucket.
+// If a PNG is missing or fails to load, the local 2D-canvas renderer takes
+// over automatically — no crash, just slightly less faithful glass effect.
+const PNG_BASE = '';
+const PNG_PATH = (seed) => `${PNG_BASE}/pngs/preview/${seed}.png`;
+
+// =========================================================================
 // FORMATS + TEMPLATES
 // =========================================================================
 const FORMATS = [
@@ -528,6 +544,45 @@ const packBtn        = document.getElementById('packBtn');
 // =========================================================================
 // RENDER SPECIMEN
 // =========================================================================
+// Live preview always uses the DOM renderer — instant feedback as the user
+// scrubs seeds and transforms. Export uses the pre-rendered PNG when it's
+// loaded (HQ path), or falls back to the local canvas renderer.
+
+let specimenImg = null;        // HTMLImageElement once loaded
+let specimenImgSeed = null;    // seed it was loaded for
+let specimenImgError = null;   // last load error, if any
+
+function preloadSpecimen(seed) {
+  specimenImg = null;
+  specimenImgError = null;
+  specimenImgSeed = seed;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';  // needed for canvas.drawImage → toBlob
+  img.onload = () => {
+    if (specimenImgSeed !== seed) return;  // raced past — ignore
+    specimenImg = img;
+    updateExportStatus();
+  };
+  img.onerror = (e) => {
+    if (specimenImgSeed !== seed) return;
+    specimenImgError = e;
+    updateExportStatus();
+  };
+  img.src = PNG_PATH(seed);
+}
+
+function updateExportStatus() {
+  if (!renderStatusEl) return;
+  if (renderStatusEl.dataset.locked === '1') return;  // active render in progress
+  if (specimenImg) {
+    setRenderStatus('Pre-rendered HQ source ready · pixel-perfect export', 'ok');
+  } else if (specimenImgError) {
+    setRenderStatus('No pre-rendered PNG for this seed · export will use local fallback', 'warn');
+  } else {
+    setRenderStatus('Loading HQ source…');
+  }
+}
+
 function renderLive() {
   if (!window.BiomEngine) return;
   window.BiomEngine.renderSpecimen(liveComp, state.seed, { isFitMode: true });
@@ -538,6 +593,7 @@ function setSeed(seed) {
   state.seed = seed;
   seedInput.value = seed;
   renderLive();
+  preloadSpecimen(seed);
 }
 
 // =========================================================================
@@ -760,12 +816,17 @@ seedInput.addEventListener('change', () => {
 randomBtn.addEventListener('click', () => setSeed(Math.floor(Math.random() * 3000)));
 
 // =========================================================================
-// DOWNLOAD — cloud HQ render via /api/render, with local canvas fallback
+// DOWNLOAD — pre-rendered PNG composited via canvas, with local fallback
 // =========================================================================
-// Cloud path uses Cloudflare Browser Rendering on render.html → real Chromium
-// with real backdrop-filter glass effect, pixel-identical to the live preview.
-// Local path is the legacy native-canvas renderer — works offline but has no
-// backdrop-filter blur. Falls through automatically if the API isn't reachable.
+// HQ path: take the pre-rendered master PNG for this seed (1500–4000px,
+// rendered at mint time by batch_screenshots.py), apply the user's
+// transform via canvas.drawImage, export. Zero server cost, instant,
+// pixel-identical to the live preview because the master PNG was itself
+// screenshotted from preview.html in real Chromium.
+//
+// Local fallback: native 2D-canvas renderer — works without the master
+// PNG (useful pre-mint or for missing seeds), but lacks backdrop-filter
+// blur, so the glass effect is approximate.
 
 const renderStatusEl = document.getElementById('renderStatus');
 function setRenderStatus(msg, tone) {
@@ -784,25 +845,39 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-async function cloudRender(seed, w, h, opts) {
-  const resp = await fetch('/api/render', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      seed, w, h,
-      tx: opts.tx, ty: opts.ty,
-      scale: opts.scale, rotation: opts.rotation,
-      flipX: opts.flipX, flipY: opts.flipY,
-    }),
+// Pre-rendered HQ path: composite specimenImg onto target canvas with the
+// user's transform. Matches the CSS transform applied to .specimen-host:
+//   translate(-50%,-50%) translate(txPx,tyPx) scale(fx,fy) rotate(rot)
+function hqRender(w, h, opts) {
+  return new Promise((resolve, reject) => {
+    try {
+      if (!specimenImg) throw new Error('specimen img not loaded');
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+
+      const baseSize = Math.min(w, h);
+      const drawSize = baseSize * opts.scale;
+      const cx = w / 2 + opts.tx * baseSize / 100;
+      const cy = h / 2 + opts.ty * baseSize / 100;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(opts.rotation * Math.PI / 180);
+      ctx.scale(opts.flipX, opts.flipY);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(specimenImg, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+      ctx.restore();
+
+      c.toBlob((blob) => {
+        if (!blob) return reject(new Error('toBlob returned null'));
+        resolve(blob);
+      }, 'image/png');
+    } catch (e) { reject(e); }
   });
-  if (!resp.ok) {
-    let detail = '';
-    try { detail = JSON.stringify(await resp.json()); } catch { detail = String(resp.status); }
-    throw new Error(`HTTP ${resp.status} ${detail}`);
-  }
-  const ct = resp.headers.get('Content-Type') || '';
-  if (!ct.includes('image/')) throw new Error(`unexpected content-type: ${ct}`);
-  return await resp.blob();
 }
 
 function localRender(seed, w, h, opts) {
@@ -828,21 +903,23 @@ function localRender(seed, w, h, opts) {
   });
 }
 
-// Returns { source: 'cloud' | 'local', cloudError?: Error }
+// Returns { source: 'hq' | 'local' }
 async function renderAndDownload(seed, w, h, formatId, opts) {
   const filename = `bioms-biom-${seed}-${formatId}-${w}x${h}.png`;
-  let cloudError = null;
-  try {
-    const blob = await cloudRender(seed, w, h, opts);
-    downloadBlob(blob, filename);
-    return { source: 'cloud' };
-  } catch (e) {
-    cloudError = e;
-    console.warn('Cloud render failed, falling back to local:', e);
+
+  if (specimenImg && specimenImgSeed === seed) {
+    try {
+      const blob = await hqRender(w, h, opts);
+      downloadBlob(blob, filename);
+      return { source: 'hq' };
+    } catch (e) {
+      console.warn('HQ render failed, falling back to local:', e);
+    }
   }
+
   const blob = await localRender(seed, w, h, opts);
   downloadBlob(blob, filename);
-  return { source: 'local', cloudError };
+  return { source: 'local' };
 }
 
 downloadBtn.addEventListener('click', async () => {
@@ -852,13 +929,14 @@ downloadBtn.addEventListener('click', async () => {
 
   downloadBtn.textContent = `Rendering ${w}×${h}...`;
   downloadBtn.disabled = true;
+  renderStatusEl.dataset.locked = '1';
   setRenderStatus('Rendering…');
   try {
     const result = await renderAndDownload(state.seed, w, h, f.id, state);
-    if (result.source === 'cloud') {
-      setRenderStatus('Cloud HQ render · real glass blur', 'ok');
+    if (result.source === 'hq') {
+      setRenderStatus('Pre-rendered HQ · real glass blur', 'ok');
     } else {
-      setRenderStatus('Local fallback · no glass blur (cloud unavailable)', 'warn');
+      setRenderStatus('Local fallback · no glass blur (master PNG unavailable)', 'warn');
     }
   } catch (err) {
     console.error('Download failed:', err);
@@ -867,6 +945,7 @@ downloadBtn.addEventListener('click', async () => {
   } finally {
     downloadBtn.textContent = 'Download PNG';
     downloadBtn.disabled = false;
+    renderStatusEl.dataset.locked = '';
   }
 });
 
@@ -879,7 +958,8 @@ packBtn.addEventListener('click', async () => {
   const formats = FORMATS.filter(f => f.id !== 'custom');
   packBtn.disabled = true;
   downloadBtn.disabled = true;
-  let cloudCount = 0, localCount = 0;
+  renderStatusEl.dataset.locked = '1';
+  let hqCount = 0, localCount = 0;
   try {
     for (let i = 0; i < formats.length; i++) {
       const f = formats[i];
@@ -891,24 +971,29 @@ packBtn.addEventListener('click', async () => {
         scale: tpl.scale, rotation: tpl.rot,
         flipX: tpl.fx, flipY: tpl.fy,
       });
-      if (result.source === 'cloud') cloudCount++; else localCount++;
+      if (result.source === 'hq') hqCount++; else localCount++;
       // small gap so the browser handles each download cleanly
       await new Promise(r => setTimeout(r, 350));
     }
     packBtn.textContent = '✓ Pack downloaded';
     if (localCount === 0) {
-      setRenderStatus(`Pack: ${cloudCount}/${formats.length} cloud HQ`, 'ok');
-    } else if (cloudCount === 0) {
+      setRenderStatus(`Pack: ${hqCount}/${formats.length} pre-rendered HQ`, 'ok');
+    } else if (hqCount === 0) {
       setRenderStatus(`Pack: ${localCount}/${formats.length} local fallback (no glass blur)`, 'warn');
     } else {
-      setRenderStatus(`Pack: ${cloudCount} cloud HQ, ${localCount} local fallback`, 'warn');
+      setRenderStatus(`Pack: ${hqCount} HQ, ${localCount} local fallback`, 'warn');
     }
-    setTimeout(() => { packBtn.textContent = PACK_LABEL; }, 2200);
+    setTimeout(() => {
+      packBtn.textContent = PACK_LABEL;
+      renderStatusEl.dataset.locked = '';
+      updateExportStatus();
+    }, 2200);
   } catch (err) {
     console.error('Pack failed:', err);
     alert('Pack failed: ' + err.message);
     packBtn.textContent = PACK_LABEL;
     setRenderStatus('Pack failed', 'warn');
+    renderStatusEl.dataset.locked = '';
   } finally {
     packBtn.disabled = false;
     downloadBtn.disabled = false;
@@ -922,6 +1007,7 @@ buildTemplateButtons();
 
 // Initial render
 renderLive();
+preloadSpecimen(state.seed);
 applyTransform();
 document.querySelector('.template-btn[data-id="center"]').classList.add('active');
 
