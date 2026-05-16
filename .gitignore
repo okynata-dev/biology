@@ -1,0 +1,31 @@
+# Mint pipeline output (generated locally, may be uploaded to R2 instead of git)
+pngs/
+metadata/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Node (if ever added)
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Secrets / local config
+.env
+.env.local
+.dev.vars

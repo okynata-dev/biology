@@ -1,0 +1,22 @@
+# Cloudflare Pages — HTTP headers
+# https://developers.cloudflare.com/pages/configuration/headers/
+
+/*
+  X-Frame-Options: SAMEORIGIN
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# Metadata — short cache so mutations can refresh quickly (Phase 2)
+/metadata/*
+  Cache-Control: public, max-age=300, s-maxage=300
+
+# Token PNGs — immutable, cache forever
+/pngs/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Engine + HTML — cache for a day, then revalidate
+/specimen-engine.js
+  Cache-Control: public, max-age=86400, must-revalidate
+
+/*.html
+  Cache-Control: public, max-age=3600, must-revalidate

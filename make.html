@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bioms · Banner Maker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ece9e0;
+    --paper: #f4f1e8;
+    --ink: #1c1a16;
+    --ink-2: #5b554a;
+    --ink-3: #8b8576;
+    --rule: rgba(28, 26, 22, 0.12);
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    line-height: 1.55;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+    z-index: 1;
+  }
+
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    padding: 20px 32px;
+    display: flex; justify-content: space-between; align-items: baseline;
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    background: rgba(236, 233, 224, 0.78);
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand { font-size: 17px; font-weight: 500; }
+  .nav-links { display: flex; gap: 18px; font-size: 14px; color: var(--ink-2); }
+  .nav-links a { text-decoration: none; color: var(--ink-2); }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-links a.active { color: var(--ink); font-weight: 500; }
+
+  section { padding: 36px 32px; position: relative; z-index: 2; }
+  .wrap { max-width: 1320px; margin: 0 auto; }
+
+  h1 {
+    font-size: clamp(30px, 3.5vw, 44px);
+    line-height: 1.05; letter-spacing: -0.02em;
+    font-weight: 500; margin-bottom: 14px;
+  }
+  .lead {
+    font-size: 16px; color: var(--ink-2);
+    max-width: 640px; margin-bottom: 30px;
+  }
+
+  .workspace {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 28px; align-items: start;
+  }
+  @media (max-width: 900px) {
+    .workspace { grid-template-columns: 1fr; }
+  }
+
+  .canvas-wrap {
+    background: var(--paper);
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06);
+    display: flex; flex-direction: column; align-items: center;
+  }
+
+  /* The visible canvas — display surface */
+  .canvas {
+    position: relative;
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid var(--rule);
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .canvas.dragging { cursor: grabbing; }
+
+  /* Specimen container — square, sized in pixels, scaled visually if needed */
+  .specimen-host {
+    position: absolute;
+    left: 50%; top: 50%;
+    /* Width and height set dynamically by JS to maintain square */
+    transform-origin: center center;
+    will-change: transform;
+    pointer-events: none;
+  }
+  .specimen-stage {
+    position: relative;
+    width: 100%; height: 100%;
+    overflow: visible;  /* allow capsule edge bleed if user scales up — canvas clips */
+  }
+  .composition {
+    position: absolute;
+    inset: 0;
+    /* No perspective — engine uses z-index 2D layering for download compatibility */
+  }
+
+  /* === GLASS PANEL — copied from preview.html === */
+  .panel {
+    position: absolute;
+    backdrop-filter: blur(18px) saturate(1.5) brightness(1.04);
+    -webkit-backdrop-filter: blur(18px) saturate(1.5) brightness(1.04);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.95),
+      inset 0 4px 8px rgba(255, 255, 255, 0.5),
+      inset 0 -2px 4px rgba(0, 0, 0, 0.12),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      inset 2px 0 4px rgba(255, 255, 255, 0.3),
+      inset -2px 0 4px rgba(0, 0, 0, 0.04),
+      0 4px 12px rgba(0, 0, 0, 0.06),
+      0 12px 32px rgba(0, 0, 0, 0.08),
+      0 24px 60px rgba(0, 0, 0, 0.06);
+    border: 0.5px solid rgba(255, 255, 255, 0.7);
+    transform-style: preserve-3d;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .panel.lite {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .panel.capsule-layer {
+    backdrop-filter: blur(4px) saturate(1.2) brightness(1.02);
+    -webkit-backdrop-filter: blur(4px) saturate(1.2) brightness(1.02);
+  }
+  .panel::before {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    background:
+      linear-gradient(135deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.2) 22%,
+        rgba(255, 255, 255, 0.5) 32%,
+        rgba(255, 255, 255, 0.18) 40%,
+        rgba(255, 255, 255, 0) 55%),
+      radial-gradient(ellipse 70% 80% at 50% 30%,
+        rgba(255, 255, 255, 0.4) 0%,
+        rgba(255, 255, 255, 0.1) 38%,
+        rgba(255, 255, 255, 0) 65%);
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+  .panel::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.7 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+    opacity: 0.08;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+
+  .canvas-hint {
+    position: absolute;
+    bottom: 8px; right: 12px;
+    font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    pointer-events: none; opacity: 0.6;
+  }
+
+  .canvas-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    width: 100%; margin-top: 14px;
+    font-size: 12px; color: var(--ink-3);
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    text-transform: uppercase;
+  }
+  .canvas-meta .res { color: var(--ink-2); }
+
+  .controls { display: flex; flex-direction: column; gap: 12px; }
+  .ctrl-group {
+    background: var(--paper);
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid var(--rule);
+  }
+  .ctrl-label {
+    font-size: 10px; color: var(--ink-3);
+    letter-spacing: 0.22em; text-transform: uppercase;
+    margin-bottom: 10px; font-weight: 500;
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .ctrl-label .val {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2); font-weight: 600;
+  }
+
+  .format-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .format-btn {
+    background: white; border: 1px solid var(--rule); border-radius: 7px;
+    padding: 8px 7px; cursor: pointer; font-family: inherit;
+    text-align: left; transition: all 0.15s;
+  }
+  .format-btn:hover { border-color: var(--ink-2); }
+  .format-btn.active {
+    background: var(--ink); color: var(--bg); border-color: var(--ink);
+  }
+  .format-btn .fname { display: block; font-size: 11px; font-weight: 500; }
+  .format-btn .fsize {
+    display: block; font-size: 9px; color: var(--ink-3);
+    letter-spacing: 0.04em; font-variant-numeric: tabular-nums;
+  }
+  .format-btn.active .fsize { color: rgba(236, 233, 224, 0.6); }
+
+  .custom-row { display: none; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 6px; }
+  .custom-row.visible { display: grid; }
+
+  .seed-row { display: flex; gap: 5px; align-items: stretch; }
+  .seed-input, .num-input {
+    flex: 1;
+    border: 1px solid var(--rule); background: white;
+    border-radius: 7px; padding: 9px 10px;
+    font-size: 13px; font-variant-numeric: tabular-nums;
+    font-family: -apple-system, "SF Mono", monospace;
+    color: var(--ink);
+  }
+  .seed-input:focus, .num-input:focus { outline: 2px solid var(--ink); outline-offset: -1px; }
+
+  .slider {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px;
+    background: var(--rule); border-radius: 2px;
+    outline: none; cursor: pointer;
+  }
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px;
+    background: var(--ink); border-radius: 50%; cursor: pointer;
+  }
+  .slider::-moz-range-thumb {
+    width: 16px; height: 16px;
+    background: var(--ink); border-radius: 50%; border: 0; cursor: pointer;
+  }
+
+  .flip-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+
+  .btn {
+    border: 1px solid var(--ink); background: var(--ink); color: var(--bg);
+    border-radius: 7px; padding: 10px 14px;
+    font-size: 12px; letter-spacing: 0.04em; font-weight: 500;
+    cursor: pointer; text-decoration: none; text-align: center;
+    font-family: inherit; transition: opacity 0.15s;
+    display: inline-block; width: 100%;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.5; cursor: wait; }
+  .btn.secondary { background: transparent; color: var(--ink); }
+  .btn.small { padding: 8px 10px; font-size: 11px; width: auto; }
+
+  .template-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;
+  }
+  .template-btn {
+    background: white; border: 1px solid var(--rule); border-radius: 7px;
+    aspect-ratio: 1; cursor: pointer; position: relative; overflow: hidden;
+    padding: 0; transition: border-color 0.15s;
+  }
+  .template-btn:hover { border-color: var(--ink-2); }
+  .template-btn.active { border-color: var(--ink); border-width: 2px; }
+  .template-btn .ticon {
+    position: absolute;
+    background: rgba(28,26,22,0.65);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .template-btn .tlabel {
+    position: absolute;
+    bottom: 2px; left: 0; right: 0;
+    text-align: center;
+    font-size: 8px; letter-spacing: 0.04em;
+    color: var(--ink-3); text-transform: uppercase; font-weight: 500;
+  }
+  .template-btn.active .tlabel { color: var(--ink); }
+
+  /* Hidden render stage — same .panel CSS applies thanks to global styles */
+  .render-stage {
+    position: fixed; left: -99999px; top: 0;
+    pointer-events: none; overflow: hidden;
+  }
+  .render-stage .render-canvas {
+    position: relative; background: #ffffff; overflow: hidden;
+  }
+  .render-stage .specimen-host {
+    /* same as visible — sized in JS */
+  }
+
+  footer {
+    padding: 32px;
+    font-size: 13px; color: var(--ink-3);
+    text-align: center;
+    border-top: 1px solid var(--rule);
+    position: relative; z-index: 2;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="brand">Bioms</div>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="explore.html">Explore</a>
+    <a href="make.html" class="active">Banners</a>
+  </div>
+</nav>
+
+<section>
+  <div class="wrap">
+    <h1>Banner Maker.</h1>
+    <p class="lead">
+      Drag the Biom to position. Scroll or use the slider to resize. Rotate, flip, do whatever. Export at full resolution.
+    </p>
+
+    <div class="workspace">
+      <div class="canvas-wrap">
+        <div class="canvas" id="canvas" style="aspect-ratio: 3/1;">
+          <div class="specimen-host" id="specimenHost">
+            <div class="specimen-stage">
+              <div class="composition" id="liveComp"></div>
+            </div>
+          </div>
+          <div class="canvas-hint">Drag · scroll to zoom</div>
+        </div>
+        <div class="canvas-meta">
+          <span id="metaSeed">BIOM #247</span>
+          <span class="res" id="metaRes">1500 × 500 · Twitter Header · PNG</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="ctrl-group">
+          <div class="ctrl-label">Format</div>
+          <div class="format-grid" id="formatGrid"></div>
+          <div class="custom-row" id="customRow">
+            <input type="number" class="num-input" id="customW" placeholder="W" min="100" max="8000" />
+            <input type="number" class="num-input" id="customH" placeholder="H" min="100" max="8000" />
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-label">Biom</div>
+          <div class="seed-row">
+            <input id="seedInput" class="seed-input" type="number" min="0" max="2999" value="247" />
+            <button class="btn secondary small" id="randomBtn">⤴</button>
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-label"><span>Scale</span><span class="val" id="scaleVal">100%</span></div>
+          <input type="range" class="slider" id="scaleSlider" min="10" max="400" value="100" step="1" />
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-label"><span>Rotation</span><span class="val" id="rotVal">0°</span></div>
+          <input type="range" class="slider" id="rotSlider" min="-180" max="180" value="0" step="1" />
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-label">Flip</div>
+          <div class="flip-row">
+            <button class="btn secondary" id="flipHBtn">↔ Horizontal</button>
+            <button class="btn secondary" id="flipVBtn">↕ Vertical</button>
+          </div>
+        </div>
+
+        <div class="ctrl-group">
+          <div class="ctrl-label">Layouts</div>
+          <div class="template-grid" id="templateGrid"></div>
+        </div>
+
+        <button class="btn secondary" id="resetBtn">Reset transform</button>
+        <button class="btn" id="downloadBtn">Download PNG</button>
+        <button class="btn secondary" id="packBtn" title="Download all 7 standard formats in one go. Each gets its own smart auto-layout.">Download all 7 formats</button>
+        <div style="font-size: 10px; color: var(--ink-3); text-align: center; letter-spacing: 0.04em; margin-top: -4px; text-transform: uppercase;">
+          Pack uses smart auto-layout per format
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Hidden render stage — sized to target output, same DOM structure -->
+<div class="render-stage" id="renderStage" aria-hidden="true">
+  <div class="render-canvas" id="renderCanvas">
+    <div class="specimen-host" id="renderHost">
+      <div class="specimen-stage">
+        <div class="composition" id="renderComp"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Bioms · Series I · 2026 · <a href="https://thebioms.com">thebioms.com</a> · <a href="https://twitter.com/theBioms">@theBioms</a>
+</footer>
+
+<script src="specimen-engine.js"></script>
+
+<script>
+// =========================================================================
+// FORMATS + TEMPLATES
+// =========================================================================
+const FORMATS = [
+  { id: 'twitter_header', label: 'Twitter Header', w: 1500, h: 500 },
+  { id: 'twitter_post',   label: 'Twitter Post',   w: 1200, h: 675 },
+  { id: 'opensea_banner', label: 'OpenSea Banner', w: 1400, h: 400 },
+  { id: 'opensea_pfp',    label: 'OpenSea PFP',    w: 400,  h: 400 },
+  { id: 'instagram_sq',   label: 'Instagram',      w: 1080, h: 1080 },
+  { id: 'phone',          label: 'Phone',          w: 1080, h: 1920 },
+  { id: 'desktop_4k',     label: '4K Desktop',     w: 3840, h: 2160 },
+  { id: 'custom',         label: 'Custom...',      w: null, h: null },
+];
+
+const TEMPLATES = [
+  { id: 'center',    label: 'Center',   x:   0, y:   0, scale: 1.0, rot:   0, fx: 1, fy: 1 },
+  { id: 'hero',      label: 'Hero',     x:   0, y:   0, scale: 1.3, rot:   0, fx: 1, fy: 1 },
+  { id: 'left',      label: 'Left',     x: -28, y:   0, scale: 0.85, rot:   0, fx: 1, fy: 1 },
+  { id: 'right',     label: 'Right',    x:  28, y:   0, scale: 0.85, rot:   0, fx: 1, fy: 1 },
+  { id: 'top',       label: 'Top',      x:   0, y: -22, scale: 0.85, rot:   0, fx: 1, fy: 1 },
+  { id: 'corner',    label: 'Corner',   x:  28, y: -22, scale: 0.55, rot:  12, fx: 1, fy: 1 },
+  { id: 'tilt',      label: 'Tilt',     x: -15, y: -12, scale: 0.9, rot: -15, fx: 1, fy: 1 },
+  { id: 'lying',     label: 'Lying',    x:   0, y:   0, scale: 1.0, rot:  90, fx: 1, fy: 1 },
+  { id: 'mirror',    label: 'Mirror',   x: -18, y:   0, scale: 0.85, rot:   0, fx:-1, fy: 1 },
+  { id: 'small',     label: 'Small',    x:   0, y:   0, scale: 0.5, rot:   0, fx: 1, fy: 1 },
+  { id: 'flip',      label: 'Flip',     x:   0, y:   0, scale: 1.0, rot:   0, fx: 1, fy:-1 },
+  { id: 'diagonal',  label: 'Diagonal', x:  18, y: -12, scale: 0.85, rot:  30, fx: 1, fy: 1 },
+];
+
+const FORMAT_DEFAULTS = {
+  twitter_header: 'right',
+  twitter_post:   'center',
+  opensea_banner: 'center',
+  opensea_pfp:    'hero',
+  instagram_sq:   'hero',
+  phone:          'top',
+  desktop_4k:     'center',
+  custom:         'center',
+};
+
+// =========================================================================
+// STATE
+// =========================================================================
+// tx/ty are stored as percent of "baseSize" (= min(canvas w, h)). That makes
+// offsets scale-invariant and resolution-independent — same numbers work
+// for preview pixel coords AND target render pixel coords.
+const state = {
+  seed: 247,
+  format: FORMATS[0],
+  customW: 1500,
+  customH: 500,
+  tx: 0,  ty: 0,  scale: 1,  rotation: 0,  flipX: 1,  flipY: 1,
+};
+
+// =========================================================================
+// REFS
+// =========================================================================
+const canvas         = document.getElementById('canvas');
+const specimenHost   = document.getElementById('specimenHost');
+const liveComp       = document.getElementById('liveComp');
+const renderStage    = document.getElementById('renderStage');
+const renderCanvas   = document.getElementById('renderCanvas');
+const renderHost     = document.getElementById('renderHost');
+const renderComp     = document.getElementById('renderComp');
+const seedInput      = document.getElementById('seedInput');
+const randomBtn      = document.getElementById('randomBtn');
+const formatGrid     = document.getElementById('formatGrid');
+const customRow      = document.getElementById('customRow');
+const customW        = document.getElementById('customW');
+const customH        = document.getElementById('customH');
+const scaleSlider    = document.getElementById('scaleSlider');
+const scaleVal       = document.getElementById('scaleVal');
+const rotSlider      = document.getElementById('rotSlider');
+const rotVal         = document.getElementById('rotVal');
+const flipHBtn       = document.getElementById('flipHBtn');
+const flipVBtn       = document.getElementById('flipVBtn');
+const resetBtn       = document.getElementById('resetBtn');
+const downloadBtn    = document.getElementById('downloadBtn');
+const metaSeed       = document.getElementById('metaSeed');
+const metaRes        = document.getElementById('metaRes');
+const templateGrid   = document.getElementById('templateGrid');
+const packBtn        = document.getElementById('packBtn');
+
+// =========================================================================
+// RENDER SPECIMEN
+// =========================================================================
+function renderLive() {
+  if (!window.BiomEngine) return;
+  window.BiomEngine.renderSpecimen(liveComp, state.seed, { isFitMode: true });
+  metaSeed.textContent = `BIOM #${state.seed}`;
+}
+
+function setSeed(seed) {
+  state.seed = seed;
+  seedInput.value = seed;
+  renderLive();
+}
+
+// =========================================================================
+// TRANSFORM — DOM-size driven (NOT css scale transform!)
+// =========================================================================
+// We resize the specimen-host element in real pixels by `state.scale`. This
+// causes the DOM to reflow → backdrop-filter, box-shadow, border-radius all
+// recompute at the new size → quality preserved at any zoom level.
+// CSS transform only does translate/flip/rotate, NOT scale.
+function applyTransform() {
+  const rect = canvas.getBoundingClientRect();
+  const baseSize = Math.min(rect.width, rect.height);
+  const finalSize = baseSize * state.scale;
+  specimenHost.style.width  = finalSize + 'px';
+  specimenHost.style.height = finalSize + 'px';
+  // Convert tx/ty (% of baseSize) to px for the translate component
+  const txPx = state.tx * baseSize / 100;
+  const tyPx = state.ty * baseSize / 100;
+  specimenHost.style.transform =
+    `translate(-50%, -50%) translate(${txPx}px, ${tyPx}px) scale(${state.flipX}, ${state.flipY}) rotate(${state.rotation}deg)`;
+}
+
+// =========================================================================
+// FORMAT BUTTONS
+// =========================================================================
+FORMATS.forEach((f, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'format-btn' + (i === 0 ? ' active' : '');
+  btn.dataset.id = f.id;
+  btn.innerHTML = `<span class="fname">${f.label}</span><span class="fsize">${f.w && f.h ? f.w + ' × ' + f.h : 'W × H'}</span>`;
+  btn.addEventListener('click', () => selectFormat(f));
+  formatGrid.appendChild(btn);
+});
+
+function selectFormat(f) {
+  state.format = f;
+  document.querySelectorAll('.format-btn').forEach(b => b.classList.toggle('active', b.dataset.id === f.id));
+  if (f.id === 'custom') {
+    customRow.classList.add('visible');
+    customW.value = state.customW;
+    customH.value = state.customH;
+    updateCanvasAspect(state.customW, state.customH);
+    updateMeta(state.customW, state.customH, 'Custom');
+  } else {
+    customRow.classList.remove('visible');
+    updateCanvasAspect(f.w, f.h);
+    updateMeta(f.w, f.h, f.label);
+  }
+  // Auto-apply best layout AFTER canvas resizes (otherwise baseSize is wrong)
+  requestAnimationFrame(() => {
+    const def = TEMPLATES.find(t => t.id === (FORMAT_DEFAULTS[f.id] || 'center'));
+    if (def) applyTemplate(def);
+  });
+}
+
+function updateCanvasAspect(w, h) {
+  canvas.style.aspectRatio = `${w}/${h}`;
+  if (h > w * 1.2) {
+    canvas.style.maxHeight = '620px';
+    canvas.style.maxWidth = `${620 * w / h}px`;
+    canvas.style.marginLeft = 'auto';
+    canvas.style.marginRight = 'auto';
+  } else {
+    canvas.style.maxHeight = 'none';
+    canvas.style.maxWidth = '100%';
+    canvas.style.marginLeft = '';
+    canvas.style.marginRight = '';
+  }
+}
+
+function updateMeta(w, h, label) {
+  metaRes.textContent = `${w} × ${h} · ${label} · PNG`;
+}
+
+[customW, customH].forEach(inp => {
+  inp.addEventListener('input', () => {
+    if (state.format.id !== 'custom') return;
+    state.customW = Math.max(100, Math.min(8000, parseInt(customW.value, 10) || 100));
+    state.customH = Math.max(100, Math.min(8000, parseInt(customH.value, 10) || 100));
+    updateCanvasAspect(state.customW, state.customH);
+    updateMeta(state.customW, state.customH, 'Custom');
+    requestAnimationFrame(applyTransform);
+  });
+});
+
+// =========================================================================
+// TEMPLATE BUTTONS
+// =========================================================================
+function buildTemplateButtons() {
+  TEMPLATES.forEach((t) => {
+    const btn = document.createElement('button');
+    btn.className = 'template-btn';
+    btn.dataset.id = t.id;
+    btn.title = t.label;
+    const iconLeft  = 50 + (t.x / 2);
+    const iconTop   = 50 + (t.y / 2);
+    const iconSize  = Math.max(15, Math.min(70, t.scale * 35));
+    btn.innerHTML = `
+      <span class="ticon" style="left: ${iconLeft}%; top: ${iconTop}%; width: ${iconSize}%; height: ${iconSize}%; transform: translate(-50%, -50%) rotate(${t.rot}deg) scale(${t.fx}, ${t.fy});"></span>
+      <span class="tlabel">${t.label}</span>
+    `;
+    btn.addEventListener('click', () => applyTemplate(t));
+    templateGrid.appendChild(btn);
+  });
+}
+
+function applyTemplate(t) {
+  state.tx = t.x; state.ty = t.y;
+  state.scale = t.scale;
+  state.rotation = t.rot;
+  state.flipX = t.fx; state.flipY = t.fy;
+  scaleSlider.value = Math.round(t.scale * 100);
+  scaleVal.textContent = Math.round(t.scale * 100) + '%';
+  rotSlider.value = t.rot;
+  rotVal.textContent = t.rot + '°';
+  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.id === t.id));
+  applyTransform();
+}
+
+// =========================================================================
+// DRAG (mouse + touch)
+// =========================================================================
+let isDragging = false;
+let dragStart = null;
+
+function startDrag(clientX, clientY) {
+  isDragging = true;
+  canvas.classList.add('dragging');
+  const rect = canvas.getBoundingClientRect();
+  const baseSize = Math.min(rect.width, rect.height);
+  dragStart = {
+    x: clientX, y: clientY,
+    baseSize: baseSize,
+    sx: state.tx, sy: state.ty,
+  };
+}
+
+function moveDrag(clientX, clientY) {
+  if (!isDragging) return;
+  // dx/dy in pixels → convert to % of baseSize (matches state.tx/ty units)
+  const dxPct = ((clientX - dragStart.x) / dragStart.baseSize) * 100;
+  const dyPct = ((clientY - dragStart.y) / dragStart.baseSize) * 100;
+  state.tx = dragStart.sx + dxPct;
+  state.ty = dragStart.sy + dyPct;
+  applyTransform();
+}
+
+function endDrag() {
+  isDragging = false;
+  canvas.classList.remove('dragging');
+}
+
+canvas.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); });
+window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+window.addEventListener('mouseup', endDrag);
+
+canvas.addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 1) return;
+  startDrag(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  if (!isDragging || e.touches.length !== 1) return;
+  e.preventDefault();
+  moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+canvas.addEventListener('touchend', endDrag);
+
+// =========================================================================
+// SCROLL TO ZOOM
+// =========================================================================
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.06 : 0.94;
+  state.scale = Math.max(0.1, Math.min(4, state.scale * factor));
+  scaleSlider.value = Math.round(state.scale * 100);
+  scaleVal.textContent = Math.round(state.scale * 100) + '%';
+  applyTransform();
+}, { passive: false });
+
+// =========================================================================
+// SLIDERS / BUTTONS
+// =========================================================================
+scaleSlider.addEventListener('input', () => {
+  state.scale = parseFloat(scaleSlider.value) / 100;
+  scaleVal.textContent = scaleSlider.value + '%';
+  applyTransform();
+  deselectTemplates();
+});
+
+rotSlider.addEventListener('input', () => {
+  state.rotation = parseFloat(rotSlider.value);
+  rotVal.textContent = rotSlider.value + '°';
+  applyTransform();
+  deselectTemplates();
+});
+
+flipHBtn.addEventListener('click', () => { state.flipX *= -1; applyTransform(); deselectTemplates(); });
+flipVBtn.addEventListener('click', () => { state.flipY *= -1; applyTransform(); deselectTemplates(); });
+
+resetBtn.addEventListener('click', () => {
+  state.tx = 0; state.ty = 0; state.scale = 1; state.rotation = 0;
+  state.flipX = 1; state.flipY = 1;
+  scaleSlider.value = 100; scaleVal.textContent = '100%';
+  rotSlider.value = 0; rotVal.textContent = '0°';
+  applyTransform();
+  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.id === 'center'));
+});
+
+function deselectTemplates() {
+  document.querySelectorAll('.template-btn.active').forEach(b => b.classList.remove('active'));
+}
+
+canvas.addEventListener('mousedown', deselectTemplates);
+canvas.addEventListener('wheel', deselectTemplates, { passive: true });
+
+seedInput.addEventListener('change', () => {
+  const s = Math.max(0, Math.min(2999, parseInt(seedInput.value, 10) || 0));
+  setSeed(s);
+});
+randomBtn.addEventListener('click', () => setSeed(Math.floor(Math.random() * 3000)));
+
+// =========================================================================
+// DOWNLOAD — render hidden stage at target resolution
+// =========================================================================
+// Native 2D canvas renderer — bypasses backdrop-filter / SVG limitations and
+// renders cleanly at any resolution. `opts.tx/ty` are in % of baseSize.
+function renderAndDownload(seed, w, h, formatId, opts) {
+  return new Promise((resolve, reject) => {
+    try {
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = w;
+      outCanvas.height = h;
+      const baseSize = Math.min(w, h);
+      window.BiomEngine.renderSpecimenToCanvas(outCanvas, seed, {
+        specSize: baseSize,
+        tx: opts.tx * baseSize / 100,
+        ty: opts.ty * baseSize / 100,
+        scale: opts.scale,
+        rotation: opts.rotation,
+        flipX: opts.flipX,
+        flipY: opts.flipY,
+      });
+      outCanvas.toBlob((blob) => {
+        if (!blob) return reject(new Error('toBlob returned null'));
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bioms-biom-${seed}-${formatId}-${w}x${h}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        resolve();
+      }, 'image/png');
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+downloadBtn.addEventListener('click', async () => {
+  const f = state.format;
+  const w = f.id === 'custom' ? state.customW : f.w;
+  const h = f.id === 'custom' ? state.customH : f.h;
+
+  downloadBtn.textContent = `Rendering ${w}×${h}...`;
+  downloadBtn.disabled = true;
+  try {
+    await renderAndDownload(state.seed, w, h, f.id, state);
+  } catch (err) {
+    console.error('Download failed:', err);
+    alert('Download failed — try a smaller resolution.\n' + err.message);
+  } finally {
+    downloadBtn.textContent = 'Download PNG';
+    downloadBtn.disabled = false;
+  }
+});
+
+// =========================================================================
+// PACK — download all 7 standard formats in one go, each with its auto-layout.
+// =========================================================================
+const PACK_LABEL = 'Download all 7 formats';
+
+packBtn.addEventListener('click', async () => {
+  const formats = FORMATS.filter(f => f.id !== 'custom');
+  packBtn.disabled = true;
+  downloadBtn.disabled = true;
+  try {
+    for (let i = 0; i < formats.length; i++) {
+      const f = formats[i];
+      const tpl = TEMPLATES.find(t => t.id === (FORMAT_DEFAULTS[f.id] || 'center'));
+      packBtn.textContent = `Pack ${i + 1}/${formats.length} · ${f.label}`;
+      await renderAndDownload(state.seed, f.w, f.h, f.id, {
+        tx: tpl.x, ty: tpl.y,
+        scale: tpl.scale, rotation: tpl.rot,
+        flipX: tpl.fx, flipY: tpl.fy,
+      });
+      // small gap so the browser handles each download cleanly
+      await new Promise(r => setTimeout(r, 350));
+    }
+    packBtn.textContent = '✓ Pack downloaded';
+    setTimeout(() => { packBtn.textContent = PACK_LABEL; }, 2200);
+  } catch (err) {
+    console.error('Pack failed:', err);
+    alert('Pack failed: ' + err.message);
+    packBtn.textContent = PACK_LABEL;
+  } finally {
+    packBtn.disabled = false;
+    downloadBtn.disabled = false;
+  }
+});
+
+// =========================================================================
+// INIT
+// =========================================================================
+buildTemplateButtons();
+
+// Initial render
+renderLive();
+applyTransform();
+document.querySelector('.template-btn[data-id="center"]').classList.add('active');
+
+// Re-apply transform on window resize so host pixel size stays correct
+window.addEventListener('resize', () => requestAnimationFrame(applyTransform));
+
+// URL ?seed= prefill
+const urlSeed = new URLSearchParams(window.location.search).get('seed');
+if (urlSeed !== null) {
+  const s = parseInt(urlSeed, 10);
+  if (!isNaN(s)) setSeed(s);
+}
+</script>
+
+</body>
+</html>

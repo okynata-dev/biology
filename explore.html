@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bioms · Trait Explorer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ece9e0;
+    --paper: #f4f1e8;
+    --ink: #1c1a16;
+    --ink-2: #5b554a;
+    --ink-3: #8b8576;
+    --rule: rgba(28, 26, 22, 0.12);
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    line-height: 1.55;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+    z-index: 1;
+  }
+
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    padding: 20px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    background: rgba(236, 233, 224, 0.78);
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand { font-size: 17px; font-weight: 500; letter-spacing: -0.005em; }
+  .nav-links { display: flex; gap: 18px; font-size: 14px; color: var(--ink-2); }
+  .nav-links a { text-decoration: none; color: var(--ink-2); }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-links a.active { color: var(--ink); font-weight: 500; }
+
+  section {
+    padding: 48px 32px;
+    position: relative;
+    z-index: 2;
+  }
+  section + section { border-top: 1px solid var(--rule); }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+
+  h1 {
+    font-size: clamp(34px, 4vw, 52px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+    margin-bottom: 18px;
+  }
+  h2 {
+    font-size: clamp(22px, 2.6vw, 32px);
+    line-height: 1.1;
+    letter-spacing: -0.012em;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .section-lead {
+    font-size: 15px;
+    color: var(--ink-2);
+    max-width: 580px;
+    margin-bottom: 36px;
+  }
+  .lead {
+    font-size: 17px;
+    color: var(--ink-2);
+    max-width: 620px;
+    margin-bottom: 36px;
+  }
+
+  .group-label {
+    font-size: 11px;
+    color: var(--ink-3);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+
+  .trait-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+  }
+  .trait-card {
+    background: var(--paper);
+    border-radius: 14px;
+    border: 1px solid var(--rule);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .trait-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  }
+  .trait-preview {
+    aspect-ratio: 1;
+    width: 100%;
+    overflow: hidden;
+    background: #ffffff;
+    position: relative;
+  }
+  .trait-preview iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+  .trait-body {
+    padding: 14px 16px 16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .trait-name {
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    margin-bottom: 4px;
+  }
+  .trait-meta {
+    font-size: 11px;
+    color: var(--ink-3);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .trait-desc {
+    font-size: 13px;
+    color: var(--ink-2);
+    line-height: 1.5;
+    flex: 1;
+  }
+  .trait-tag {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 2px 8px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    background: rgba(28,26,22,0.06);
+    border-radius: 4px;
+    color: var(--ink-2);
+    font-weight: 500;
+  }
+  .trait-tag.rare { background: rgba(140,70,160,0.12); color: rgba(140,70,160,1); }
+  .trait-tag.ultra { background: rgba(200,60,60,0.12); color: rgba(180,40,40,1); }
+
+  footer {
+    padding: 32px;
+    font-size: 13px;
+    color: var(--ink-3);
+    text-align: center;
+    border-top: 1px solid var(--rule);
+    position: relative;
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="brand">Bioms</div>
+  <div class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="explore.html" class="active">Explore</a>
+    <a href="make.html">Wallpapers</a>
+  </div>
+</nav>
+
+<section>
+  <div class="wrap">
+    <h1>Trait Explorer.</h1>
+    <p class="lead">
+      Every Biom is built from a finite vocabulary of biological traits — cell shapes, staining systems, organelles, lifecycle states. Below, each trait is isolated so you can see what it looks like on its own.
+    </p>
+  </div>
+</section>
+
+<!-- MORPHOLOGY -->
+<section>
+  <div class="wrap">
+    <div class="group-label">11 traits</div>
+    <h2>Morphology</h2>
+    <p class="section-lead">
+      The structural shape of the colony. Inherited from how cells divide and arrange themselves under the microscope.
+    </p>
+    <div class="trait-grid" id="morph-grid"></div>
+  </div>
+</section>
+
+<!-- STAIN -->
+<section>
+  <div class="wrap">
+    <div class="group-label">12 traits</div>
+    <h2>Staining</h2>
+    <p class="section-lead">
+      Each biom is "stained" with one of twelve laboratory staining systems — real protocols used in bacteriology to reveal cell wall chemistry.
+    </p>
+    <div class="trait-grid" id="stain-grid"></div>
+  </div>
+</section>
+
+<!-- ORGANELLES -->
+<section>
+  <div class="wrap">
+    <div class="group-label">10 traits</div>
+    <h2>Organelles</h2>
+    <p class="section-lead">
+      Subcellular structures. Each appears independently with its own probability — a single biom may show several organelles, or only the always-present capsule.
+    </p>
+    <div class="trait-grid" id="organelle-grid"></div>
+  </div>
+</section>
+
+<!-- RESERVE GRANULES -->
+<section>
+  <div class="wrap">
+    <div class="group-label">6 traits · mutually exclusive</div>
+    <h2>Reserve Granules</h2>
+    <p class="section-lead">
+      Cellular cargo — what the biom stores inside. Each biom carries one type of reserve, or none at all.
+    </p>
+    <div class="trait-grid" id="reserve-grid"></div>
+  </div>
+</section>
+
+<!-- LIFECYCLE -->
+<section>
+  <div class="wrap">
+    <div class="group-label">4 traits · mutually exclusive</div>
+    <h2>Lifecycle State</h2>
+    <p class="section-lead">
+      The moment in the cell's life this biom is caught in — feeding, dividing, sporulating, or fixing nitrogen.
+    </p>
+    <div class="trait-grid" id="lifecycle-grid"></div>
+  </div>
+</section>
+
+<!-- ULTRA RARE -->
+<section>
+  <div class="wrap">
+    <div class="group-label">3 traits · independent · rare</div>
+    <h2>Ultra-rare Effects</h2>
+    <p class="section-lead">
+      Anomalies. Each appears in roughly one to two percent of bioms. A few specimens carry more than one.
+    </p>
+    <div class="trait-grid" id="ultra-grid"></div>
+  </div>
+</section>
+
+<footer>
+  Bioms · Series I · 2026 · <a href="https://thebioms.com">thebioms.com</a> · <a href="https://twitter.com/theBioms">@theBioms</a>
+</footer>
+
+<script>
+// === TRAIT CATALOG ===
+// Each entry: { id, label, weight, desc, forceParams }
+// `forceParams` is the URL string passed to preview.html?seed=X&...
+
+const MORPHOLOGIES = [
+  { id: 'coccus',          label: 'Coccus',          weight: '13%', desc: 'Spherical cells, the most ancient and widespread bacterial form. Streptococcus, Staphylococcus.', seed: 0 },
+  { id: 'bacillus',        label: 'Bacillus',        weight: '13%', desc: 'Rod-shaped cells. The genus Bacillus alone contains soil bacteria, anthrax, and the source of yogurt cultures.', seed: 1 },
+  { id: 'vibrio',          label: 'Vibrio',          weight: '12%', desc: 'Comma-shaped curved rods. Vibrio cholerae caused millennia of pandemics; most vibrios are harmless marine bacteria.', seed: 11 },
+  { id: 'spirillum',       label: 'Spirillum',       weight: '12%', desc: 'Rigid helical cells. Distinct from spirochetes (which have flexible bodies) — the spiral here is structural.', seed: 47 },
+  { id: 'filament',        label: 'Filament',        weight: '10%', desc: 'Cells aligned end-to-end into thin chains. Cyanobacteria and certain Actinomyces grow this way.', seed: 28 },
+  { id: 'cluster',         label: 'Cluster',         weight: '10%', desc: 'Irregular grape-like grouping. Staphylococci form clusters because cell division proceeds in random planes.', seed: 18 },
+  { id: 'diplo',           label: 'Diplo',           weight: '10%', desc: 'Pairs of cells held together after division. Diplococcus pneumoniae presents this way in clinical samples.', seed: 7 },
+  { id: 'streptobacillus', label: 'Streptobacillus', weight: '8%',  desc: 'Long chain of rods, end-to-end. Bacillus anthracis appears as streptobacilli in tissue smears.', seed: 33 },
+  { id: 'tetrad',          label: 'Tetrad',          weight: '7%',  desc: 'Four cells in a square — result of division along two perpendicular planes. Micrococcus luteus.', seed: 91 },
+  { id: 'sarcina',         label: 'Sarcina',         weight: '3%',  rare: true, desc: 'Eight cells stacked in a cuboidal packet of 2×2×2. Sarcina ventriculi inhabits the human stomach.', seed: 145 },
+  { id: 'mycelium',        label: 'Mycelium',        weight: '2%',  rare: true, desc: 'Branching hyphal network. Actinomyces and Streptomyces form myceloid colonies; they are bacteria, not fungi.', seed: 312 },
+];
+
+const STAINS = [
+  { id: 'gramPositive',      label: 'Gram-positive',  weight: '20%', desc: 'Crystal violet retained by the thick peptidoglycan wall. Streptococcus, Bacillus, Clostridium.', seed: 0 },
+  { id: 'gramNegative',      label: 'Gram-negative',  weight: '16%', desc: 'Pink counter-stain. Thin peptidoglycan, outer membrane. E. coli, Salmonella, Pseudomonas.', seed: 2 },
+  { id: 'fluorescent',       label: 'Fluorescent',    weight: '14%', desc: 'Immunofluorescent labels conjugated to antibodies. Used to identify specific bacterial antigens.', seed: 11 },
+  { id: 'methylene',         label: 'Methylene blue', weight: '12%', desc: 'Simple basic stain. Useful for general bacterial morphology under light microscopy.', seed: 8 },
+  { id: 'darkfield',         label: 'Dark-field',     weight: '8%',  desc: 'Cells appear silver against a black background. Indispensable for spirochetes, which take stains poorly.', seed: 5 },
+  { id: 'acid_fast',         label: 'Acid-fast',      weight: '6%',  desc: 'Ziehl-Neelsen carbol fuchsin resists acid-alcohol decoloration. Diagnostic for Mycobacterium tuberculosis.', seed: 64 },
+  { id: 'giemsa',            label: 'Giemsa',         weight: '5%',  desc: 'Eosin–methylene blue mix. Standard for blood smears, intracellular pathogens, and parasites.', seed: 38 },
+  { id: 'iridescent_aurora', label: 'Aurora',         weight: '7%',  rare: true, desc: 'A rare iridescent metabolic pigment — not a stain in the literal sense, but a structural color emerging from light interference in the cell wall.', seed: 'aurora' },
+  { id: 'ghost',             label: 'Ghost',          weight: '5%',  rare: true, desc: 'An unstained or freshly lysed specimen. Cell outlines are barely visible — only the inner core retains contrast.', seed: 'ghost' },
+  { id: 'safranin',          label: 'Safranin',       weight: '3%',  rare: true, desc: 'A soft pink dye used as a counter-stain in Gram protocol, or alone for tissue preparations.', seed: 109 },
+  { id: 'india_ink',         label: 'India ink',      weight: '3%',  rare: true, desc: 'A negative stain: ink coats the background, revealing the unstained bacterial body as a silhouette with bright internal granules.', seed: 156 },
+  { id: 'gram_variable',     label: 'Gram-variable',  weight: '1%',  ultra: true, desc: 'Clinically observed phenomenon — some cells in the population stain Gram+, others Gram−. Mixed walls in transition.', seed: 'variable' },
+];
+
+const ORGANELLES = [
+  { id: 'nucleoid',  label: 'Nucleoid',         weight: '85%', desc: 'A dense region where the bacterial chromosome is packaged. No nuclear membrane — chromosomes are bare.', forceOrganelles: 'capsule,nucleoid', seed: 14 },
+  { id: 'pili',      label: 'Pili',             weight: '55%', desc: 'Hair-like filaments on the cell surface. Used for adhesion to host tissue, surface motility, and conjugation.', forceOrganelles: 'capsule,pili', seed: 22 },
+  { id: 'ribosomes', label: 'Ribosomes',        weight: '45%', desc: 'Protein-synthesis machines. Bacterial 70S ribosomes are the targets of many antibiotics — tetracyclines, aminoglycosides.', forceOrganelles: 'capsule,ribosomes', seed: 6 },
+  { id: 'plasmid',   label: 'Plasmid',          weight: '40%', desc: 'A small circular DNA molecule separate from the chromosome. Carries antibiotic-resistance and virulence genes.', forceOrganelles: 'capsule,plasmid', seed: 71 },
+  { id: 'flagellum', label: 'Flagellum',        weight: '30%', desc: 'A rotating whip-like appendage. Powers bacterial swimming through fluid.', forceOrganelles: 'capsule,flagellum', seed: 88 },
+  { id: 'eyespot',   label: 'Eye-spot',         weight: '20%', desc: 'A photoreceptor patch enabling phototaxis. Found in cyanobacteria and certain protists — a primitive light-sensing organelle.', forceOrganelles: 'capsule,eyespot', seed: 27 },
+  { id: 'inclusion', label: 'Inclusion body',   weight: '20%', desc: 'A region of densely packed proteins or metabolites — sometimes a result of overexpression, sometimes a storage compartment.', forceOrganelles: 'capsule,inclusion', seed: 41 },
+  { id: 'endospore', label: 'Endospore',        weight: '15%', desc: 'A dormant, heat-resistant survival capsule. Endospores of Bacillus anthracis can remain viable in soil for decades.', forceOrganelles: 'capsule,endospore', seed: 130 },
+  { id: 'axial',     label: 'Axial filament',   weight: '15%', desc: 'Internal flagellum running along the cell\'s length. Characteristic of spirochetes — Treponema, Borrelia, Leptospira.', forceOrganelles: 'capsule,axial', seed: 196, forceMorph: 'spirillum' },
+  { id: 'capsule',   label: 'Capsule',          weight: '100%', desc: 'A polysaccharide envelope around the cell wall — protection against drying, phagocytosis, and immune attack. Always present in Bioms.', forceOrganelles: 'capsule', seed: 4 },
+];
+
+const RESERVES = [
+  { id: 'none',         label: 'None',          weight: '64%', desc: 'A vegetative biom carrying no visible reserves. Active growth phase, exporting rather than storing.', seed: 4 },
+  { id: 'phb',          label: 'PHB granules',  weight: '12%', desc: 'Poly-β-hydroxybutyrate — a carbon and energy reserve resembling biological plastic. Common in Pseudomonas and Bacillus.', seed: 56 },
+  { id: 'volutin',      label: 'Volutin',       weight: '10%', desc: 'Metachromatic polyphosphate granules. Storage form of phosphorus; pH buffer; diagnostic for Corynebacterium diphtheriae.', seed: 73 },
+  { id: 'magnetosomes', label: 'Magnetosomes',  weight: '7%',  desc: 'Membrane-bound magnetite crystals arranged in a chain along the cell axis. Used by Magnetospirillum to navigate Earth\'s magnetic field.', seed: 211 },
+  { id: 'sulfur',       label: 'Sulfur globules',weight: '4%', rare: true, desc: 'Bright yellow sulfur droplets — the intermediate of sulfide oxidation. Stored by Beggiatoa and Thiomargarita namibiensis.', seed: 287 },
+  { id: 'crystalline',  label: 'Crystalline body',weight: '3%',rare: true, desc: 'A parasporal protein crystal. Bacillus thuringiensis Cry toxins crystallize alongside the endospore — used as biopesticides.', seed: 425 },
+];
+
+const LIFECYCLES = [
+  { id: 'vegetative',     label: 'Vegetative',     weight: '78%', desc: 'The default growing, dividing state. Active metabolism, nutrient uptake, biomass production.', seed: 4 },
+  { id: 'binary_fission', label: 'Binary fission', weight: '10%', desc: 'Cell division in progress. A constriction forms at the equator, eventually pinching the cell into two daughters.', seed: 89 },
+  { id: 'sporulating',    label: 'Sporulating',    weight: '6%',  desc: 'Forming an endospore. Triggered by starvation. The spore inside the mother cell survives heat, desiccation, even radiation.', seed: 154 },
+  { id: 'heterocyst',     label: 'Heterocyst',     weight: '~0.5%', rare: true, desc: 'A specialized nitrogen-fixing cell within a filament. Larger, thicker-walled, anaerobic interior. Found only in filamentous cyanobacteria.', seed: 1247, forceMorph: 'filament', forceLifecycle: 'heterocyst' },
+];
+
+const ULTRA = [
+  { id: 'phage',     label: 'Phage attached',   weight: '~1.5%', desc: 'A bacteriophage docked on the cell surface — icosahedral head, contractile tail. Moments before injecting its DNA into the host.', seed: 89, forceParams: 'forcePhage=1' },
+  { id: 'endo',      label: 'Endosymbiont',     weight: '~1.0%', desc: 'A smaller cell living inside the larger one. The deep ancestor of mitochondria and chloroplasts. Endosymbiosis built the eukaryotic cell.', seed: 412, forceParams: 'forceEndo=1' },
+  { id: 'biofilm',   label: 'Biofilm halo',     weight: '~2.0%', desc: 'A wide extracellular polysaccharide matrix — the foundation of biofilms, dental plaque, and chronic infections.', seed: 277, forceParams: 'forceBiofilm=1' },
+];
+
+// === RENDER ===
+function makeCard(trait, frameSrc) {
+  const card = document.createElement('div');
+  card.className = 'trait-card';
+  // iframe gets data-src instead of src — IntersectionObserver swaps it in on demand
+  card.innerHTML = `
+    <div class="trait-preview">
+      <iframe data-src="${frameSrc}" loading="lazy"></iframe>
+    </div>
+    <div class="trait-body">
+      <div class="trait-name">${trait.label}</div>
+      <div class="trait-meta">${trait.weight}</div>
+      <div class="trait-desc">${trait.desc}</div>
+      ${trait.ultra ? '<span class="trait-tag ultra">Ultra-rare</span>' : trait.rare ? '<span class="trait-tag rare">Rare</span>' : ''}
+    </div>
+  `;
+  return card;
+}
+
+function fillGrid(gridId, items, srcBuilder) {
+  const grid = document.getElementById(gridId);
+  items.forEach(t => {
+    const src = srcBuilder(t);
+    grid.appendChild(makeCard(t, src));
+  });
+}
+
+// Shared URL suffix — static, no interactions, no noise. Optimized for grid view.
+const COMMON = 'fit=1&static=1&nointeract=1&noise=0';
+
+// Morphology — force the morph, let stain be random per seed
+fillGrid('morph-grid', MORPHOLOGIES, t =>
+  `preview.html?seed=${t.seed}&${COMMON}&forceMorph=${t.id}`
+);
+
+// Stain — force the palette
+fillGrid('stain-grid', STAINS, t => {
+  if (typeof t.seed === 'string') {
+    return `rare-${t.seed}.html?fit=1&static=1&nointeract=1`;
+  }
+  return `preview.html?seed=${t.seed}&${COMMON}&forceStain=${t.id}`;
+});
+
+// Organelles — clean coccus, only this organelle visible
+fillGrid('organelle-grid', ORGANELLES, t => {
+  const morph = t.forceMorph || 'coccus';
+  return `preview.html?seed=${t.seed}&${COMMON}&forceMorph=${morph}&forceStain=gramPositive&forceOrganelles=${t.forceOrganelles}&forceCells=4`;
+});
+
+// Reserve granules — clean coccus + reserve
+fillGrid('reserve-grid', RESERVES, t =>
+  `preview.html?seed=${t.seed}&${COMMON}&forceMorph=coccus&forceStain=gramPositive&forceReserve=${t.id}&forceCells=4`
+);
+
+// Lifecycle — force visible state
+fillGrid('lifecycle-grid', LIFECYCLES, t => {
+  const morph = t.forceMorph || 'bacillus';
+  const lc = t.forceLifecycle || t.id;
+  return `preview.html?seed=${t.seed}&${COMMON}&forceMorph=${morph}&forceStain=gramPositive&forceLifecycle=${lc}&forceCells=3`;
+});
+
+// Ultra rare — force the trait
+fillGrid('ultra-grid', ULTRA, t =>
+  `preview.html?seed=${t.seed}&${COMMON}&forceMorph=coccus&forceStain=methylene&${t.forceParams}&forceCells=2`
+);
+
+// === LAZY LOAD via IntersectionObserver ===
+// Iframes are heavy (each is a full document). Only assign src when the card
+// scrolls into the viewport. Once loaded, the observer stops watching it.
+const lazyObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const iframe = entry.target;
+      const src = iframe.dataset.src;
+      if (src && !iframe.src) {
+        iframe.src = src;
+        lazyObserver.unobserve(iframe);
+      }
+    }
+  });
+}, {
+  rootMargin: '300px 0px',  // pre-load slightly before they're visible
+  threshold: 0.01,
+});
+
+document.querySelectorAll('.trait-preview iframe').forEach(iframe => {
+  lazyObserver.observe(iframe);
+});
+</script>
+
+</body>
+</html>

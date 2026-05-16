@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Living Cultures · Asset</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: #fafaf6;
+    overflow: hidden;
+    font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
+    color: #1c1a16;
+  }
+
+  /* Format-driven dimensions set via JS as body data attributes */
+  body[data-format="square"] {
+    width: 1500px; height: 1500px;
+  }
+  body[data-format="twitter_header"] {
+    width: 1500px; height: 500px;
+  }
+  body[data-format="twitter_post"] {
+    width: 1200px; height: 675px;
+  }
+  body[data-format="opensea_banner"] {
+    width: 1400px; height: 400px;
+  }
+  body[data-format="profile_picture"] {
+    width: 800px; height: 800px;
+  }
+
+  /* === SQUARE layout — full bleed, no padding === */
+  body[data-format="square"] .layout {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+  }
+  body[data-format="square"] .specimen-frame {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 1;
+    position: relative;
+  }
+  body[data-format="square"] .meta-overlay {
+    display: none;
+  }
+
+  /* === PROFILE PICTURE — full bleed === */
+  body[data-format="profile_picture"] .layout {
+    display: flex;
+    width: 100%;
+    height: 100%;
+  }
+  body[data-format="profile_picture"] .specimen-frame {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 1;
+    position: relative;
+  }
+  body[data-format="profile_picture"] .meta-overlay { display: none; }
+
+  /* === TWITTER HEADER 1500x500 — specimen left + brand text === */
+  body[data-format="twitter_header"] .layout,
+  body[data-format="opensea_banner"] .layout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    width: 100%;
+    height: 100%;
+    padding: 20px 80px 20px 20px;
+    gap: 60px;
+    align-items: center;
+  }
+  body[data-format="twitter_header"] .specimen-frame,
+  body[data-format="opensea_banner"] .specimen-frame {
+    height: 100%;
+    aspect-ratio: 1;
+    position: relative;
+  }
+  body[data-format="twitter_header"] .meta-overlay,
+  body[data-format="opensea_banner"] .meta-overlay {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+  }
+
+  /* === TWITTER POST 1200x675 === */
+  body[data-format="twitter_post"] .layout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    width: 100%;
+    height: 100%;
+    padding: 90px 100px 90px 90px;
+    gap: 80px;
+    align-items: center;
+  }
+  body[data-format="twitter_post"] .specimen-frame {
+    height: 100%;
+    aspect-ratio: 1;
+    position: relative;
+  }
+  body[data-format="twitter_post"] .meta-overlay {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 18px;
+  }
+
+  /* === META OVERLAY TEXT === */
+  .meta-brand {
+    font-size: 64px;
+    font-weight: 500;
+    line-height: 0.95;
+    letter-spacing: -0.025em;
+  }
+  body[data-format="twitter_header"] .meta-brand,
+  body[data-format="opensea_banner"] .meta-brand {
+    font-size: 56px;
+  }
+  .meta-tagline {
+    font-size: 22px;
+    color: #5b554a;
+    line-height: 1.45;
+    max-width: 500px;
+  }
+  body[data-format="twitter_header"] .meta-tagline,
+  body[data-format="opensea_banner"] .meta-tagline {
+    font-size: 19px;
+  }
+  .meta-bottom-row {
+    display: flex;
+    gap: 24px;
+    font-size: 14px;
+    color: #8b8576;
+    font-variant-numeric: tabular-nums;
+    margin-top: 12px;
+  }
+
+  /* iframe specimen embed */
+  iframe.specimen {
+    border: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: #fafaf6;
+  }
+</style>
+</head>
+<body data-format="square">
+
+<div class="layout">
+  <div class="specimen-frame">
+    <iframe class="specimen" id="specimen"></iframe>
+  </div>
+  <div class="meta-overlay">
+    <div class="meta-brand">Bioms.</div>
+    <div class="meta-tagline">A generative archive of 3,000 microbial specimens, rendered live.</div>
+    <div class="meta-bottom-row">
+      <span>Series I</span>
+      <span>3,000 specimens</span>
+      <span>Ethereum</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const format = params.get('format') || 'square';
+const seed = params.get('seed') || '247';
+
+document.body.dataset.format = format;
+
+// Static rendering — no animation needed in the snapshot
+const iframe = document.getElementById('specimen');
+iframe.src = `preview.html?seed=${encodeURIComponent(seed)}&static=1&fit=1`;
+</script>
+
+</body>
+</html>
