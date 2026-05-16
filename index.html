@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bioms</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -282,7 +283,7 @@
   <div class="brand">Bioms</div>
   <div class="nav-links" style="display: flex; gap: 18px; font-size: 14px; color: var(--ink-3);">
     <a href="explore.html" style="text-decoration: none; color: inherit;">Explore</a>
-    <a href="make.html" style="text-decoration: none; color: inherit;">Wallpapers</a>
+    <a href="make.html" style="text-decoration: none; color: inherit;">Banners</a>
   </div>
   <div class="nav-meta">Series I · 3000 specimens</div>
 </nav>
@@ -293,7 +294,7 @@
       <div>
         <h1>Bioms.</h1>
         <p style="font-size: 19px; line-height: 1.5; color: var(--ink-2); max-width: 520px;">
-          A generative collection of 3,000 microbial specimens — each one a single Biom. Built around the visual grammar of microbiology: Gram staining, organelle structure, colony morphology. Each token renders in your browser and breathes in real time.
+          Three thousand microbial specimens, each one a single Biom. Drawn from real microbiology — Gram staining, organelles, colony shape — and rendered live in your browser. Each one breathes.
         </p>
         <div style="margin-top: 32px; display: flex; gap: 24px; flex-wrap: wrap; font-size: 14px; color: var(--ink-3); font-variant-numeric: tabular-nums;">
           <span>3,000 specimens</span>
@@ -310,10 +311,10 @@
   <div class="wrap text-col">
     <h2>What this is.</h2>
     <p>
-      Each specimen is generated from a token's seed using a deterministic procedural genome. Eleven base morphologies, twelve clinical stains, ten possible organelles, plus reserve granules, lifecycle states, and a handful of ultra-rare anomalies. The renderer runs entirely client-side as a static HTML file — no images, no servers.
+      Everything comes from one number — the seed. It feeds eleven morphologies, twelve stains, ten organelle slots, plus reserves, lifecycle states, and three rare anomalies. The whole thing renders in your browser. No image files. No server.
     </p>
     <p>
-      The visual language is borrowed from bacterial staining as seen under a light microscope. The animation is an interpretation: real bacteria don't actually breathe, but in this archive they do.
+      The look comes from microscope slides — bacterial staining under a light microscope. The animation is invented. Real bacteria don't actually breathe. In this archive they do.
     </p>
     <p>
       By <a href="https://twitter.com/timso_eth" target="_blank" rel="noopener">Timsouw</a>. The code that renders each specimen is the same code you're looking at right now — open the page source.
@@ -329,7 +330,7 @@
         <div class="label-small">Seed-driven generation</div>
         <h2>One number determines everything.</h2>
         <p style="margin-bottom: 24px;">
-          A single integer feeds a deterministic random function. From it: the morphology, the staining, the number of cells, which organelles are present, the breathing rhythm. Two tokens with the same seed are pixel-identical.
+          One integer in. From it, everything — morphology, stain, cell count, organelles, breathing rhythm. Two tokens with the same seed are pixel-identical.
         </p>
         <div class="demo-controls">
           <button class="btn" id="rollBtn">Generate new specimen</button>
@@ -345,7 +346,7 @@
     <div class="label-small">Stains</div>
     <h2>Twelve palettes, weighted.</h2>
     <p style="max-width: 580px; margin-bottom: 40px;">
-      Each token inherits one of twelve palettes — the common five from classical microbiology, four rarer staining protocols, and three ultra-rare anomalies. Hover a row to preview.
+      Each Biom gets one of twelve. Five common stains, four rarer protocols, three anomalies. Hover any row to preview.
     </p>
     <div class="stains-layout">
       <div>
@@ -426,7 +427,7 @@
     <div class="label-small">Anatomy</div>
     <h2>Ten possible organelles.</h2>
     <p>
-      Each cell can carry up to ten distinct internal structures, each with its own probability of appearance. The capsule is universal — every specimen has one. The rest vary.
+      Up to ten structures per cell, each with its own chance of showing up. The capsule is the only one that's always there. The rest is a roll.
     </p>
     <table class="data-table">
       <tbody>
@@ -450,7 +451,7 @@
     <div class="label-small">Downloads</div>
     <h2>Render anything.</h2>
     <p>
-      The Banner Maker renders any Biom at any size — Twitter header, OpenSea banner, phone wallpaper, 4K desktop. Drag, rotate, scale, export. Or grab the entire asset pack in one click.
+      Any Biom, any size — Twitter header, OpenSea banner, phone wallpaper, 4K desktop. Drag, rotate, scale, export. Or pull the whole asset pack in one click.
     </p>
     <div style="margin-top: 28px; display: flex; flex-direction: column; gap: 10px; max-width: 520px;">
       <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--rule); font-size: 15px;">
