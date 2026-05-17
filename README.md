@@ -19,7 +19,7 @@ A generative NFT collection of microscopic life forms. Each Biom is rendered cli
 |---|---|
 | `index.html` | Landing page — hero, stain showcase, demo |
 | `preview.html` | Main specimen renderer (animation_url for NFT metadata). Reads `?seed=N` and renders the corresponding Biom with breathing animation and mouse parallax. |
-| `make.html` | Banner Maker — pick a Biom, choose format (Twitter Header, OpenSea Banner, 4K Desktop, custom...), drag/scale/rotate, export single PNG or full asset pack. Uses the pre-rendered master PNG (`/pngs/preview/NNNNN.png`) and composites it onto the target canvas. Falls back to a local 2D-canvas renderer if the PNG is missing. |
+| `make.html` | Banner Maker — pick a Biom, choose format (Twitter Header, OpenSea Banner, 4K Desktop, custom...), drag/scale/rotate, export single PNG or full asset pack. Uses the pre-rendered master PNG (`{PNG_BASE}/preview/NNNNN.png`) and composites it onto the target canvas. Falls back to a local 2D-canvas renderer if the PNG is missing. |
 | `explore.html` | Trait Explorer — each trait card is a pre-rendered PNG from `/pngs/explore/{cat}-{id}.png` (populated by `batch_explore.py`). |
 | `404.html` | Branded 404 page served by Cloudflare Pages for unknown paths |
 | `asset-template.html` | Template used by `batch_screenshots.py` for downloadable assets (Twitter headers, banners, etc.) at fixed dimensions |
@@ -65,7 +65,7 @@ python3 batch_explore.py ./pngs/explore --workers 4 --size 1200
 # 4. Generate metadata JSON files
 mkdir -p metadata
 python3 generate_metadata.py ./metadata 3000 \
-    --base-image-uri https://thebioms.com/pngs/preview \
+    --base-image-uri https://pngs.thebioms.com/preview \
     --base-animation-uri https://thebioms.com/preview.html
 
 # 5. Host pngs/ — see "Hosting pre-rendered PNGs" below
@@ -85,7 +85,7 @@ python3 generate_metadata.py ./metadata 3000 \
    ```js
    const PNG_BASE = 'https://pngs.thebioms.com';
    ```
-   (Leave empty if you'd rather serve PNGs from this Pages project at `/pngs/preview/N.png` — works fine but counts against Pages bandwidth.)
+   (Leave empty if you'd rather serve PNGs from this Pages project at `/preview/N.png` — works fine but counts against Pages bandwidth, and requires committing the `pngs/preview/` directory contents to the repo at the project root.)
 
 ## Deployment
 

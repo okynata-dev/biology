@@ -549,8 +549,10 @@
 // if the PNGs live on an R2 custom domain.
 const PNG_BASE = 'https://pngs.thebioms.com';
 const padSeed   = (n) => String(n).padStart(5, '0');
-const masterUrl = (seed) => `${PNG_BASE}/pngs/preview/${padSeed(seed)}.png`;
-const stainUrl  = (stainId) => `${PNG_BASE}/pngs/explore/stain-${stainId}.png`;
+// R2 bucket root has preview/ and explore/ — the local `pngs/` directory
+// is just where the rclone source lives, the prefix is dropped on upload.
+const masterUrl = (seed) => `${PNG_BASE}/preview/${padSeed(seed)}.png`;
+const stainUrl  = (stainId) => `${PNG_BASE}/explore/stain-${stainId}.png`;
 
 function mountHeroIframe(el, seed) {
   el.innerHTML = '';

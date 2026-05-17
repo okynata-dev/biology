@@ -365,16 +365,16 @@ const ULTRA = [
 ];
 
 // === RENDER ===
-// Each trait card shows a pre-rendered PNG from /pngs/explore/{cat}-{id}.png
+// Each trait card shows a pre-rendered PNG from {PNG_BASE}/explore/{cat}-{id}.png
 // (populated once by batch_explore.py). Previously these were 46 live iframes,
 // which spun up 46 specimen engines simultaneously and melted laptops.
 //
-// PNG_BASE is empty for same-origin; set to an absolute URL (e.g.
-// https://pngs.thebioms.com) if pngs/ lives on R2.
+// PNG_BASE points at the R2 custom domain. The bucket root has preview/ and
+// explore/ — the local `pngs/` source directory is dropped on upload.
 
 const PNG_BASE = 'https://pngs.thebioms.com';
 function pngUrl(cat, id) {
-  return `${PNG_BASE}/pngs/explore/${cat}-${id}.png`;
+  return `${PNG_BASE}/explore/${cat}-${id}.png`;
 }
 
 function makeCard(trait, imgSrc) {
