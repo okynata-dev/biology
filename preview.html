@@ -1518,9 +1518,15 @@ function applyOverridesFromURL() {
   if (flc) state.lifecycle = flc;
   const fr = params.get('forceReserve');
   if (fr) state.reserveGranule = fr;
-  if (params.get('forcePhage') === '1') state.phageAttached = true;
-  if (params.get('forceEndo') === '1') state.endosymbiont = true;
-  if (params.get('forceBiofilm') === '1') state.biofilmHalo = true;
+  // Anomaly toggles — accept both `1` (force on) and `0` (force off). The
+  // off case is needed by /lab when a donor has temporarily lost an anomaly
+  // it would otherwise have based on its seed.
+  const fp = params.get('forcePhage');
+  if (fp === '1') state.phageAttached = true; else if (fp === '0') state.phageAttached = false;
+  const fe = params.get('forceEndo');
+  if (fe === '1') state.endosymbiont = true; else if (fe === '0') state.endosymbiont = false;
+  const fb = params.get('forceBiofilm');
+  if (fb === '1') state.biofilmHalo = true; else if (fb === '0') state.biofilmHalo = false;
   const fo = params.get('forceOrganelles');
   if (fo !== null) {
     state.organelles = new Set(fo ? fo.split(',') : []);

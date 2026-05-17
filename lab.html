@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bioms — The Lab</title>
+<meta name="description" content="Splice traits between Bioms. Real bacterial conjugation as game mechanic — donor transfers a trait to recipient, regenerates after a cooldown.">
+<meta name="theme-color" content="#ece9e0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/favicon.svg">
+<link rel="canonical" href="https://thebioms.com/lab">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bioms">
+<meta property="og:title" content="The Lab — Bioms">
+<meta property="og:description" content="Splice traits between Bioms. Real bacterial conjugation as game mechanic.">
+<meta property="og:url" content="https://thebioms.com/lab">
+<meta property="og:image" content="https://thebioms.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A Bioms specimen — glass-morph microbial cells">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@theBioms">
+<meta name="twitter:creator" content="@timsouw">
+<meta name="twitter:image" content="https://thebioms.com/og-image.png">
+<meta name="twitter:image:alt" content="A Bioms specimen — glass-morph microbial cells">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ece9e0;
+    --paper: #f4f1e8;
+    --ink: #1c1a16;
+    --ink-2: #5b554a;
+    --ink-3: #8b8576;
+    --rule: rgba(28, 26, 22, 0.12);
+    --ok: #4a7c4a;
+    --bad: #9a5b3d;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    line-height: 1.55;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  html { scroll-behavior: smooth; }
+  ::selection { background: rgba(140, 90, 180, 0.25); color: var(--ink); }
+
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+    z-index: 1;
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  /* === NAV (canonical) === */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    padding: 18px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    background: rgba(236, 233, 224, 0.78);
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 17px; font-weight: 500; letter-spacing: -0.005em;
+    color: var(--ink); transition: opacity 0.15s;
+  }
+  .brand:hover { opacity: 0.65; }
+  .brand-mark { width: 18px; height: 18px; display: block; }
+  .brand-mark .cell-outer { fill: currentColor; }
+  .brand-mark .cell-inner { fill: var(--bg); }
+  .nav-links {
+    display: flex; align-items: center; gap: 22px; font-size: 14px;
+  }
+  .nav-links a { color: var(--ink-3); transition: color 0.15s; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-links a.active { color: var(--ink); font-weight: 500; }
+  .nav-x {
+    display: inline-flex; align-items: center;
+    color: var(--ink-3); transition: color 0.15s; margin-left: 4px;
+  }
+  .nav-x:hover { color: var(--ink); }
+  .x-icon { width: 15px; height: 15px; display: block; }
+  @media (max-width: 600px) {
+    nav { padding: 14px 18px; }
+    .nav-links { gap: 14px; font-size: 13px; }
+  }
+
+  a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  section { padding: 56px 32px; position: relative; z-index: 2; }
+  section + section { border-top: 1px solid var(--rule); }
+  @media (max-width: 600px) { section { padding: 40px 18px; } }
+
+  .wrap { max-width: 1240px; margin: 0 auto; }
+
+  h1 {
+    font-size: clamp(40px, 5vw, 64px);
+    letter-spacing: -0.025em; font-weight: 500;
+    line-height: 1; margin: 0 0 22px;
+  }
+  h2 {
+    font-size: clamp(24px, 2.6vw, 32px);
+    letter-spacing: -0.015em; font-weight: 500;
+    margin: 0 0 16px;
+  }
+  h3 {
+    font-size: 15px; font-weight: 500;
+    letter-spacing: 0.02em; margin: 0 0 12px;
+    color: var(--ink-2);
+  }
+  p { color: var(--ink-2); }
+
+  /* === HERO INTRO === */
+  .lab-intro { padding-top: 72px; padding-bottom: 56px; }
+  .intro-grid {
+    display: grid;
+    grid-template-columns: 1fr minmax(280px, 420px);
+    gap: clamp(32px, 5vw, 80px);
+    align-items: end;
+  }
+  @media (max-width: 820px) {
+    .intro-grid { grid-template-columns: 1fr; align-items: start; }
+  }
+  .intro-tag {
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  /* === MODE TOGGLE === */
+  .mode-bar {
+    padding: 24px 32px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
+    position: relative; z-index: 2;
+  }
+  .mode-bar-wrap {
+    max-width: 1240px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .mode-switch {
+    display: inline-flex;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 4px;
+    gap: 2px;
+  }
+  .mode-btn {
+    background: transparent; border: 0;
+    font: inherit; cursor: pointer;
+    padding: 8px 18px;
+    border-radius: 999px;
+    color: var(--ink-3);
+    font-size: 14px; font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+  }
+  .mode-btn.active {
+    background: var(--ink);
+    color: var(--bg);
+  }
+  .mode-btn:not(.active):hover { color: var(--ink); }
+  .mode-note {
+    font-size: 13px;
+    color: var(--ink-3);
+    flex: 1;
+    min-width: 200px;
+  }
+  .wallet-stub {
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .wallet-stub .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--rule);
+    border-radius: 4px;
+    margin-right: 6px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--ink-2);
+  }
+
+  /* === COLLECTION === */
+  .collection-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+  .collection-head h2 { margin: 0; }
+  .collection-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .seed-input-inline {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font: inherit;
+    font-size: 14px;
+    width: 80px;
+    text-align: center;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .collection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+  }
+  .collection-empty {
+    padding: 48px 24px;
+    text-align: center;
+    background: var(--paper);
+    border: 1px dashed var(--rule);
+    border-radius: 14px;
+    color: var(--ink-3);
+    font-size: 15px;
+  }
+  .biom-card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (hover: hover) {
+    .biom-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(0,0,0,0.06);
+      border-color: var(--ink-3);
+    }
+  }
+  .biom-card.selected-donor { border-color: #b94a8c; border-width: 2px; }
+  .biom-card.selected-recipient { border-color: #4a8cb9; border-width: 2px; }
+  .biom-card.in-use { opacity: 0.4; pointer-events: none; }
+  .biom-thumb {
+    aspect-ratio: 1;
+    background: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+  .biom-thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+  .biom-info {
+    padding: 10px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .biom-name {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: var(--ink-2);
+    letter-spacing: 0.04em;
+  }
+  .biom-traits {
+    font-size: 10px;
+    color: var(--ink-3);
+    text-align: right;
+  }
+  .biom-card .role-tag {
+    position: absolute;
+    top: 8px; right: 8px;
+    font-size: 10px;
+    padding: 3px 7px;
+    border-radius: 4px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: rgba(244,241,232,0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .biom-card.selected-donor .role-tag {
+    background: #b94a8c; color: white;
+  }
+  .biom-card.selected-recipient .role-tag {
+    background: #4a8cb9; color: white;
+  }
+  .cooldown-tag {
+    position: absolute;
+    bottom: 56px; left: 8px;
+    background: rgba(154, 91, 61, 0.9);
+    color: white;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+  }
+
+  /* === ARENA === */
+  .arena-section { padding-top: 64px; padding-bottom: 64px; }
+  .arena {
+    display: grid;
+    grid-template-columns: 1fr 120px 1fr;
+    gap: 24px;
+    align-items: center;
+    margin-bottom: 36px;
+  }
+  @media (max-width: 820px) {
+    .arena { grid-template-columns: 1fr; gap: 16px; }
+  }
+  .slot {
+    aspect-ratio: 1;
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    background: var(--paper);
+    border: 2px dashed var(--rule);
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .slot.donor.filled { border: 2px solid #b94a8c; border-style: solid; }
+  .slot.recipient.filled { border: 2px solid #4a8cb9; border-style: solid; }
+  .slot-empty {
+    text-align: center;
+    color: var(--ink-3);
+    font-size: 14px;
+    padding: 32px;
+  }
+  .slot-empty .role {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .slot-empty .hint {
+    display: block;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .slot iframe {
+    border: 0;
+    width: 100%; height: 100%;
+    display: block;
+  }
+  .slot .clear-btn {
+    position: absolute;
+    top: 10px; right: 10px;
+    width: 26px; height: 26px;
+    background: rgba(244,241,232,0.92);
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--ink-2);
+    transition: background 0.15s, color 0.15s;
+    z-index: 5;
+  }
+  .slot .clear-btn:hover {
+    background: var(--ink); color: var(--bg);
+  }
+  .slot .role-label {
+    position: absolute;
+    top: 12px; left: 14px;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
+    background: rgba(244,241,232,0.92);
+    padding: 3px 8px;
+    border-radius: 4px;
+    z-index: 5;
+  }
+  .slot.donor .role-label { color: #b94a8c; }
+  .slot.recipient .role-label { color: #4a8cb9; }
+
+  /* Pilus link between donor and recipient */
+  .pilus-arena {
+    position: relative;
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  @media (max-width: 820px) {
+    .pilus-arena { height: 64px; }
+  }
+  .pilus-svg { width: 100%; height: 100%; display: block; }
+  .pilus-line {
+    stroke: var(--rule);
+    stroke-width: 2;
+    stroke-dasharray: 4 4;
+    fill: none;
+    transition: stroke 0.3s, stroke-width 0.3s, stroke-dasharray 0.3s;
+  }
+  .pilus-arena.active .pilus-line {
+    stroke: var(--ink-2);
+    stroke-width: 3;
+    stroke-dasharray: none;
+  }
+  .pilus-arena.success .pilus-line {
+    stroke: var(--ok);
+  }
+  .pilus-arena.fail .pilus-line {
+    stroke: var(--bad);
+  }
+  .plasmid-dot {
+    fill: #b94a8c;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .pilus-arena.active .plasmid-dot { opacity: 1; }
+
+  /* === TRAIT PICKER === */
+  .trait-picker {
+    padding: 24px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 16px;
+    margin-bottom: 24px;
+  }
+  .trait-picker h3 { margin-bottom: 14px; }
+  .trait-picker.empty .trait-options { display: none; }
+  .trait-picker.empty .picker-hint { display: block; }
+  .picker-hint {
+    display: none;
+    color: var(--ink-3);
+    font-size: 14px;
+  }
+  .trait-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .trait-chip {
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .trait-chip:hover { border-color: var(--ink); }
+  .trait-chip.active {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+  }
+  .trait-chip.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .trait-chip .why {
+    font-size: 10px;
+    color: var(--bad);
+    margin-left: 4px;
+  }
+
+  /* === CONJUGATE BUTTON === */
+  .conjugate-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-block;
+    background: var(--ink); color: var(--bg);
+    border: 1px solid var(--ink);
+    padding: 12px 24px;
+    border-radius: 6px;
+    font: inherit; font-size: 15px; font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  }
+  .btn:hover { background: #000; border-color: #000; }
+  .btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    background: var(--ink-3);
+    border-color: var(--ink-3);
+  }
+  .btn-ghost {
+    background: transparent; color: var(--ink);
+    border-color: var(--rule);
+  }
+  .btn-ghost:hover {
+    background: transparent; color: var(--ink); border-color: var(--ink);
+  }
+  .btn-big { font-size: 16px; padding: 14px 28px; }
+  .status-line {
+    font-size: 14px;
+    color: var(--ink-2);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.02em;
+  }
+  .status-line.ok { color: var(--ok); }
+  .status-line.fail { color: var(--bad); }
+
+  /* === LOG === */
+  .log-list {
+    border-top: 1px solid var(--rule);
+  }
+  .log-empty {
+    padding: 32px 0;
+    color: var(--ink-3);
+    font-size: 14px;
+  }
+  .log-row {
+    display: grid;
+    grid-template-columns: 100px 1fr 100px;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: center;
+    font-size: 14px;
+  }
+  .log-time {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--ink-3);
+    font-size: 12px;
+  }
+  .log-desc { color: var(--ink); }
+  .log-desc strong {
+    font-weight: 500;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--ink);
+  }
+  .log-status {
+    text-align: right;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .log-status.ok { color: var(--ok); }
+  .log-status.fail { color: var(--bad); }
+
+  /* === MUTATION BADGES on biom cards === */
+  .mutation-badges {
+    position: absolute;
+    bottom: 8px; right: 8px;
+    display: flex;
+    gap: 3px;
+  }
+  .mutation-badge {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #b94a8c;
+    border: 1.5px solid white;
+  }
+  .mutation-badge.depleted {
+    background: var(--bad);
+  }
+
+  /* === FOOTER (canonical) === */
+  footer {
+    padding: 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px;
+    font-size: 13px; color: var(--ink-3);
+    border-top: 1px solid var(--rule);
+    position: relative; z-index: 2;
+  }
+  footer a { color: inherit; transition: color 0.15s; }
+  footer a:hover { color: var(--ink); }
+  .footer-meta { display: flex; align-items: center; gap: 14px; }
+  .footer-meta .sep { opacity: 0.4; }
+  @media (max-width: 600px) {
+    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
+  }
+
+  /* === ANIMATION (success flash, etc) === */
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(74, 124, 74, 0); }
+    50% { box-shadow: 0 0 0 8px rgba(74, 124, 74, 0.3); }
+  }
+  .slot.flash-success { animation: pulse-glow 1.2s ease-out; }
+  @keyframes pulse-glow-bad {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(154, 91, 61, 0); }
+    50% { box-shadow: 0 0 0 8px rgba(154, 91, 61, 0.3); }
+  }
+  .slot.flash-fail { animation: pulse-glow-bad 1.2s ease-out; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <circle class="cell-outer" cx="16" cy="16" r="14"/>
+      <circle class="cell-inner" cx="16" cy="16" r="5"/>
+    </svg>
+    <span>Bioms</span>
+  </a>
+  <div class="nav-links">
+    <a href="/explore">Traits</a>
+    <a href="/lab" class="active" aria-current="page">Lab</a>
+    <a href="/make">Banners</a>
+    <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
+      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<section class="lab-intro">
+  <div class="wrap">
+    <div class="intro-grid">
+      <div>
+        <h1>The Lab.</h1>
+      </div>
+      <p class="intro-tag">Conjugation: real bacterial gene transfer, as game mechanic. Pick a donor and a recipient. The donor's trait moves to the recipient — and the donor loses it for thirty days. About fifteen percent of transfers are rejected.</p>
+    </div>
+  </div>
+</section>
+
+<div class="mode-bar">
+  <div class="mode-bar-wrap">
+    <div class="mode-switch" role="tablist" aria-label="Lab mode">
+      <button class="mode-btn active" id="modeDemoBtn" role="tab" aria-selected="true">Demo</button>
+      <button class="mode-btn" id="modeWalletBtn" role="tab" aria-selected="false">My wallet</button>
+    </div>
+    <span class="mode-note" id="modeNote">Demo: practice with any Bioms by seed. Cooldowns are shortened to 60 seconds so you can feel the mechanic. State saves to this browser.</span>
+  </div>
+</div>
+
+<section class="arena-section">
+  <div class="wrap">
+    <div class="collection-head">
+      <h2>Your collection</h2>
+      <div class="collection-actions">
+        <input type="number" class="seed-input-inline" id="seedInputAdd" min="0" max="2999" placeholder="seed" aria-label="Add Biom by seed">
+        <button class="btn btn-ghost" id="addSeedBtn" type="button">Add</button>
+        <button class="btn btn-ghost" id="addRandomBtn" type="button">+ 4 random</button>
+      </div>
+    </div>
+
+    <div class="collection-grid" id="collectionGrid"></div>
+    <div class="collection-empty" id="collectionEmpty">
+      Your collection is empty. Add a Biom by seed (0–2999) or pull four random ones to start.
+    </div>
+
+    <div style="margin-top: 64px;"></div>
+
+    <h2>Conjugation arena</h2>
+    <p style="margin-bottom: 24px; max-width: 640px;">Click a Biom in your collection to assign it as donor, then click another for recipient. Pick a trait the donor has, hit conjugate.</p>
+
+    <div class="arena">
+      <div class="slot donor" id="donorSlot">
+        <div class="slot-empty">
+          <span class="role">Donor</span>
+          <span class="hint">Click a Biom in your collection</span>
+        </div>
+      </div>
+
+      <div class="pilus-arena" id="pilusArena">
+        <svg class="pilus-svg" viewBox="0 0 100 60" preserveAspectRatio="none">
+          <path class="pilus-line" id="pilusLine" d="M 0 30 Q 50 30 100 30"/>
+          <circle class="plasmid-dot" id="plasmidDot" cx="0" cy="30" r="3.5"/>
+        </svg>
+      </div>
+
+      <div class="slot recipient" id="recipientSlot">
+        <div class="slot-empty">
+          <span class="role">Recipient</span>
+          <span class="hint">Then click another Biom</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="trait-picker empty" id="traitPicker">
+      <h3>Pick a trait to transfer</h3>
+      <p class="picker-hint">Assign both donor and recipient to see the donor's transferable traits.</p>
+      <div class="trait-options" id="traitOptions"></div>
+    </div>
+
+    <div class="conjugate-row">
+      <button class="btn btn-big" id="conjugateBtn" type="button" disabled>Conjugate</button>
+      <button class="btn btn-ghost" id="resetBtn" type="button">Reset arena</button>
+      <span class="status-line" id="statusLine"></span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Activity</h2>
+    <div class="log-list" id="logList">
+      <div class="log-empty" id="logEmpty">No conjugations yet. Try one above.</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div>© 2026 Bioms</div>
+  <div class="footer-meta">
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
+    <span class="sep">·</span>
+    <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">by @timsouw</a>
+  </div>
+</footer>
+
+<script src="specimen-engine.js"></script>
+<script>
+// ============================================================
+// THE LAB — trait conjugation between Bioms.
+//
+// Architecture:
+// - Storage adapter (localStorage now, swap for /api/* post-mint)
+// - Lab state: ownedSeeds[] + per-seed mutations/depletions/log
+// - Trait computation: BiomEngine.generateState(seed) gives base traits
+// - Effective state = base + received mutations - currently-depleted donations
+// - Rendering: preview.html iframe with bare=1 + force* URL params
+//   for donor/recipient slots. Collection grid uses pre-rendered PNGs.
+//
+// Game rules (locked):
+// - Transferable: palette, plasmid, pili, ribosomes, flagellum, endospore,
+//   inclusion, eyespot, axial, reserveGranule, phageAttached, endosymbiont,
+//   biofilmHalo. NOT capsule/nucleoid/morphology.
+// - Donor must currently have the trait
+// - Recipient receives even if they have it (palette overwrites; organelles/
+//   anomalies become "received" — the engine just renders them)
+// - Donor loses trait until cooldown ends; palette donations cool down too
+//   but donor's visual stain doesn't change (they're never colorless)
+// - 15% rejection rate. On reject: donor keeps trait, no transfer, but a
+//   log entry is created.
+// - Demo cooldown: 60s. Wallet cooldown: 30 days.
+// ============================================================
+
+const PNG_BASE = 'https://pngs.thebioms.com';
+const padSeed  = (n) => String(n).padStart(5, '0');
+const masterUrl = (seed) => `${PNG_BASE}/preview/${padSeed(seed)}.png`;
+
+const REJECTION_RATE = 0.15;
+const DEMO_COOLDOWN_MS = 60 * 1000;            // 60 seconds for demo
+const WALLET_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;  // 30 days for real
+const STORAGE_KEY = 'bioms-lab-v1';
+const MAX_COLLECTION = 24;
+
+const TRANSFERABLE = [
+  { id: 'palette',         label: 'Stain',          kind: 'palette',  desc: "Recolor recipient with donor's stain." },
+  { id: 'plasmid',         label: 'Plasmid',        kind: 'organelle', desc: 'Free-floating gene ring.' },
+  { id: 'pili',            label: 'Pili',           kind: 'organelle', desc: 'Hair-like surface fibers.' },
+  { id: 'ribosomes',       label: 'Ribosomes',      kind: 'organelle', desc: 'Protein synthesis sites.' },
+  { id: 'flagellum',       label: 'Flagellum',      kind: 'organelle', desc: 'Motility appendage.' },
+  { id: 'endospore',       label: 'Endospore',      kind: 'organelle', desc: 'Dormant survival form.' },
+  { id: 'inclusion',       label: 'Inclusion body', kind: 'organelle', desc: 'Nutrient storage granule.' },
+  { id: 'eyespot',         label: 'Eye-spot',       kind: 'organelle', desc: 'Light-sensing organelle.' },
+  { id: 'axial',           label: 'Axial filament', kind: 'organelle', desc: 'Internal spiral propulsion.' },
+  { id: 'phageAttached',   label: 'Phage',          kind: 'anomaly',   desc: 'Attached bacteriophage. Ultra-rare.' },
+  { id: 'endosymbiont',    label: 'Endosymbiont',   kind: 'anomaly',   desc: 'Internal symbiont. Ultra-rare.' },
+  { id: 'biofilmHalo',     label: 'Biofilm halo',   kind: 'anomaly',   desc: 'Surrounding biofilm matrix. Ultra-rare.' },
+];
+const TRANSFERABLE_BY_ID = Object.fromEntries(TRANSFERABLE.map(t => [t.id, t]));
+
+// ============================================================
+// STORAGE ADAPTER — localStorage now. Swap with fetch() to a
+// Cloudflare Worker post-mint without changing any UI code.
+// ============================================================
+const Storage = {
+  load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { version: 1, mode: 'demo', ownedSeeds: [], tokens: {}, log: [] };
+      const data = JSON.parse(raw);
+      data.version = data.version || 1;
+      data.mode = data.mode || 'demo';
+      data.ownedSeeds = data.ownedSeeds || [];
+      data.tokens = data.tokens || {};
+      data.log = data.log || [];
+      return data;
+    } catch (e) {
+      console.warn('Lab: localStorage read failed', e);
+      return { version: 1, mode: 'demo', ownedSeeds: [], tokens: {}, log: [] };
+    }
+  },
+  save(data) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+    catch (e) { console.warn('Lab: localStorage write failed', e); }
+  },
+};
+
+const LabState = Storage.load();
+
+// In-memory selection (not persisted)
+let donorSeed = null;
+let recipientSeed = null;
+let selectedTrait = null;
+let isAnimating = false;
+
+// ============================================================
+// TRAIT COMPUTATION
+// ============================================================
+// Compute the effective state for a seed: base traits from the RNG, plus
+// any received mutations, minus any currently-depleted donations.
+function effectiveState(seed) {
+  const base = window.BiomEngine.generateState(seed);
+  const t = LabState.tokens[seed] || {};
+  const now = Date.now();
+
+  // Determine which donated traits are still in cooldown
+  const depletedNow = new Set();
+  for (const d of (t.donated || [])) {
+    if (d.regeneratesAt > now) depletedNow.add(d.trait);
+  }
+
+  // Organelles: start from base, add received, remove depleted
+  const organelles = new Set(base.organelles);
+  for (const o of (t.receivedOrganelles || [])) organelles.add(o);
+  for (const o of depletedNow) {
+    // only organelle-kind traits remove from the set
+    if (TRANSFERABLE_BY_ID[o] && TRANSFERABLE_BY_ID[o].kind === 'organelle') {
+      organelles.delete(o);
+    }
+  }
+
+  // Palette: received overrides base. Depleted palette doesn't change visual
+  // (you always have SOME color), it just blocks re-donating.
+  const palette = t.receivedPalette || base.palette;
+
+  // Anomalies: base value, then "+ received" or "- depleted" overrides
+  function effectiveAnomaly(name) {
+    if ((t.receivedAnomalies || []).includes(name)) return true;
+    if (depletedNow.has(name)) return false;
+    return base[name];
+  }
+  const phageAttached = effectiveAnomaly('phageAttached');
+  const endosymbiont  = effectiveAnomaly('endosymbiont');
+  const biofilmHalo   = effectiveAnomaly('biofilmHalo');
+
+  return {
+    seed,
+    morphology: base.morphology,
+    cellCount: base.cellCount,
+    palette,
+    organelles,
+    lifecycle: base.lifecycle,
+    reserveGranule: base.reserveGranule,
+    phageAttached, endosymbiont, biofilmHalo,
+    depletedNow,
+    receivedKeys: {
+      palette: !!t.receivedPalette,
+      organelles: new Set(t.receivedOrganelles || []),
+      anomalies: new Set(t.receivedAnomalies || []),
+    },
+  };
+}
+
+// What CAN this Biom currently donate?
+// - It must have the trait (in effective state, not just base)
+// - It must not already be donating that trait (cooldown active)
+function transferableForDonor(seed) {
+  const eff = effectiveState(seed);
+  const out = [];
+  for (const trait of TRANSFERABLE) {
+    let has = false;
+    if (trait.kind === 'palette') has = true; // always has a palette
+    else if (trait.kind === 'organelle') has = eff.organelles.has(trait.id);
+    else if (trait.kind === 'anomaly') has = !!eff[trait.id];
+    const onCooldown = eff.depletedNow.has(trait.id);
+    out.push({ ...trait, has, onCooldown, transferable: has && !onCooldown });
+  }
+  return out;
+}
+
+// ============================================================
+// PREVIEW URL — build a preview.html?... URL that renders the
+// given effective state with all overrides applied.
+// ============================================================
+function previewUrl(seed, opts = {}) {
+  const params = new URLSearchParams();
+  params.set('seed', seed);
+  if (opts.bare !== false) params.set('bare', '1');
+  if (opts.nointeract) params.set('nointeract', '1');
+  const eff = effectiveState(seed);
+  // Palette override only if it differs from base
+  const base = window.BiomEngine.generateState(seed);
+  if (eff.palette !== base.palette) params.set('forceStain', eff.palette);
+  // Organelles always — if differ from base, send the full effective set
+  const baseOrg = [...base.organelles].sort().join(',');
+  const effOrg  = [...eff.organelles].sort().join(',');
+  if (baseOrg !== effOrg) params.set('forceOrganelles', [...eff.organelles].join(','));
+  // Anomalies: send 1/0 only when differing from base
+  if (eff.phageAttached !== base.phageAttached) params.set('forcePhage',  eff.phageAttached ? '1' : '0');
+  if (eff.endosymbiont  !== base.endosymbiont)  params.set('forceEndo',   eff.endosymbiont  ? '1' : '0');
+  if (eff.biofilmHalo   !== base.biofilmHalo)   params.set('forceBiofilm', eff.biofilmHalo  ? '1' : '0');
+  return `preview.html?${params.toString()}`;
+}
+
+// ============================================================
+// COLLECTION MANAGEMENT
+// ============================================================
+function addSeed(seed) {
+  seed = parseInt(seed, 10);
+  if (!Number.isFinite(seed) || seed < 0 || seed > 2999) return false;
+  if (LabState.ownedSeeds.includes(seed)) return false;
+  if (LabState.ownedSeeds.length >= MAX_COLLECTION) {
+    setStatus(`Demo collection is capped at ${MAX_COLLECTION} Bioms.`, 'fail');
+    return false;
+  }
+  LabState.ownedSeeds.push(seed);
+  Storage.save(LabState);
+  renderCollection();
+  return true;
+}
+function removeSeed(seed) {
+  LabState.ownedSeeds = LabState.ownedSeeds.filter(s => s !== seed);
+  if (donorSeed === seed) clearSlot('donor');
+  if (recipientSeed === seed) clearSlot('recipient');
+  Storage.save(LabState);
+  renderCollection();
+}
+function addRandom(n) {
+  let added = 0, tries = 0;
+  while (added < n && tries < 200) {
+    tries++;
+    const s = Math.floor(Math.random() * 3000);
+    if (addSeed(s)) added++;
+  }
+}
+
+// ============================================================
+// RENDERING — collection grid + arena slots
+// ============================================================
+const collectionGrid = document.getElementById('collectionGrid');
+const collectionEmpty = document.getElementById('collectionEmpty');
+const donorSlot = document.getElementById('donorSlot');
+const recipientSlot = document.getElementById('recipientSlot');
+const traitPicker = document.getElementById('traitPicker');
+const traitOptions = document.getElementById('traitOptions');
+const conjugateBtn = document.getElementById('conjugateBtn');
+const statusLine = document.getElementById('statusLine');
+const logList = document.getElementById('logList');
+const logEmpty = document.getElementById('logEmpty');
+const pilusArena = document.getElementById('pilusArena');
+const plasmidDot = document.getElementById('plasmidDot');
+
+function setStatus(msg, kind = '') {
+  statusLine.textContent = msg || '';
+  statusLine.className = 'status-line' + (kind ? ' ' + kind : '');
+  if (msg && kind) {
+    setTimeout(() => {
+      if (statusLine.textContent === msg) {
+        statusLine.textContent = '';
+        statusLine.className = 'status-line';
+      }
+    }, 6000);
+  }
+}
+
+function fmtRemaining(ms) {
+  if (ms <= 0) return '';
+  const s = Math.ceil(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.ceil(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.ceil(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.ceil(h / 24);
+  return `${d}d`;
+}
+
+function renderCollection() {
+  if (LabState.ownedSeeds.length === 0) {
+    collectionGrid.style.display = 'none';
+    collectionEmpty.style.display = 'block';
+    return;
+  }
+  collectionGrid.style.display = 'grid';
+  collectionEmpty.style.display = 'none';
+
+  const now = Date.now();
+  collectionGrid.innerHTML = LabState.ownedSeeds.map(seed => {
+    const eff = effectiveState(seed);
+    const t = LabState.tokens[seed] || {};
+    const isDonor = seed === donorSeed;
+    const isRecipient = seed === recipientSeed;
+    const isInUse = (isDonor || isRecipient);
+
+    // Cooldown info — show soonest-regenerating
+    let nextCooldown = null;
+    for (const d of (t.donated || [])) {
+      if (d.regeneratesAt > now && (!nextCooldown || d.regeneratesAt < nextCooldown.regeneratesAt)) {
+        nextCooldown = d;
+      }
+    }
+
+    // Mutation badges (visual hint that this Biom has acquired traits)
+    const receivedCount =
+      (t.receivedPalette ? 1 : 0) +
+      (t.receivedOrganelles || []).length +
+      (t.receivedAnomalies || []).length;
+    const depletedCount = eff.depletedNow.size;
+    const badges = [];
+    for (let i = 0; i < Math.min(receivedCount, 3); i++) badges.push('<span class="mutation-badge"></span>');
+    for (let i = 0; i < Math.min(depletedCount, 3); i++) badges.push('<span class="mutation-badge depleted"></span>');
+
+    const roleTag = isDonor ? 'Donor' : (isRecipient ? 'Recipient' : '');
+    const traitCount = [...eff.organelles].length - 1; // exclude capsule from count
+
+    return `
+      <div class="biom-card ${isDonor ? 'selected-donor' : ''} ${isRecipient ? 'selected-recipient' : ''}"
+           data-seed="${seed}" tabindex="0" role="button"
+           aria-label="Biom #${seed} — click to assign to donor or recipient slot">
+        <div class="biom-thumb">
+          <img src="${masterUrl(seed)}" alt="Biom #${seed}" loading="lazy" decoding="async"
+               onerror="this.style.background='var(--paper)'; this.style.opacity='0.3';">
+          ${roleTag ? `<span class="role-tag">${roleTag}</span>` : ''}
+          ${nextCooldown ? `<span class="cooldown-tag">${TRANSFERABLE_BY_ID[nextCooldown.trait]?.label || nextCooldown.trait} · ${fmtRemaining(nextCooldown.regeneratesAt - now)}</span>` : ''}
+          ${badges.length ? `<div class="mutation-badges">${badges.join('')}</div>` : ''}
+        </div>
+        <div class="biom-info">
+          <span class="biom-name">BIOM #${seed}</span>
+          <span class="biom-traits">${traitCount} traits</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Hook click + keyboard
+  collectionGrid.querySelectorAll('.biom-card').forEach(card => {
+    const seed = parseInt(card.dataset.seed, 10);
+    const activate = () => onBiomClick(seed);
+    card.addEventListener('click', activate);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+    });
+  });
+}
+
+function onBiomClick(seed) {
+  if (isAnimating) return;
+  if (seed === donorSeed) { clearSlot('donor'); return; }
+  if (seed === recipientSeed) { clearSlot('recipient'); return; }
+  // Assign: donor first if empty, else recipient
+  if (donorSeed === null) setSlot('donor', seed);
+  else if (recipientSeed === null) setSlot('recipient', seed);
+  else {
+    // Both slots full — replace donor (most recent click wins as new donor,
+    // old donor becomes recipient, old recipient is discarded)
+    recipientSeed = donorSeed;
+    donorSeed = seed;
+    renderSlots();
+    renderCollection();
+    renderTraitPicker();
+    updateConjugateBtn();
+  }
+}
+
+function setSlot(role, seed) {
+  if (role === 'donor') donorSeed = seed;
+  else if (role === 'recipient') recipientSeed = seed;
+  selectedTrait = null;
+  renderSlots();
+  renderCollection();
+  renderTraitPicker();
+  updateConjugateBtn();
+}
+
+function clearSlot(role) {
+  if (role === 'donor') donorSeed = null;
+  else if (role === 'recipient') recipientSeed = null;
+  selectedTrait = null;
+  renderSlots();
+  renderCollection();
+  renderTraitPicker();
+  updateConjugateBtn();
+}
+
+function resetArena() {
+  donorSeed = null;
+  recipientSeed = null;
+  selectedTrait = null;
+  setStatus('');
+  renderSlots();
+  renderCollection();
+  renderTraitPicker();
+  updateConjugateBtn();
+}
+
+function renderSlots() {
+  renderSlot(donorSlot, 'donor', donorSeed);
+  renderSlot(recipientSlot, 'recipient', recipientSeed);
+}
+function renderSlot(el, role, seed) {
+  if (seed === null) {
+    el.classList.remove('filled');
+    el.innerHTML = `
+      <div class="slot-empty">
+        <span class="role">${role === 'donor' ? 'Donor' : 'Recipient'}</span>
+        <span class="hint">${role === 'donor' ? 'Click a Biom in your collection' : 'Then click another Biom'}</span>
+      </div>
+    `;
+  } else {
+    el.classList.add('filled');
+    el.innerHTML = `
+      <span class="role-label">${role === 'donor' ? 'Donor' : 'Recipient'} · #${seed}</span>
+      <button type="button" class="clear-btn" aria-label="Clear ${role}" data-clear="${role}">×</button>
+      <iframe src="${previewUrl(seed, { nointeract: true })}" loading="eager" aria-label="Biom #${seed} live render"></iframe>
+    `;
+    el.querySelector('.clear-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearSlot(role);
+    });
+  }
+}
+
+function renderTraitPicker() {
+  if (donorSeed === null || recipientSeed === null) {
+    traitPicker.classList.add('empty');
+    traitOptions.innerHTML = '';
+    return;
+  }
+  traitPicker.classList.remove('empty');
+  const options = transferableForDonor(donorSeed);
+  traitOptions.innerHTML = options.map(opt => {
+    const isActive = selectedTrait === opt.id;
+    const disabled = !opt.transferable;
+    let why = '';
+    if (!opt.has) why = 'absent';
+    else if (opt.onCooldown) why = 'cooldown';
+    return `
+      <button type="button"
+              class="trait-chip ${isActive ? 'active' : ''} ${disabled ? 'disabled' : ''}"
+              data-trait="${opt.id}"
+              ${disabled ? 'disabled' : ''}
+              title="${opt.desc}">
+        ${opt.label}
+        ${why ? `<span class="why">${why}</span>` : ''}
+      </button>
+    `;
+  }).join('');
+  traitOptions.querySelectorAll('.trait-chip').forEach(chip => {
+    if (chip.disabled) return;
+    chip.addEventListener('click', () => {
+      selectedTrait = chip.dataset.trait;
+      renderTraitPicker();
+      updateConjugateBtn();
+    });
+  });
+}
+
+function updateConjugateBtn() {
+  const ready = donorSeed !== null && recipientSeed !== null && selectedTrait !== null && !isAnimating;
+  conjugateBtn.disabled = !ready;
+}
+
+// ============================================================
+// CONJUGATION — the actual game logic + animation
+// ============================================================
+function cooldownMs() {
+  return LabState.mode === 'wallet' ? WALLET_COOLDOWN_MS : DEMO_COOLDOWN_MS;
+}
+
+function performConjugation(donor, recipient, traitId) {
+  const trait = TRANSFERABLE_BY_ID[traitId];
+  if (!trait) return { ok: false, reason: 'unknown_trait' };
+
+  // Verify donor still has it (race-condition safe)
+  const ts = transferableForDonor(donor).find(t => t.id === traitId);
+  if (!ts || !ts.transferable) return { ok: false, reason: 'unavailable' };
+
+  // Roll for rejection
+  const roll = Math.random();
+  const rejected = roll < REJECTION_RATE;
+  const ts2 = Date.now();
+
+  const logEntry = {
+    ts: ts2,
+    donor, recipient,
+    trait: traitId,
+    op: rejected ? 'rejected' : 'transfer',
+  };
+
+  // Always log; only mutate state on success
+  LabState.log.unshift(logEntry);
+  if (LabState.log.length > 100) LabState.log.length = 100;
+
+  if (!rejected) {
+    // Mutate recipient: add the trait
+    const recState = LabState.tokens[recipient] || (LabState.tokens[recipient] = {});
+    if (trait.kind === 'palette') {
+      const donorEff = effectiveState(donor);
+      recState.receivedPalette = donorEff.palette;
+    } else if (trait.kind === 'organelle') {
+      recState.receivedOrganelles = recState.receivedOrganelles || [];
+      if (!recState.receivedOrganelles.includes(traitId)) recState.receivedOrganelles.push(traitId);
+    } else if (trait.kind === 'anomaly') {
+      recState.receivedAnomalies = recState.receivedAnomalies || [];
+      if (!recState.receivedAnomalies.includes(traitId)) recState.receivedAnomalies.push(traitId);
+    }
+
+    // Donor: record depletion (cooldown). For palette, donor visually keeps
+    // the color but still goes on cooldown (game-balance).
+    const donState = LabState.tokens[donor] || (LabState.tokens[donor] = {});
+    donState.donated = donState.donated || [];
+    donState.donated.push({
+      trait: traitId,
+      to: recipient,
+      donatedAt: ts2,
+      regeneratesAt: ts2 + cooldownMs(),
+    });
+  }
+
+  Storage.save(LabState);
+  return { ok: !rejected, rejected, logEntry };
+}
+
+async function runConjugationAnimation() {
+  isAnimating = true;
+  updateConjugateBtn();
+  setStatus('Conjugating…');
+
+  pilusArena.classList.add('active');
+  pilusArena.classList.remove('success', 'fail');
+
+  // Animate plasmid dot traveling along the pilus (0 → 100 on the svg viewBox)
+  // SVG is 100 wide; on mobile (stacked) we'd ideally animate vertically but
+  // for simplicity we keep the horizontal animation always — it still reads.
+  const totalMs = 1400;
+  const startTs = performance.now();
+  await new Promise(resolve => {
+    function step(t) {
+      const elapsed = t - startTs;
+      const p = Math.min(1, elapsed / totalMs);
+      const x = p * 100;
+      // Slight arc: y dips down then up (visual interest)
+      const y = 30 + Math.sin(p * Math.PI) * 8;
+      plasmidDot.setAttribute('cx', x);
+      plasmidDot.setAttribute('cy', y);
+      if (p < 1) requestAnimationFrame(step);
+      else resolve();
+    }
+    requestAnimationFrame(step);
+  });
+
+  // Now resolve the game result
+  const result = performConjugation(donorSeed, recipientSeed, selectedTrait);
+  if (result.ok) {
+    pilusArena.classList.add('success');
+    donorSlot.classList.add('flash-success');
+    recipientSlot.classList.add('flash-success');
+    setStatus(`Transfer accepted — ${TRANSFERABLE_BY_ID[selectedTrait].label} moved to #${recipientSeed}.`, 'ok');
+  } else if (result.rejected) {
+    pilusArena.classList.add('fail');
+    recipientSlot.classList.add('flash-fail');
+    setStatus(`Rejected — recipient #${recipientSeed} did not accept the ${TRANSFERABLE_BY_ID[selectedTrait].label}.`, 'fail');
+    // Bounce plasmid back
+    await new Promise(resolve => {
+      const startTs2 = performance.now();
+      function step(t) {
+        const elapsed = t - startTs2;
+        const p = Math.min(1, elapsed / 600);
+        const x = 100 - p * 100;
+        const y = 30;
+        plasmidDot.setAttribute('cx', x);
+        plasmidDot.setAttribute('cy', y);
+        if (p < 1) requestAnimationFrame(step);
+        else resolve();
+      }
+      requestAnimationFrame(step);
+    });
+  } else {
+    setStatus(`${TRANSFERABLE_BY_ID[selectedTrait].label} unavailable.`, 'fail');
+  }
+
+  // Refresh visuals
+  renderSlots();
+  renderCollection();
+  renderLog();
+
+  // Hold the result state for ~1.5s, then settle the arena
+  await new Promise(r => setTimeout(r, 1500));
+  pilusArena.classList.remove('active', 'success', 'fail');
+  donorSlot.classList.remove('flash-success', 'flash-fail');
+  recipientSlot.classList.remove('flash-success', 'flash-fail');
+  plasmidDot.setAttribute('cx', 0);
+
+  // After successful transfer, clear the selected trait (it's now on cooldown)
+  selectedTrait = null;
+  renderTraitPicker();
+
+  isAnimating = false;
+  updateConjugateBtn();
+}
+
+// ============================================================
+// ACTIVITY LOG
+// ============================================================
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function renderLog() {
+  if (LabState.log.length === 0) {
+    logEmpty.style.display = 'block';
+    Array.from(logList.querySelectorAll('.log-row')).forEach(el => el.remove());
+    return;
+  }
+  logEmpty.style.display = 'none';
+  const html = LabState.log.slice(0, 20).map(entry => {
+    const trait = TRANSFERABLE_BY_ID[entry.trait]?.label || entry.trait;
+    const ok = entry.op === 'transfer';
+    return `
+      <div class="log-row">
+        <span class="log-time">${fmtTime(entry.ts)}</span>
+        <span class="log-desc">
+          <strong>BIOM #${entry.donor}</strong> → <strong>BIOM #${entry.recipient}</strong>
+          <span style="color: var(--ink-3);"> — ${trait}</span>
+        </span>
+        <span class="log-status ${ok ? 'ok' : 'fail'}">${ok ? 'Transferred' : 'Rejected'}</span>
+      </div>
+    `;
+  }).join('');
+  Array.from(logList.querySelectorAll('.log-row')).forEach(el => el.remove());
+  logList.insertAdjacentHTML('beforeend', html);
+}
+
+// ============================================================
+// MODE TOGGLE — Demo vs Wallet
+// ============================================================
+const modeDemoBtn = document.getElementById('modeDemoBtn');
+const modeWalletBtn = document.getElementById('modeWalletBtn');
+const modeNote = document.getElementById('modeNote');
+
+function applyMode() {
+  if (LabState.mode === 'wallet') {
+    modeDemoBtn.classList.remove('active');
+    modeWalletBtn.classList.add('active');
+    modeDemoBtn.setAttribute('aria-selected', 'false');
+    modeWalletBtn.setAttribute('aria-selected', 'true');
+    modeNote.innerHTML = `<span class="wallet-stub"><span class="pill">post-mint</span> Wallet conjugation unlocks after mint. The on-chain backend (Worker + D1 + dynamic <code>tokenURI</code>) will mirror this exact UI — your existing demo state stays in this browser.</span>`;
+  } else {
+    modeDemoBtn.classList.add('active');
+    modeWalletBtn.classList.remove('active');
+    modeDemoBtn.setAttribute('aria-selected', 'true');
+    modeWalletBtn.setAttribute('aria-selected', 'false');
+    modeNote.textContent = 'Demo: practice with any Bioms by seed. Cooldowns are shortened to 60 seconds so you can feel the mechanic. State saves to this browser.';
+  }
+}
+modeDemoBtn.addEventListener('click', () => { LabState.mode = 'demo'; Storage.save(LabState); applyMode(); });
+modeWalletBtn.addEventListener('click', () => { LabState.mode = 'wallet'; Storage.save(LabState); applyMode(); });
+
+// ============================================================
+// WIRE UP
+// ============================================================
+document.getElementById('addSeedBtn').addEventListener('click', () => {
+  const input = document.getElementById('seedInputAdd');
+  const v = input.value.trim();
+  if (!v) { setStatus('Enter a seed between 0 and 2999.', 'fail'); return; }
+  const ok = addSeed(v);
+  if (ok) { input.value = ''; setStatus(`Added BIOM #${v}.`, 'ok'); }
+  else setStatus(`Already in collection or out of range.`, 'fail');
+});
+document.getElementById('seedInputAdd').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('addSeedBtn').click(); }
+});
+document.getElementById('addRandomBtn').addEventListener('click', () => addRandom(4));
+document.getElementById('resetBtn').addEventListener('click', resetArena);
+conjugateBtn.addEventListener('click', () => {
+  if (isAnimating) return;
+  if (donorSeed === null || recipientSeed === null || selectedTrait === null) return;
+  if (donorSeed === recipientSeed) {
+    setStatus('Donor and recipient must differ.', 'fail');
+    return;
+  }
+  runConjugationAnimation();
+});
+
+// Recompute cooldown labels every 10 s so the "regenerates in" timers
+// tick down naturally without re-rendering on every frame.
+setInterval(() => {
+  if (LabState.ownedSeeds.length === 0) return;
+  // Only re-render the collection if any donation is currently in cooldown
+  const now = Date.now();
+  let anyActive = false;
+  for (const seed of LabState.ownedSeeds) {
+    const t = LabState.tokens[seed];
+    if (!t || !t.donated) continue;
+    for (const d of t.donated) {
+      if (d.regeneratesAt > now) { anyActive = true; break; }
+    }
+    if (anyActive) break;
+  }
+  if (anyActive) renderCollection();
+}, 10000);
+
+// ============================================================
+// BOOT
+// ============================================================
+applyMode();
+renderCollection();
+renderSlots();
+renderTraitPicker();
+renderLog();
+
+// First-time user nudge — seed the collection with one Biom so the page
+// isn't blank on first visit. Doesn't fire if user has cleared it.
+if (LabState.ownedSeeds.length === 0 && !localStorage.getItem(STORAGE_KEY + '-seeded')) {
+  addRandom(4);
+  localStorage.setItem(STORAGE_KEY + '-seeded', '1');
+}
+</script>
+
+</body>
+</html>
