@@ -376,6 +376,56 @@
 
   /* === ARENA === */
   .arena-section { padding-top: 64px; padding-bottom: 64px; }
+
+  /* Step banner — the one source of truth for "what to do next". The
+     entire flow is donor → recipient → trait → conjugate, and at any
+     moment this banner tells the user which step they're on. */
+  .step-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 22px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    margin-bottom: 28px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .step-banner[data-step="donor"]     { border-color: #b94a8c; background: rgba(185, 74, 140, 0.05); }
+  .step-banner[data-step="recipient"] { border-color: #4a8cb9; background: rgba(74, 140, 185, 0.05); }
+  .step-banner[data-step="trait"]     { border-color: var(--ink-2); background: var(--paper); }
+  .step-banner[data-step="ready"]     { border-color: var(--ok); background: rgba(74, 124, 74, 0.06); }
+  .step-banner .step-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--ink-3);
+    flex-shrink: 0;
+  }
+  .step-banner[data-step="donor"]     .step-dot { background: #b94a8c; }
+  .step-banner[data-step="recipient"] .step-dot { background: #4a8cb9; }
+  .step-banner[data-step="trait"]     .step-dot { background: var(--ink); }
+  .step-banner[data-step="ready"]     .step-dot { background: var(--ok); }
+  .step-banner .step-number {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: var(--ink-3);
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+  }
+  .step-banner .step-label {
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--ink);
+    flex-shrink: 0;
+  }
+  .step-banner .step-sub {
+    font-size: 14px;
+    color: var(--ink-3);
+  }
+  @media (max-width: 600px) {
+    .step-banner { padding: 14px 16px; gap: 10px; flex-wrap: wrap; }
+    .step-banner .step-sub { flex-basis: 100%; margin-left: 24px; }
+  }
+
   .arena {
     display: grid;
     grid-template-columns: 1fr 120px 1fr;
@@ -403,6 +453,23 @@
   }
   .slot.donor.filled { border: 2px solid #b94a8c; border-style: solid; }
   .slot.recipient.filled { border: 2px solid #4a8cb9; border-style: solid; }
+  /* Subtle pulse on the currently-targeted empty slot so the user knows
+     exactly where the next clicked Biom will land. */
+  @keyframes slot-target-pulse {
+    0%, 100% { border-color: var(--rule); }
+    50%      { border-color: var(--ink-2); }
+  }
+  .slot.target { animation: slot-target-pulse 2s ease-in-out infinite; }
+  .slot.donor.target     { animation-name: slot-pulse-donor; }
+  .slot.recipient.target { animation-name: slot-pulse-recipient; }
+  @keyframes slot-pulse-donor {
+    0%, 100% { border-color: rgba(185, 74, 140, 0.35); }
+    50%      { border-color: #b94a8c; }
+  }
+  @keyframes slot-pulse-recipient {
+    0%, 100% { border-color: rgba(74, 140, 185, 0.35); }
+    50%      { border-color: #4a8cb9; }
+  }
   .slot-empty {
     text-align: center;
     color: var(--ink-3);
@@ -607,6 +674,13 @@
     background: transparent; color: var(--ink); border-color: var(--ink);
   }
   .btn-big { font-size: 16px; padding: 14px 28px; }
+  /* When everything's set up and we're waiting on the user to commit,
+     the Conjugate button breathes so they know what to tap. */
+  @keyframes ready-breathe {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(28, 26, 22, 0); }
+    50%      { box-shadow: 0 0 0 6px rgba(28, 26, 22, 0.10); }
+  }
+  .btn-big.ready { animation: ready-breathe 1.8s ease-in-out infinite; }
   .status-line {
     font-size: 14px;
     color: var(--ink-2);
@@ -739,7 +813,7 @@
       <div>
         <h1>The Lab.</h1>
       </div>
-      <p class="intro-tag">Conjugation: real bacterial gene transfer, as game mechanic. Pick a donor and a recipient. The donor's trait moves to the recipient — and the donor loses it for thirty days. About fifteen percent of transfers are rejected.</p>
+      <p class="intro-tag">Splice traits between Bioms. The donor gives a trait. The recipient receives it. The donor regenerates over time.</p>
     </div>
   </div>
 </section>
@@ -778,14 +852,21 @@
 
     <div style="margin-top: 64px;"></div>
 
-    <h2>Conjugation arena</h2>
-    <p style="margin-bottom: 24px; max-width: 640px;">Click a Biom in your collection to assign it as donor, then click another for recipient. Pick a trait the donor has, hit conjugate.</p>
+    <!-- Step banner — replaces the wall-of-text intro. ONE clear next-
+         action at a time, color-coded to the slot it relates to. The whole
+         lab flow becomes: step 1 → step 2 → step 3 → tap Conjugate. -->
+    <div class="step-banner" id="stepBanner" data-step="donor">
+      <span class="step-dot"></span>
+      <span class="step-number">1</span>
+      <span class="step-label" id="stepLabel">Pick a donor</span>
+      <span class="step-sub" id="stepSub">Tap any Biom in your collection above</span>
+    </div>
 
     <div class="arena">
       <div class="slot donor" id="donorSlot">
         <div class="slot-empty">
           <span class="role">Donor</span>
-          <span class="hint">Click a Biom in your collection</span>
+          <span class="hint">Pick a Biom above</span>
         </div>
       </div>
 
@@ -799,7 +880,7 @@
       <div class="slot recipient" id="recipientSlot">
         <div class="slot-empty">
           <span class="role">Recipient</span>
-          <span class="hint">Then click another Biom</span>
+          <span class="hint">Pick another Biom</span>
         </div>
       </div>
     </div>
@@ -1501,22 +1582,49 @@ function renderCollection() {
   });
 }
 
+// Derive the current step from arena state. Single source of truth for
+// "what to do next" — banner text, slot pulse, conjugate-button glow,
+// and the click-handler all read from this.
+function currentStep() {
+  if (donorSeed === null) return 'donor';
+  if (recipientSeed === null) return 'recipient';
+  if (selectedTrait === null) return 'trait';
+  return 'ready';
+}
+
+const STEP_COPY = {
+  donor:     { num: '1', label: 'Pick a donor',      sub: 'Tap any Biom in your collection above — that one gives the trait.' },
+  recipient: { num: '2', label: 'Pick a recipient',  sub: 'Tap another Biom — that one receives the trait.' },
+  trait:     { num: '3', label: 'Pick a trait',      sub: 'Choose what the donor sends across the pilus.' },
+  ready:     { num: '4', label: 'Tap Conjugate',     sub: 'Hit the button — about 15% of transfers are rejected, that\'s the game.' },
+};
+
+function renderStepBanner() {
+  const step = currentStep();
+  const c = STEP_COPY[step];
+  const banner = document.getElementById('stepBanner');
+  banner.dataset.step = step;
+  document.getElementById('stepLabel').textContent = c.label;
+  document.getElementById('stepSub').textContent = c.sub;
+  banner.querySelector('.step-number').textContent = c.num + '/4';
+}
+
 function onBiomClick(seed) {
   if (isAnimating) return;
+  // Click on an already-assigned card → clear that slot. Lets users
+  // de-select to swap without hunting for the × button.
   if (seed === donorSeed) { clearSlot('donor'); return; }
   if (seed === recipientSeed) { clearSlot('recipient'); return; }
-  // Assign: donor first if empty, else recipient
-  if (donorSeed === null) setSlot('donor', seed);
-  else if (recipientSeed === null) setSlot('recipient', seed);
-  else {
-    // Both slots full — replace donor (most recent click wins as new donor,
-    // old donor becomes recipient, old recipient is discarded)
-    recipientSeed = donorSeed;
-    donorSeed = seed;
-    renderSlots();
-    renderCollection();
-    renderTraitPicker();
-    updateConjugateBtn();
+  // Strict step-driven assignment. No silent slot swapping — that was
+  // the source of "tapped, something happened, no idea what" confusion.
+  if (donorSeed === null) {
+    setSlot('donor', seed);
+  } else if (recipientSeed === null) {
+    setSlot('recipient', seed);
+  } else {
+    // Both slots full. Tell the user how to swap instead of mysteriously
+    // shuffling things around behind their back.
+    setStatus('Tap × on a slot below to swap.', 'miss');
   }
 }
 
@@ -1524,20 +1632,19 @@ function setSlot(role, seed) {
   if (role === 'donor') donorSeed = seed;
   else if (role === 'recipient') recipientSeed = seed;
   selectedTrait = null;
-  renderSlots();
-  renderCollection();
-  renderTraitPicker();
-  updateConjugateBtn();
+  renderArenaAll();
+  // When we just filled the recipient slot, scroll the trait picker into
+  // view so the next step is right under the user's thumb on mobile.
+  if (role === 'recipient' && donorSeed !== null) {
+    setTimeout(() => traitPicker.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+  }
 }
 
 function clearSlot(role) {
   if (role === 'donor') donorSeed = null;
   else if (role === 'recipient') recipientSeed = null;
   selectedTrait = null;
-  renderSlots();
-  renderCollection();
-  renderTraitPicker();
-  updateConjugateBtn();
+  renderArenaAll();
 }
 
 function resetArena() {
@@ -1545,23 +1652,32 @@ function resetArena() {
   recipientSeed = null;
   selectedTrait = null;
   setStatus('');
+  renderArenaAll();
+}
+
+// One call to rule them all — keeps slot/collection/picker/banner/button
+// in sync without scattered re-render calls.
+function renderArenaAll() {
   renderSlots();
   renderCollection();
   renderTraitPicker();
+  renderStepBanner();
   updateConjugateBtn();
 }
 
 function renderSlots() {
-  renderSlot(donorSlot, 'donor', donorSeed);
-  renderSlot(recipientSlot, 'recipient', recipientSeed);
+  const step = currentStep();
+  renderSlot(donorSlot, 'donor', donorSeed, step === 'donor');
+  renderSlot(recipientSlot, 'recipient', recipientSeed, step === 'recipient');
 }
-function renderSlot(el, role, seed) {
+function renderSlot(el, role, seed, isTarget) {
+  el.classList.toggle('target', isTarget && seed === null);
   if (seed === null) {
     el.classList.remove('filled');
     el.innerHTML = `
       <div class="slot-empty">
         <span class="role">${role === 'donor' ? 'Donor' : 'Recipient'}</span>
-        <span class="hint">${role === 'donor' ? 'Click a Biom in your collection' : 'Then click another Biom'}</span>
+        <span class="hint">${isTarget ? '👆 your turn' : 'Waiting'}</span>
       </div>
     `;
   } else {
@@ -1629,6 +1745,7 @@ function renderTraitPicker() {
     chip.addEventListener('click', () => {
       selectedTrait = chip.dataset.trait;
       renderTraitPicker();
+      renderStepBanner();
       updateConjugateBtn();
     });
   });
@@ -1637,6 +1754,7 @@ function renderTraitPicker() {
 function updateConjugateBtn() {
   const ready = donorSeed !== null && recipientSeed !== null && selectedTrait !== null && !isAnimating;
   conjugateBtn.disabled = !ready;
+  conjugateBtn.classList.toggle('ready', ready);
 }
 
 // ============================================================
@@ -2027,6 +2145,7 @@ applyMode();
 renderCollection();
 renderSlots();
 renderTraitPicker();
+renderStepBanner();
 renderLog();
 
 // Wallet mode boot: probe worker + try silent reconnect (if user previously
