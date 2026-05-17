@@ -43,12 +43,96 @@
   a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
   a:hover { text-decoration-color: var(--ink); }
 
+  /* === NAV (canonical — must match index.html, make.html, explore.html) === */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    padding: 18px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    background: rgba(236, 233, 224, 0.78);
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    color: var(--ink);
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .brand:hover { opacity: 0.65; text-decoration: none; }
+  .brand-mark { width: 18px; height: 18px; display: block; }
+  .brand-mark .cell-outer { fill: currentColor; }
+  .brand-mark .cell-inner { fill: var(--bg); }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    font-size: 14px;
+  }
+  .nav-links a {
+    color: var(--ink-3);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .nav-links a:hover { color: var(--ink); text-decoration: none; }
+  .nav-links a.external::after {
+    content: " ↗";
+    font-size: 11px;
+    opacity: 0.55;
+    margin-left: 1px;
+    display: inline-block;
+  }
+  @media (max-width: 600px) {
+    nav { padding: 14px 18px; }
+    .nav-links { gap: 14px; font-size: 13px; }
+    .nav-links a.external { display: none; }
+  }
+
+  /* === FOOTER (canonical) === */
+  footer {
+    padding: 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--ink-3);
+    border-top: 1px solid var(--rule);
+    position: relative;
+    z-index: 2;
+  }
+  footer a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  footer a:hover { color: var(--ink); }
+  .footer-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .footer-meta .sep { opacity: 0.4; }
+  @media (max-width: 600px) {
+    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
+  }
+
   .wrap {
     position: relative;
     z-index: 2;
     max-width: 520px;
     margin: 0 auto;
-    padding: 14vh 32px 0;
+    padding: 12vh 32px 64px;
     text-align: center;
   }
 
@@ -98,16 +182,36 @@
     display: inline-block;
     background: var(--ink);
     color: var(--bg);
-    padding: 12px 24px;
+    border: 1px solid var(--ink);
+    padding: 11px 22px;
     border-radius: 6px;
+    font-family: inherit;
     font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
     text-decoration: none;
-    transition: background 0.15s;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
   }
-  .btn:hover { background: #000; }
+  .btn:hover { background: #000; border-color: #000; text-decoration: none; }
 </style>
 </head>
 <body>
+
+<nav>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <circle class="cell-outer" cx="16" cy="16" r="14"/>
+      <circle class="cell-inner" cx="16" cy="16" r="5"/>
+    </svg>
+    <span>Bioms</span>
+  </a>
+  <div class="nav-links">
+    <a href="/explore">Explore</a>
+    <a href="/make">Banners</a>
+    <a href="https://twitter.com/theBioms" class="external" target="_blank" rel="noopener">@theBioms</a>
+  </div>
+</nav>
+
 <div class="wrap">
   <div class="cell"></div>
   <div class="code">404 · Not found</div>
@@ -115,5 +219,15 @@
   <p>The link is broken, the page was moved, or this Biom never existed in the first place.</p>
   <a href="/" class="btn">Back to Bioms</a>
 </div>
+
+<footer>
+  <div>© 2026 Bioms · Series I</div>
+  <div class="footer-meta">
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
+    <span class="sep">·</span>
+    <a href="https://twitter.com/timso_eth" target="_blank" rel="noopener">by @timso_eth</a>
+  </div>
+</footer>
+
 </body>
 </html>

@@ -58,33 +58,62 @@
   a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
   a:hover { text-decoration-color: var(--ink); }
 
-  /* === NAV === */
+  /* === NAV (canonical — must match make.html, explore.html, 404.html) === */
   nav {
     position: sticky;
     top: 0;
     z-index: 50;
-    padding: 20px 32px;
+    padding: 18px 32px;
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     backdrop-filter: blur(16px) saturate(1.2);
     -webkit-backdrop-filter: blur(16px) saturate(1.2);
     background: rgba(236, 233, 224, 0.78);
     border-bottom: 1px solid var(--rule);
   }
   .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
     font-size: 17px;
     font-weight: 500;
     letter-spacing: -0.005em;
+    color: var(--ink);
+    text-decoration: none;
+    transition: opacity 0.15s;
   }
-  .nav-meta {
+  .brand:hover { opacity: 0.65; text-decoration: none; }
+  .brand-mark {
+    width: 18px; height: 18px;
+    display: block;
+  }
+  .brand-mark .cell-outer { fill: currentColor; }
+  .brand-mark .cell-inner { fill: var(--bg); }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 22px;
     font-size: 14px;
+  }
+  .nav-links a {
     color: var(--ink-3);
-    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .nav-links a:hover { color: var(--ink); text-decoration: none; }
+  .nav-links a.active { color: var(--ink); font-weight: 500; }
+  .nav-links a.external::after {
+    content: " ↗";
+    font-size: 11px;
+    opacity: 0.55;
+    margin-left: 1px;
+    display: inline-block;
   }
   @media (max-width: 600px) {
-    nav { padding: 16px 20px; }
-    .nav-meta { display: none; }
+    nav { padding: 14px 18px; }
+    .nav-links { gap: 14px; font-size: 13px; }
+    .nav-links a.external { display: none; }
   }
 
   section {
@@ -175,17 +204,36 @@
   }
   .btn {
     align-self: flex-start;
+    display: inline-block;
     background: var(--ink);
     color: var(--bg);
-    border: 0;
-    padding: 12px 24px;
+    border: 1px solid var(--ink);
+    padding: 11px 22px;
     border-radius: 6px;
     font-family: inherit;
     font-size: 15px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.15s;
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
   }
-  .btn:hover { background: #000; }
+  .btn:hover { background: #000; border-color: #000; text-decoration: none; }
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--rule);
+  }
+  .btn-ghost:hover {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--ink);
+  }
+  .cta-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 28px;
+  }
 
   .data-table {
     width: 100%;
@@ -253,57 +301,115 @@
     background: var(--paper);
   }
 
-  .mint-info {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 32px;
-    margin-top: 32px;
-    margin-bottom: 40px;
+  .format-list {
+    list-style: none;
+    margin: 28px 0 0;
+    padding: 0;
+    max-width: 540px;
   }
-  @media (max-width: 600px) { .mint-info { grid-template-columns: 1fr; } }
-  .info-row {
-    padding-top: 16px;
+  .format-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    padding: 14px 0;
     border-top: 1px solid var(--rule);
-  }
-  .info-label {
-    font-size: 13px;
-    color: var(--ink-3);
-    margin-bottom: 4px;
-  }
-  .info-value {
-    font-size: 17px;
+    font-size: 15px;
     color: var(--ink);
+  }
+  .format-list li:last-child { border-bottom: 1px solid var(--rule); }
+  .format-list strong { font-weight: 500; }
+  .format-list .format-dim {
+    color: var(--ink-3);
+    font-size: 13px;
+    margin-left: 4px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-variant-numeric: tabular-nums;
   }
+  .format-list .format-use {
+    color: var(--ink-3);
+    font-size: 13px;
+  }
+
+  .info-list {
+    margin-top: 32px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 32px;
+  }
+  .info-list > div {
+    padding: 16px 0;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .info-list dt {
+    font-size: 13px;
+    color: var(--ink-3);
+    letter-spacing: 0.02em;
+  }
+  .info-list dd {
+    font-size: 15px;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  @media (max-width: 600px) { .info-list { grid-template-columns: 1fr; } }
   .contract-addr {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 13px;
     word-break: break-all;
   }
 
+  /* === FOOTER (canonical) === */
   footer {
-    padding: 48px 32px;
-    border-top: 1px solid var(--rule);
-    font-size: 14px;
-    color: var(--ink-3);
+    padding: 32px;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 16px;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--ink-3);
+    border-top: 1px solid var(--rule);
     position: relative;
     z-index: 2;
+  }
+  footer a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  footer a:hover { color: var(--ink); }
+  .footer-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .footer-meta .sep { opacity: 0.4; }
+  @media (max-width: 600px) {
+    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
   }
 </style>
 </head>
 <body>
 
 <nav>
-  <div class="brand">Bioms</div>
-  <div class="nav-links" style="display: flex; gap: 18px; font-size: 14px; color: var(--ink-3);">
-    <a href="explore.html" style="text-decoration: none; color: inherit;">Explore</a>
-    <a href="make.html" style="text-decoration: none; color: inherit;">Banners</a>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <circle class="cell-outer" cx="16" cy="16" r="14"/>
+      <circle class="cell-inner" cx="16" cy="16" r="5"/>
+    </svg>
+    <span>Bioms</span>
+  </a>
+  <div class="nav-links">
+    <a href="/explore">Explore</a>
+    <a href="/make">Banners</a>
+    <a href="https://twitter.com/theBioms" class="external" target="_blank" rel="noopener">@theBioms</a>
   </div>
-  <div class="nav-meta">Series I · 3000 specimens</div>
 </nav>
 
 <section class="hero">
@@ -471,73 +577,68 @@
     <p>
       Any Biom, any size — Twitter header, OpenSea banner, phone wallpaper, 4K desktop. Drag, rotate, scale, export. Or pull the whole asset pack in one click.
     </p>
-    <div style="margin-top: 28px; display: flex; flex-direction: column; gap: 10px; max-width: 520px;">
-      <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--rule); font-size: 15px;">
-        <span>Square portrait <span style="color: var(--ink-3); font-size: 13px;">PNG · 1080×1080</span></span>
-        <span style="color: var(--ink-3); font-family: ui-monospace, monospace; font-size: 13px;">Instagram, profile</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--rule); font-size: 15px;">
-        <span>Twitter header <span style="color: var(--ink-3); font-size: 13px;">PNG · 1500×500</span></span>
-        <span style="color: var(--ink-3); font-family: ui-monospace, monospace; font-size: 13px;">profile banner</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--rule); font-size: 15px;">
-        <span>Twitter post <span style="color: var(--ink-3); font-size: 13px;">PNG · 1200×675</span></span>
-        <span style="color: var(--ink-3); font-family: ui-monospace, monospace; font-size: 13px;">sharing card</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--rule); font-size: 15px;">
-        <span>OpenSea banner <span style="color: var(--ink-3); font-size: 13px;">PNG · 1400×400</span></span>
-        <span style="color: var(--ink-3); font-family: ui-monospace, monospace; font-size: 13px;">collection page</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--rule); font-size: 15px;">
-        <span>Phone wallpaper <span style="color: var(--ink-3); font-size: 13px;">PNG · 1080×1920</span></span>
-        <span style="color: var(--ink-3); font-family: ui-monospace, monospace; font-size: 13px;">lock screen</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); font-size: 15px;">
-        <span>4K desktop <span style="color: var(--ink-3); font-size: 13px;">PNG · 3840×2160</span></span>
-        <span style="color: var(--ink-3); font-family: ui-monospace, monospace; font-size: 13px;">wallpaper</span>
-      </div>
-    </div>
-    <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
-      <a href="make.html" class="btn" style="text-decoration: none;">Open Banner Maker</a>
-      <a href="explore.html" class="btn" style="background: transparent; color: var(--ink); border: 1px solid var(--rule); text-decoration: none;">Explore traits</a>
+    <ul class="format-list">
+      <li>
+        <span><strong>Square portrait</strong> <span class="format-dim">PNG · 1080×1080</span></span>
+        <span class="format-use">Instagram, profile</span>
+      </li>
+      <li>
+        <span><strong>Twitter header</strong> <span class="format-dim">PNG · 1500×500</span></span>
+        <span class="format-use">profile banner</span>
+      </li>
+      <li>
+        <span><strong>Twitter post</strong> <span class="format-dim">PNG · 1200×675</span></span>
+        <span class="format-use">sharing card</span>
+      </li>
+      <li>
+        <span><strong>OpenSea banner</strong> <span class="format-dim">PNG · 1400×400</span></span>
+        <span class="format-use">collection page</span>
+      </li>
+      <li>
+        <span><strong>Phone wallpaper</strong> <span class="format-dim">PNG · 1080×1920</span></span>
+        <span class="format-use">lock screen</span>
+      </li>
+      <li>
+        <span><strong>4K desktop</strong> <span class="format-dim">PNG · 3840×2160</span></span>
+        <span class="format-use">wallpaper</span>
+      </li>
+    </ul>
+    <div class="cta-row">
+      <a href="/make" class="btn">Open Banner Maker</a>
+      <a href="/explore" class="btn btn-ghost">Explore traits</a>
     </div>
   </div>
 </section>
 
 <section>
-    <h2>Details.</h2>
-    <div class="mint-info">
-      <div class="info-row">
-        <div class="info-label">Supply</div>
-        <div class="info-value">3,000</div>
-      </div>
-      <div class="info-row">
-        <div class="info-label">Chain</div>
-        <div class="info-value">Ethereum</div>
-      </div>
-      <div class="info-row">
-        <div class="info-label">Mint price</div>
-        <div class="info-value">To be announced</div>
-      </div>
-      <div class="info-row">
-        <div class="info-label">Launch date</div>
-        <div class="info-value">To be announced</div>
-      </div>
-      <div class="info-row" style="grid-column: span 2;">
-        <div class="info-label">Contract</div>
-        <div class="info-value contract-addr">0x — pending deployment</div>
-      </div>
-    </div>
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px;">
-      <a href="mailto:hello@thebioms.com?subject=Bioms launch notification&body=Add me to the Bioms launch notification list." class="btn" style="text-decoration: none;">Email me when it launches</a>
-      <a href="https://twitter.com/theBioms" target="_blank" rel="noopener" class="btn" style="background: transparent; color: var(--ink); border: 1px solid var(--rule); text-decoration: none;">Follow @theBioms</a>
+  <div class="wrap text-col">
+    <div class="label-small">The drop</div>
+    <h2>Series I — 3,000 specimens.</h2>
+    <p>
+      Mint date and pricing announced soon. Sign up to be first in line.
+    </p>
+
+    <dl class="info-list">
+      <div><dt>Supply</dt><dd>3,000</dd></div>
+      <div><dt>Chain</dt><dd>Ethereum</dd></div>
+      <div><dt>Standard</dt><dd>ERC-721 · OpenSea Drop</dd></div>
+      <div><dt>Mint price</dt><dd>Coming soon</dd></div>
+    </dl>
+
+    <div class="cta-row">
+      <a href="mailto:hello@thebioms.com?subject=Bioms%20%E2%80%94%20notify%20on%20launch&body=Add%20me%20to%20the%20launch%20notification%20list." class="btn">Notify me on launch</a>
+      <a href="https://twitter.com/theBioms" target="_blank" rel="noopener" class="btn btn-ghost">Follow @theBioms</a>
     </div>
   </div>
 </section>
 
 <footer>
-  <div>Bioms · Series I · 2026 · <a href="https://thebioms.com" target="_blank" rel="noopener">thebioms.com</a></div>
-  <div><a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a> · by <a href="https://twitter.com/timso_eth" target="_blank" rel="noopener">@timso_eth</a></div>
+  <div>© 2026 Bioms · Series I</div>
+  <div class="footer-meta">
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
+    <span class="sep">·</span>
+    <a href="https://twitter.com/timso_eth" target="_blank" rel="noopener">by @timso_eth</a>
+  </div>
 </footer>
 
 <script>

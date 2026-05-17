@@ -53,24 +53,60 @@
     z-index: 1;
   }
 
+  /* === NAV (canonical — must match index.html, make.html, 404.html) === */
   nav {
     position: sticky;
     top: 0;
     z-index: 50;
-    padding: 20px 32px;
+    padding: 18px 32px;
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     backdrop-filter: blur(16px) saturate(1.2);
     -webkit-backdrop-filter: blur(16px) saturate(1.2);
     background: rgba(236, 233, 224, 0.78);
     border-bottom: 1px solid var(--rule);
   }
-  .brand { font-size: 17px; font-weight: 500; letter-spacing: -0.005em; }
-  .nav-links { display: flex; gap: 18px; font-size: 14px; color: var(--ink-2); }
-  .nav-links a { text-decoration: none; color: var(--ink-2); }
-  .nav-links a:hover { color: var(--ink); }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    color: var(--ink);
+    text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .brand:hover { opacity: 0.65; text-decoration: none; }
+  .brand-mark { width: 18px; height: 18px; display: block; }
+  .brand-mark .cell-outer { fill: currentColor; }
+  .brand-mark .cell-inner { fill: var(--bg); }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    font-size: 14px;
+  }
+  .nav-links a {
+    color: var(--ink-3);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .nav-links a:hover { color: var(--ink); text-decoration: none; }
   .nav-links a.active { color: var(--ink); font-weight: 500; }
+  .nav-links a.external::after {
+    content: " ↗";
+    font-size: 11px;
+    opacity: 0.55;
+    margin-left: 1px;
+    display: inline-block;
+  }
+  @media (max-width: 600px) {
+    nav { padding: 14px 18px; }
+    .nav-links { gap: 14px; font-size: 13px; }
+    .nav-links a.external { display: none; }
+  }
 
   section {
     padding: 48px 32px;
@@ -188,25 +224,51 @@
   .trait-tag.rare { background: rgba(140,70,160,0.12); color: rgba(140,70,160,1); }
   .trait-tag.ultra { background: rgba(200,60,60,0.12); color: rgba(180,40,40,1); }
 
+  /* === FOOTER (canonical) === */
   footer {
     padding: 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
     font-size: 13px;
     color: var(--ink-3);
-    text-align: center;
     border-top: 1px solid var(--rule);
     position: relative;
     z-index: 2;
+  }
+  footer a {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  footer a:hover { color: var(--ink); }
+  .footer-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .footer-meta .sep { opacity: 0.4; }
+  @media (max-width: 600px) {
+    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
   }
 </style>
 </head>
 <body>
 
 <nav>
-  <div class="brand">Bioms</div>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <circle class="cell-outer" cx="16" cy="16" r="14"/>
+      <circle class="cell-inner" cx="16" cy="16" r="5"/>
+    </svg>
+    <span>Bioms</span>
+  </a>
   <div class="nav-links">
-    <a href="index.html">Home</a>
-    <a href="explore.html" class="active">Explore</a>
-    <a href="make.html">Banners</a>
+    <a href="/explore" class="active">Explore</a>
+    <a href="/make">Banners</a>
+    <a href="https://twitter.com/theBioms" class="external" target="_blank" rel="noopener">@theBioms</a>
   </div>
 </nav>
 
@@ -292,7 +354,12 @@
 </section>
 
 <footer>
-  Bioms · Series I · 2026 · <a href="https://thebioms.com">thebioms.com</a> · <a href="https://twitter.com/theBioms">@theBioms</a>
+  <div>© 2026 Bioms · Series I</div>
+  <div class="footer-meta">
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
+    <span class="sep">·</span>
+    <a href="https://twitter.com/timso_eth" target="_blank" rel="noopener">by @timso_eth</a>
+  </div>
 </footer>
 
 <script>
