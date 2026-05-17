@@ -158,29 +158,51 @@
     margin-bottom: 8px;
   }
 
-  /* === HERO — BIOMS glass wordmark === */
+  /* === HERO — BIOMS as five bacteria === */
+  /* Each letter is rendered as <span> with the corresponding pre-rendered
+   * specimen PNG painted INSIDE it via background-clip: text. SVG turbulence
+   * filter applied to the whole wordmark wobbles the letter contours so they
+   * stop being geometric and start looking like organic cells. */
   .hero {
     padding: 72px 32px 96px;
     text-align: center;
     overflow: hidden;
   }
-  .bioms-mark {
-    margin: 0 auto;
-    max-width: 100%;
-    display: block;
-  }
-  .bioms-svg {
-    width: 100%;
-    height: auto;
-    display: block;
-    animation: bioms-breathe 7s ease-in-out infinite;
+  .bioms-wordmark {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
+    font-weight: 900;
+    font-size: clamp(110px, 22vw, 320px);
+    line-height: 0.9;
+    letter-spacing: -0.06em;
+    /* Organic edge wobble + soft drop shadow */
+    filter: url(#bm-wobble) drop-shadow(0 16px 28px rgba(28, 26, 22, 0.12))
+                            drop-shadow(0 4px 6px rgba(28, 26, 22, 0.06));
+    animation: bm-breathe 7s ease-in-out infinite;
     transform-origin: center;
-    filter: drop-shadow(0 18px 36px rgba(28, 26, 22, 0.10))
-            drop-shadow(0 4px 8px rgba(28, 26, 22, 0.06));
+    /* High-quality image rendering so the bacterial features stay crisp */
+    -webkit-font-smoothing: antialiased;
   }
-  @keyframes bioms-breathe {
+  .bm {
+    background-size: 220% 220%;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    display: inline-block;
+    /* tiny per-letter offset for organic feel */
+  }
+  .bm:nth-child(1) { background-position: 45% 50%; }
+  .bm:nth-child(2) { background-position: 50% 45%; }
+  .bm:nth-child(3) { background-position: 50% 55%; }
+  .bm:nth-child(4) { background-position: 55% 50%; }
+  .bm:nth-child(5) { background-position: 50% 50%; background-size: 240% 240%; }
+  @keyframes bm-breathe {
     0%, 100% { transform: scale(1); }
-    50%      { transform: scale(1.008); }
+    50%      { transform: scale(1.01); }
   }
   .hero-tag {
     margin: 28px auto 0;
@@ -483,85 +505,19 @@
   </div>
 </nav>
 
+<!-- SVG filter for organic edge wobble on the wordmark.
+     Lives outside the wordmark so we can apply via CSS filter: url(#bm-wobble) -->
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+  <filter id="bm-wobble" x="-5%" y="-5%" width="110%" height="110%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="9" result="noise"/>
+    <feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
 <section class="hero">
   <div class="wrap">
     <h1 class="visually-hidden">Bioms</h1>
-    <div class="bioms-mark">
-      <svg class="bioms-svg" viewBox="0 0 1000 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs>
-          <!-- Per-letter stain gradients (mapped to real palette colors) -->
-          <linearGradient id="bm-b" x1="0" y1="0" x2="0.4" y2="1">
-            <stop offset="0%"  stop-color="rgb(180,140,220)"/>
-            <stop offset="100%" stop-color="rgb(90,50,140)"/>
-          </linearGradient>
-          <linearGradient id="bm-i" x1="0" y1="0" x2="0.4" y2="1">
-            <stop offset="0%"  stop-color="rgb(140,190,250)"/>
-            <stop offset="100%" stop-color="rgb(40,80,170)"/>
-          </linearGradient>
-          <linearGradient id="bm-o" x1="0" y1="0" x2="0.4" y2="1">
-            <stop offset="0%"  stop-color="rgb(160,235,180)"/>
-            <stop offset="100%" stop-color="rgb(50,140,90)"/>
-          </linearGradient>
-          <linearGradient id="bm-m" x1="0" y1="0" x2="0.4" y2="1">
-            <stop offset="0%"  stop-color="rgb(255,175,205)"/>
-            <stop offset="100%" stop-color="rgb(200,80,140)"/>
-          </linearGradient>
-          <linearGradient id="bm-s" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%"   stop-color="rgb(180,225,205)"/>
-            <stop offset="33%"  stop-color="rgb(160,140,220)"/>
-            <stop offset="66%"  stop-color="rgb(255,180,210)"/>
-            <stop offset="100%" stop-color="rgb(255,210,130)"/>
-          </linearGradient>
-
-          <!-- Inner soft sheen — a near-white highlight on top of each letter -->
-          <linearGradient id="bm-sheen" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stop-color="rgba(255,255,255,0.65)"/>
-            <stop offset="45%"  stop-color="rgba(255,255,255,0.05)"/>
-            <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-          </linearGradient>
-
-          <!-- Glass body for letters: subtle inner darkening at bottom -->
-          <filter id="bm-glass" x="-5%" y="-5%" width="110%" height="115%">
-            <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
-            <feOffset in="blur" dx="0" dy="6" result="offsetBlur"/>
-            <feComposite in="offsetBlur" in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="innerShadow"/>
-            <feComponentTransfer in="innerShadow" result="innerShadowFade">
-              <feFuncA type="linear" slope="0.35"/>
-            </feComponentTransfer>
-            <feMerge>
-              <feMergeNode in="SourceGraphic"/>
-              <feMergeNode in="innerShadowFade"/>
-            </feMerge>
-          </filter>
-        </defs>
-
-        <!-- Wordmark — each letter is its own tspan with a different stain -->
-        <text x="50%" y="180" text-anchor="middle"
-              font-family="-apple-system, system-ui, 'SF Pro Display', sans-serif"
-              font-weight="900" font-size="220" letter-spacing="-11"
-              filter="url(#bm-glass)">
-          <tspan fill="url(#bm-b)">B</tspan><tspan fill="url(#bm-i)">I</tspan><tspan fill="url(#bm-o)">O</tspan><tspan fill="url(#bm-m)">M</tspan><tspan fill="url(#bm-s)">S</tspan>
-        </text>
-
-        <!-- Same text again, fill with sheen gradient + overlay blend — adds the glass highlight on top -->
-        <text x="50%" y="180" text-anchor="middle"
-              font-family="-apple-system, system-ui, 'SF Pro Display', sans-serif"
-              font-weight="900" font-size="220" letter-spacing="-11"
-              fill="url(#bm-sheen)" style="mix-blend-mode: screen;" pointer-events="none">
-          BIOMS
-        </text>
-
-        <!-- A scatter of tiny accent cells suggesting organelles floating among the letters -->
-        <g pointer-events="none">
-          <circle cx="160" cy="60"  r="5"  fill="rgba(255,220,90,0.55)"/>
-          <circle cx="380" cy="40"  r="4"  fill="rgba(120,220,200,0.55)"/>
-          <circle cx="540" cy="200" r="6"  fill="rgba(255,140,60,0.50)"/>
-          <circle cx="780" cy="50"  r="3"  fill="rgba(140,90,180,0.65)"/>
-          <circle cx="900" cy="170" r="5"  fill="rgba(80,170,220,0.50)"/>
-          <circle cx="240" cy="200" r="3"  fill="rgba(255,180,200,0.55)"/>
-        </g>
-      </svg>
-    </div>
+    <div class="bioms-wordmark" aria-hidden="true"><span class="bm" style="background-image:url('https://pngs.thebioms.com/explore/stain-gramPositive.png')">B</span><span class="bm" style="background-image:url('https://pngs.thebioms.com/explore/stain-methylene.png')">I</span><span class="bm" style="background-image:url('https://pngs.thebioms.com/explore/stain-fluorescent.png')">O</span><span class="bm" style="background-image:url('https://pngs.thebioms.com/explore/stain-gramNegative.png')">M</span><span class="bm" style="background-image:url('https://pngs.thebioms.com/explore/stain-iridescent_aurora.png')">S</span></div>
 
     <p class="hero-tag">A generative archive of microbial specimens. Each one rendered live in your browser, from a single seed.</p>
 
