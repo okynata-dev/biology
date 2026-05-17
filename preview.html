@@ -51,6 +51,14 @@
     opacity: 0.4;
   }
 
+  /* === BARE MODE — used when this page is embedded as an iframe inside
+   * another page that already provides the outer card frame (e.g. the
+   * landing hero). Strips the inner card decorations so the cells appear
+   * to sit directly on the parent's background. === */
+  body.bare { background: #f4f1e8; }
+  body.bare .pfp-card { background: transparent; }
+  body.bare .pfp-card::before { display: none; }
+
   .corner-tl, .corner-tr, .corner-bl, .corner-br {
     position: absolute;
     z-index: 5;
@@ -1565,6 +1573,13 @@ function applyScaleFromURL() {
 // Detect fit mode once at load — used by generateOrganelles to size capsule
 // and biofilm halo so they don't overflow the card when ?fit=1 is set.
 const IS_FIT_MODE = new URLSearchParams(window.location.search).get('fit') === '1';
+
+// Bare mode — strips the inner card frame so cells sit flat on the parent
+// page's background. Used by the homepage hero iframe to avoid the
+// "card inside a card" visual.
+if (new URLSearchParams(window.location.search).get('bare') === '1') {
+  document.body.classList.add('bare');
+}
 
 // Init — use URL seed if given, otherwise random
 applyScaleFromURL();      // Set CSS variables BEFORE first render
