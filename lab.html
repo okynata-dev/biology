@@ -528,6 +528,27 @@
   }
   .slot.donor .role-label { color: #b94a8c; }
   .slot.recipient .role-label { color: #4a8cb9; }
+  /* "Preview" pill on the recipient slot when a trait is selected
+     but not committed yet. Tells the user that what they see is a
+     simulation of the outcome, not the current state. */
+  .slot .preview-badge {
+    position: absolute;
+    top: 12px; right: 50px;   /* leaves room for the × button */
+    z-index: 5;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
+    background: var(--ink);
+    color: var(--bg);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .slot.preview-mode {
+    /* Subtle dashed outline so the preview state visually reads
+       "tentative, not committed" */
+    box-shadow: 0 0 0 2px rgba(28, 26, 22, 0.18);
+  }
 
   /* Pilus link between donor and recipient */
   .pilus-arena {
@@ -639,6 +660,43 @@
     color: var(--ink-2);
     font-size: 14px;
     margin: 0;
+  }
+  /* "What will happen" diff line — only visible once a trait is picked.
+     Gives the user a plain-English read of the change before they commit. */
+  .change-preview {
+    display: none;
+    margin: 16px 0 0;
+    padding: 14px 18px;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    font-size: 14px;
+    color: var(--ink-2);
+    line-height: 1.4;
+  }
+  .change-preview.visible { display: block; }
+  .change-preview .label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+    margin-right: 8px;
+  }
+  .change-preview strong {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  /* No-op (recipient already has the trait): muted background + italic
+     copy so the user knows the transfer is wasted before committing. */
+  .change-preview.noop {
+    background: transparent;
+    border-style: dashed;
+    color: var(--ink-3);
+    font-style: italic;
+  }
+  .change-preview.noop .label {
+    color: var(--ink-3);
   }
 
   /* === CONJUGATE BUTTON === */
@@ -889,6 +947,10 @@
       <h3>Pick a trait to transfer</h3>
       <p class="picker-hint">Assign both donor and recipient to see the donor's transferable traits.</p>
       <div class="trait-options" id="traitOptions"></div>
+      <div class="change-preview" id="changePreview">
+        <span class="label">What will change</span>
+        <span id="changeText"></span>
+      </div>
     </div>
 
     <div class="conjugate-row">
@@ -1396,27 +1458,98 @@ function transferableForDonor(seed) {
 }
 
 // ============================================================
-// PREVIEW URL — build a preview.html?... URL that renders the
-// given effective state with all overrides applied.
+// PREVIEW URL — build a preview.html?... URL that renders the given
+// effective state with all overrides applied. Two callers:
+//   previewUrl(seed)              — render the seed's CURRENT effective state
+//   previewUrlFor(seed, state)    — render with an ARBITRARY state (used by
+//                                   the "what will happen" preview when the
+//                                   user has picked a trait but not committed)
 // ============================================================
-function previewUrl(seed, opts = {}) {
+function previewUrlFor(seed, eff, opts = {}) {
   const params = new URLSearchParams();
   params.set('seed', seed);
   if (opts.bare !== false) params.set('bare', '1');
   if (opts.nointeract) params.set('nointeract', '1');
-  const eff = effectiveState(seed);
-  // Palette override only if it differs from base
   const base = window.BiomEngine.generateState(seed);
   if (eff.palette !== base.palette) params.set('forceStain', eff.palette);
-  // Organelles always — if differ from base, send the full effective set
   const baseOrg = [...base.organelles].sort().join(',');
   const effOrg  = [...eff.organelles].sort().join(',');
   if (baseOrg !== effOrg) params.set('forceOrganelles', [...eff.organelles].join(','));
-  // Anomalies: send 1/0 only when differing from base
   if (eff.phageAttached !== base.phageAttached) params.set('forcePhage',  eff.phageAttached ? '1' : '0');
   if (eff.endosymbiont  !== base.endosymbiont)  params.set('forceEndo',   eff.endosymbiont  ? '1' : '0');
   if (eff.biofilmHalo   !== base.biofilmHalo)   params.set('forceBiofilm', eff.biofilmHalo  ? '1' : '0');
   return `preview.html?${params.toString()}`;
+}
+function previewUrl(seed, opts = {}) {
+  return previewUrlFor(seed, effectiveState(seed), opts);
+}
+
+// Compute what the RECIPIENT will look like AFTER a given trait is
+// transferred from the donor. Used for the live "preview" iframe.
+function recipientPreviewState(donorSeed, recipientSeed, trait) {
+  const recip = effectiveState(recipientSeed);
+  const donor = effectiveState(donorSeed);
+  const kind = TRANSFERABLE_BY_ID[trait]?.kind;
+  // Start from current effective state, layer the prospective change.
+  const next = {
+    palette: recip.palette,
+    organelles: new Set(recip.organelles),
+    phageAttached: recip.phageAttached,
+    endosymbiont: recip.endosymbiont,
+    biofilmHalo: recip.biofilmHalo,
+  };
+  if (kind === 'palette') {
+    next.palette = donor.palette;
+  } else if (kind === 'organelle') {
+    next.organelles.add(trait);
+  } else if (kind === 'anomaly') {
+    next[trait] = true;
+  }
+  return next;
+}
+
+// Human-readable description of the prospective change.
+// Used in the "what will happen" hint below the arena.
+const PALETTE_LABELS = {
+  gramPositive: 'Gram-positive violet',
+  gramNegative: 'Gram-negative pink',
+  fluorescent: 'fluorescent green',
+  methylene: 'methylene blue',
+  darkfield: 'dark-field silver',
+  acid_fast: 'acid-fast red',
+  giemsa: 'Giemsa magenta',
+  iridescent_aurora: 'iridescent aurora',
+  ghost: 'pigment-less ghost',
+  safranin: 'soft pink safranin',
+  india_ink: 'India-ink silhouette',
+  gram_variable: 'Gram-variable mix',
+};
+function describeChange(donorSeed, recipientSeed, trait) {
+  const tdef = TRANSFERABLE_BY_ID[trait];
+  if (!tdef) return { text: '', noop: false };
+  const recip = effectiveState(recipientSeed);
+  if (tdef.kind === 'palette') {
+    const donor = effectiveState(donorSeed);
+    const fromName = PALETTE_LABELS[recip.palette] || recip.palette;
+    const toName   = PALETTE_LABELS[donor.palette] || donor.palette;
+    if (recip.palette === donor.palette) {
+      return { text: `Recipient already has ${toName} — no visual change. Donor still goes on cooldown.`, noop: true };
+    }
+    return { text: `Recolor: ${fromName} → ${toName}.`, noop: false };
+  }
+  if (tdef.kind === 'organelle') {
+    if (recip.organelles.has(trait)) {
+      return { text: `Recipient already has ${tdef.label.toLowerCase()} — no visual change. Donor still goes on cooldown.`, noop: true };
+    }
+    return { text: `Recipient will gain ${tdef.label.toLowerCase()}.`, noop: false };
+  }
+  if (tdef.kind === 'anomaly') {
+    if (recip[trait]) {
+      return { text: `Recipient already has ${tdef.label.toLowerCase()} — no visual change. Donor still goes on cooldown.`, noop: true };
+    }
+    return { text: `Recipient will gain ${tdef.label.toLowerCase()} — ultra-rare anomaly.`, noop: false };
+  }
+  return { text: '', noop: false };
 }
 
 // ============================================================
@@ -1655,6 +1788,23 @@ function resetArena() {
   renderArenaAll();
 }
 
+// Update the "what will change" diff line. Hidden unless a trait is
+// selected; otherwise shows a plain-English description of the outcome.
+// No-op transfers (recipient already has the trait) get a different
+// styling so the user can see at a glance that the visual won't change.
+function renderChangePreview() {
+  const el = document.getElementById('changePreview');
+  if (!el) return;
+  if (donorSeed === null || recipientSeed === null || !selectedTrait) {
+    el.classList.remove('visible', 'noop');
+    return;
+  }
+  const { text, noop } = describeChange(donorSeed, recipientSeed, selectedTrait);
+  document.getElementById('changeText').innerHTML = noop ? text : `<strong>${text}</strong>`;
+  el.classList.add('visible');
+  el.classList.toggle('noop', noop);
+}
+
 // One call to rule them all — keeps slot/collection/picker/banner/button
 // in sync without scattered re-render calls.
 function renderArenaAll() {
@@ -1662,6 +1812,7 @@ function renderArenaAll() {
   renderCollection();
   renderTraitPicker();
   renderStepBanner();
+  renderChangePreview();
   updateConjugateBtn();
 }
 
@@ -1670,9 +1821,15 @@ function renderSlots() {
   renderSlot(donorSlot, 'donor', donorSeed, step === 'donor');
   renderSlot(recipientSlot, 'recipient', recipientSeed, step === 'recipient');
 }
+
+// Track which iframe URLs are currently in the slots so we only rebuild
+// when needed — switching URL on every re-render would flicker badly.
+const _slotUrlCache = { donor: null, recipient: null };
 function renderSlot(el, role, seed, isTarget) {
   el.classList.toggle('target', isTarget && seed === null);
+  el.classList.toggle('preview-mode', false);
   if (seed === null) {
+    _slotUrlCache[role] = null;
     el.classList.remove('filled');
     el.innerHTML = `
       <div class="slot-empty">
@@ -1680,17 +1837,51 @@ function renderSlot(el, role, seed, isTarget) {
         <span class="hint">${isTarget ? '👆 your turn' : 'Waiting'}</span>
       </div>
     `;
-  } else {
+    return;
+  }
+  // For the recipient slot, when a trait is selected we render the
+  // PREVIEW state ("what it'll look like after the transfer") instead
+  // of the current state. The donor never enters preview mode.
+  // We only mark the slot as "preview" if the preview URL actually
+  // differs from the current — otherwise the badge would lie ("Preview"
+  // shown but no visual change because recipient already has the trait).
+  const currentUrl = previewUrl(seed, { nointeract: true });
+  let url = currentUrl, isPreview = false;
+  if (role === 'recipient' && selectedTrait && donorSeed !== null && !isAnimating) {
+    const after = recipientPreviewState(donorSeed, seed, selectedTrait);
+    const previewedUrl = previewUrlFor(seed, after, { nointeract: true });
+    if (previewedUrl !== currentUrl) {
+      url = previewedUrl;
+      isPreview = true;
+    }
+  }
+  el.classList.toggle('preview-mode', isPreview);
+
+  // Rebuild only when URL changed — keeps the iframe stable across
+  // unrelated re-renders.
+  if (_slotUrlCache[role] !== url) {
+    _slotUrlCache[role] = url;
     el.classList.add('filled');
     el.innerHTML = `
       <span class="role-label">${role === 'donor' ? 'Donor' : 'Recipient'} · #${seed}</span>
+      ${isPreview ? '<span class="preview-badge">Preview</span>' : ''}
       <button type="button" class="clear-btn" aria-label="Clear ${role}" data-clear="${role}">×</button>
-      <iframe src="${previewUrl(seed, { nointeract: true })}" loading="eager" aria-label="Biom #${seed} live render"></iframe>
+      <iframe src="${url}" loading="eager" aria-label="Biom #${seed} live render"></iframe>
     `;
     el.querySelector('.clear-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       clearSlot(role);
     });
+  } else {
+    // URL unchanged — still need to update the role label seed number and
+    // the preview badge visibility in case selectedTrait toggled but URL
+    // resolved to the same thing (rare edge case).
+    const badge = el.querySelector('.preview-badge');
+    if (isPreview && !badge) {
+      el.insertAdjacentHTML('afterbegin', '<span class="preview-badge">Preview</span>');
+    } else if (!isPreview && badge) {
+      badge.remove();
+    }
   }
 }
 
@@ -1746,6 +1937,8 @@ function renderTraitPicker() {
       selectedTrait = chip.dataset.trait;
       renderTraitPicker();
       renderStepBanner();
+      renderChangePreview();
+      renderSlots();      // re-render recipient slot into preview mode
       updateConjugateBtn();
     });
   });
@@ -1925,10 +2118,11 @@ async function runConjugationAnimation() {
 
   // After successful transfer, clear the selected trait (it's now on cooldown)
   if (result.ok) selectedTrait = null;
-  renderTraitPicker();
-
   isAnimating = false;
-  updateConjugateBtn();
+  // Full re-render: trait picker refreshes (selected may be cleared),
+  // change-preview hides, step banner moves back to "Pick a trait", slot
+  // exits preview mode and shows the now-committed state, button glow off.
+  renderArenaAll();
 }
 
 // ============================================================
