@@ -1,0 +1,15 @@
+{
+  "name": "bioms",
+  "private": true,
+  "description": "Bioms — generative microbial NFT collection. Worker package for the Lab API.",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "db:init": "wrangler d1 execute bioms-lab --file=schema.sql --remote",
+    "db:local": "wrangler d1 execute bioms-lab --file=schema.sql --local"
+  },
+  "devDependencies": {
+    "viem": "^2.21.0",
+    "wrangler": "^3.78.0"
+  }
+}

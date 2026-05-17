@@ -1,0 +1,41 @@
+# Bioms Lab — Cloudflare Worker config.
+# Deploys to api.thebioms.com (route configured in Cloudflare dashboard).
+#
+# First-time setup:
+#   1. wrangler login
+#   2. wrangler d1 create bioms-lab
+#      → copy the database_id printed and paste below
+#   3. wrangler d1 execute bioms-lab --file=schema.sql --remote
+#   4. echo "<alchemy-key>" | wrangler secret put ALCHEMY_KEY
+#   5. (post-mint) echo "<contract-addr>" | wrangler secret put CONTRACT_ADDRESS
+#      OR set [vars].CONTRACT_ADDRESS below — secrets are preferred.
+#   6. (optional) echo "<opensea-key>" | wrangler secret put OPENSEA_API_KEY
+#   7. wrangler deploy
+#
+# After deploy, in Cloudflare dashboard:
+#   - Workers & Pages → bioms-api → Settings → Triggers → Custom Domains
+#   - Add api.thebioms.com (DNS auto-configures if domain is on Cloudflare)
+#
+# Updating CONTRACT_ADDRESS post-mint:
+#   echo "0xYourContract" | wrangler secret put CONTRACT_ADDRESS
+#   (no redeploy needed; worker picks up env on next request)
+
+name = "bioms-api"
+main = "worker.js"
+compatibility_date = "2026-05-17"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bioms-lab"
+database_id = "REPLACE_WITH_ID_FROM_d1_create"
+
+[vars]
+# Public config — fine to commit. Secrets go via `wrangler secret put`.
+CHAIN_ID = "1"
+COOLDOWN_SECONDS = "2592000"   # 30 days
+REJECTION_RATE = "0.15"
+
+# Secrets (set via wrangler secret put — DO NOT commit values here):
+# - ALCHEMY_KEY        — Alchemy NFT API key, required for ownership checks
+# - CONTRACT_ADDRESS   — launch contract address, set after mint
+# - OPENSEA_API_KEY    — optional, enables auto metadata-refresh after each conjugation

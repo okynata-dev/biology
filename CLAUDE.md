@@ -49,11 +49,63 @@ When the owner says "go", do this in order:
 | `preview.html` | **The token renderer.** This is the file pointed to by NFT `animation_url`. Renders a Biom from `?seed=N`, with breathing animation + mouse parallax. Has URL param overrides (`?fit=1`, `?bg=white`, `?scale=N`, `?forceMorph=`, `?forceStain=`, `?forceLifecycle=`, `?forceReserve=`, `?forceOrganelles=a,b,c`, `?forcePhage=1`, `?forceEndo=1`, `?forceBiofilm=1`, `?static=1`, `?noise=0`, `?nointeract=1`). The engine logic is inlined here (legacy) — has its own copy independent of `specimen-engine.js`. |
 | `make.html` | Banner Maker — interactive canvas editor. Drag/scale/rotate/flip/templates. Live preview uses the DOM renderer. **PNG export composites the pre-rendered master PNG** (from `{PNG_BASE}/preview/{NNNNN}.png`, zero-padded 5-digit, populated by `batch_screenshots.py` at mint time) via `canvas.drawImage` — pixel-identical to the live preview since the master PNG was itself screenshotted from `preview.html` in real Chromium. Falls back to **native 2D Canvas** (NOT html2canvas — see Section 5) if the master PNG is missing. Imports `specimen-engine.js`. The `PNG_BASE` constant at the top of the script sets the host (empty string = same origin; otherwise an absolute URL like `https://pngs.thebioms.com` for an R2 custom domain). The bucket layout is `preview/` and `explore/` at root — the local `pngs/` source directory drops on upload. |
 | `explore.html` | Trait Explorer — 46 trait cards with isolated traits + academic descriptions. **Each card is a pre-rendered PNG** from `/pngs/explore/{cat}-{id}.png` (populated by `batch_explore.py`). Previously was 46 simultaneous iframes mounting full specimen-engine instances — that melted laptops. `<img loading="lazy">` keeps offscreen images out of memory. |
+| `lab.html` | **The Lab — trait conjugation** between Bioms. Has TWO modes: Demo (localStorage, anyone can play with sample seeds; cooldowns shortened to 60s) and Wallet (window.ethereum connect, EIP-712 sign, POST to worker). Pre-mint, wallet mode shows "contract not deployed" and points users to Demo. Renders donor/recipient slots as `preview.html` iframes with `bare=1&force*` URL params for mutated state. Game logic: 12 transferable traits (stain/8 organelles/reserve/3 anomalies), 15% rejection rate, 30-day cooldown on donor. Capsule/nucleoid/morphology NOT transferable. |
 | `404.html` | Branded 404 page. Cloudflare Pages serves it automatically for unknown paths. |
 | `asset-template.html` | Asset format template (fixed Twitter/OpenSea dimensions). Used only by `batch_screenshots.py` for downloadable asset packs. Not in user nav. |
-| `specimen-engine.js` | **Shared rendering engine** — exports `window.BiomEngine`. Contains: palettes, weights, all generators, DOM renderer (`renderSpecimen`), **native 2D canvas renderer (`renderSpecimenToCanvas`)** for offline export fallback. Used by `make.html`. |
+| `specimen-engine.js` | **Shared rendering engine** — exports `window.BiomEngine`. Contains: palettes, weights, all generators, DOM renderer (`renderSpecimen`), **native 2D canvas renderer (`renderSpecimenToCanvas`)** for offline export fallback. Used by `make.html` and `lab.html`. |
 | `favicon.svg`, `og-image.png` | Brand assets — favicon and social-share card. |
 | `sitemap.xml`, `robots.txt`, `_headers` | SEO and HTTP caching/header config. |
+
+### Worker / Lab backend (Cloudflare Workers + D1 — deployed separately from Pages)
+
+| File | Role |
+|---|---|
+| `worker.js` | **Bioms Lab API** at `api.thebioms.com`. Endpoints: `GET /api/health` (returns contract + chain + cooldown config); `GET /api/owned/:address` (Alchemy NFT v3 → tokenIds owned by addr); `GET /api/state/:tokenId` + `GET /api/state-batch?tokens=N,N` (D1 → mutations + active depletions); `POST /api/conjugate` (EIP-712 sig verify + on-chain ownerOf check via viem + game logic + D1 persist); `GET /api/log` (recent conjugation history). Mirrors `generateState()` from specimen-engine.js for trait-availability check (server-side parity). |
+| `wrangler.toml` | Worker config. Binds D1 database `bioms-lab` (id placeholder — replaced after `wrangler d1 create`). `[vars]`: CHAIN_ID, COOLDOWN_SECONDS, REJECTION_RATE. Secrets via `wrangler secret put`: ALCHEMY_KEY (required), CONTRACT_ADDRESS (post-mint), OPENSEA_API_KEY (optional, for auto metadata-refresh). |
+| `schema.sql` | D1 tables: `token_state` (received mutations per token), `depletions` (active cooldowns), `used_nonces` (EIP-712 replay protection), `log` (append-only conjugation history). |
+| `package.json` | Single dep: `viem` (server-side signature recovery + ownerOf calls). Wrangler is devDep. |
+
+### Lab deploy flow
+
+```bash
+# 1. First-time setup
+wrangler login
+wrangler d1 create bioms-lab
+# → copy database_id into wrangler.toml [[d1_databases]] block
+
+# 2. Init schema
+wrangler d1 execute bioms-lab --file=schema.sql --remote
+
+# 3. Secrets
+echo "<alchemy-key>" | wrangler secret put ALCHEMY_KEY
+
+# 4. Deploy
+wrangler deploy
+
+# 5. Bind custom domain in Cloudflare dashboard:
+#    Workers & Pages → bioms-api → Settings → Triggers → Custom Domains
+#    → Add api.thebioms.com
+
+# 6. POST-MINT only — once the launch contract is live, set its address
+#    so ownerOf calls work and conjugations stop returning 503:
+echo "0xYourContract" | wrangler secret put CONTRACT_ADDRESS
+
+# 7. (Optional) Enable OpenSea metadata auto-refresh after each successful conjugation
+echo "<opensea-key>" | wrangler secret put OPENSEA_API_KEY
+```
+
+**Contract requirement (hard):** the launch contract MUST support **updatable `baseURI`** by the owner. Pre-mint, leave `baseURI = https://thebioms.com/metadata/` (static JSON). Post-mint, after Phase 2 deploy works, swap to `baseURI = https://api.thebioms.com/metadata/` (dynamic, returns effective state per token). Standard OpenSea Drop contracts have this; any custom contract must be checked before launch.
+
+**EIP-712 domain** (must match frontend + worker):
+```
+{
+  name: 'Bioms Lab',
+  version: '1',
+  chainId: <env.CHAIN_ID>,
+  verifyingContract: <env.CONTRACT_ADDRESS>,
+}
+```
+Type: `Conjugate(uint256 donorId, uint256 recipientId, string trait, uint256 nonce, uint256 deadline)`. Nonce = `Date.now()`. Deadline = nonce + 5 min. Replay-blocked by `used_nonces` table.
 
 ### Mint pipeline (Python, runs locally — NOT deployed)
 

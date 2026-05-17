@@ -28,6 +28,9 @@ Thumbs.db
 *.swp
 *~
 
+# Local preview/dev tools (Claude Code launch config etc.)
+.claude/
+
 # Secrets / local config
 .env
 .env.local

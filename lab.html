@@ -201,6 +201,58 @@
     font-size: 11px;
     color: var(--ink-2);
   }
+  /* Wallet block — appears in mode-bar when Wallet mode is active */
+  .wallet-block {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .wallet-block.visible { display: flex; }
+  .wallet-status {
+    font-size: 13px;
+    color: var(--ink-3);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.02em;
+    flex: 1;
+    min-width: 200px;
+  }
+  .wallet-status.ok { color: var(--ok); }
+  .wallet-status.bad { color: var(--bad); }
+  .wallet-status .addr {
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-right: 8px;
+    font-size: 12px;
+    color: var(--ink);
+  }
+  .wallet-btn {
+    background: var(--ink);
+    color: var(--bg);
+    border: 1px solid var(--ink);
+    padding: 8px 16px;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .wallet-btn:hover { background: #000; }
+  .wallet-btn.ghost {
+    background: transparent;
+    color: var(--ink-2);
+    border-color: var(--rule);
+  }
+  .wallet-btn.ghost:hover {
+    color: var(--ink);
+    border-color: var(--ink);
+    background: transparent;
+  }
+  .wallet-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* === COLLECTION === */
   .collection-head {
@@ -665,6 +717,12 @@
       <button class="mode-btn" id="modeWalletBtn" role="tab" aria-selected="false">My wallet</button>
     </div>
     <span class="mode-note" id="modeNote">Demo: practice with any Bioms by seed. Cooldowns are shortened to 60 seconds so you can feel the mechanic. State saves to this browser.</span>
+    <div class="wallet-block" id="walletBlock">
+      <span class="wallet-status" id="walletStatus">Not connected.</span>
+      <button class="wallet-btn" id="walletConnectBtn" type="button">Connect wallet</button>
+      <button class="wallet-btn ghost" id="walletRefreshBtn" type="button" hidden>Refresh</button>
+      <button class="wallet-btn ghost" id="walletDisconnectBtn" type="button" hidden>Disconnect</button>
+    </div>
   </div>
 </div>
 
@@ -672,7 +730,7 @@
   <div class="wrap">
     <div class="collection-head">
       <h2>Your collection</h2>
-      <div class="collection-actions">
+      <div class="collection-actions" id="demoActions">
         <input type="number" class="seed-input-inline" id="seedInputAdd" min="0" max="2999" placeholder="seed" aria-label="Add Biom by seed">
         <button class="btn btn-ghost" id="addSeedBtn" type="button">Add</button>
         <button class="btn btn-ghost" id="addRandomBtn" type="button">+ 4 random</button>
@@ -778,8 +836,16 @@ const masterUrl = (seed) => `${PNG_BASE}/preview/${padSeed(seed)}.png`;
 const REJECTION_RATE = 0.15;
 const DEMO_COOLDOWN_MS = 60 * 1000;            // 60 seconds for demo
 const WALLET_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;  // 30 days for real
-const STORAGE_KEY = 'bioms-lab-v1';
+// Two separate localStorage keys so demo + wallet caches don't collide.
+const DEMO_STORAGE_KEY   = 'bioms-lab-v1-demo';
+const WALLET_STORAGE_KEY = 'bioms-lab-v1-wallet';
+const LEGACY_STORAGE_KEY = 'bioms-lab-v1';     // migrate-from key
 const MAX_COLLECTION = 24;
+
+// Worker URL — same-origin emulator in dev, prod API otherwise.
+const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:8787'
+  : 'https://api.thebioms.com';
 
 const TRANSFERABLE = [
   { id: 'palette',         label: 'Stain',          kind: 'palette',  desc: "Recolor recipient with donor's stain." },
@@ -798,39 +864,341 @@ const TRANSFERABLE = [
 const TRANSFERABLE_BY_ID = Object.fromEntries(TRANSFERABLE.map(t => [t.id, t]));
 
 // ============================================================
-// STORAGE ADAPTER — localStorage now. Swap with fetch() to a
-// Cloudflare Worker post-mint without changing any UI code.
+// STORAGE ADAPTER — two separate caches.
+// Demo mode: full state lives in localStorage (single source of truth).
+// Wallet mode: Worker + D1 is source of truth; localStorage is a write-
+// through cache so the page can render before the network round-trip.
 // ============================================================
+function emptyState(mode) {
+  return { version: 2, mode, ownedSeeds: [], tokens: {}, log: [], walletAddress: null };
+}
 const Storage = {
-  load() {
+  keyFor(mode) {
+    return mode === 'wallet' ? WALLET_STORAGE_KEY : DEMO_STORAGE_KEY;
+  },
+  load(mode) {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { version: 1, mode: 'demo', ownedSeeds: [], tokens: {}, log: [] };
+      const raw = localStorage.getItem(this.keyFor(mode));
+      if (!raw) return emptyState(mode);
       const data = JSON.parse(raw);
-      data.version = data.version || 1;
-      data.mode = data.mode || 'demo';
+      data.version = data.version || 2;
+      data.mode = mode;
       data.ownedSeeds = data.ownedSeeds || [];
       data.tokens = data.tokens || {};
       data.log = data.log || [];
+      data.walletAddress = data.walletAddress || null;
       return data;
     } catch (e) {
-      console.warn('Lab: localStorage read failed', e);
-      return { version: 1, mode: 'demo', ownedSeeds: [], tokens: {}, log: [] };
+      console.warn('Lab: storage read failed', e);
+      return emptyState(mode);
     }
   },
   save(data) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
-    catch (e) { console.warn('Lab: localStorage write failed', e); }
+    try { localStorage.setItem(this.keyFor(data.mode), JSON.stringify(data)); }
+    catch (e) { console.warn('Lab: storage write failed', e); }
+  },
+  // One-time migration from v1 single-key to v2 dual-key.
+  migrate() {
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!legacy) return;
+    try {
+      const data = JSON.parse(legacy);
+      const target = data.mode === 'wallet' ? WALLET_STORAGE_KEY : DEMO_STORAGE_KEY;
+      // Only migrate if target doesn't already exist
+      if (!localStorage.getItem(target)) {
+        localStorage.setItem(target, legacy);
+      }
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch (e) {
+      console.warn('Lab: legacy migration skipped', e);
+    }
   },
 };
+Storage.migrate();
 
-const LabState = Storage.load();
+// Decide initial mode from the most-recently-written cache.
+function pickInitialMode() {
+  const demoExists = localStorage.getItem(DEMO_STORAGE_KEY);
+  const walletExists = localStorage.getItem(WALLET_STORAGE_KEY);
+  if (walletExists && !demoExists) return 'wallet';
+  return 'demo';
+}
+let LabState = Storage.load(pickInitialMode());
 
 // In-memory selection (not persisted)
 let donorSeed = null;
 let recipientSeed = null;
 let selectedTrait = null;
 let isAnimating = false;
+
+// ============================================================
+// WALLET MODULE — window.ethereum integration + EIP-712 sign +
+// Worker fetch. Pure browser APIs, no external libraries.
+// ============================================================
+const Wallet = {
+  address: null,          // checksummed string when connected
+  chainId: null,          // current chain id (number)
+  config: null,           // { contractDeployed, contractAddress, chainId, cooldownSeconds, rejectionRate }
+  workerOnline: null,     // null = unknown, true/false after first probe
+  syncing: false,
+
+  // === Provider detection ===
+  hasProvider() { return typeof window.ethereum !== 'undefined'; },
+
+  // === Worker health probe ===
+  async probeWorker() {
+    try {
+      const r = await fetch(`${WORKER_URL}/api/health`, { method: 'GET' });
+      if (!r.ok) { this.workerOnline = false; return null; }
+      this.config = await r.json();
+      this.workerOnline = true;
+      return this.config;
+    } catch (e) {
+      this.workerOnline = false;
+      this.config = null;
+      return null;
+    }
+  },
+
+  // === Connect ===
+  async connect() {
+    if (!this.hasProvider()) {
+      throw new Error('No Ethereum wallet detected. Install MetaMask or Rabby.');
+    }
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (!accounts || !accounts.length) throw new Error('No account returned.');
+    this.address = toChecksum(accounts[0]);
+    const chainHex = await window.ethereum.request({ method: 'eth_chainId' });
+    this.chainId = parseInt(chainHex, 16);
+    // Listen for changes
+    if (!this._listenersBound) {
+      window.ethereum.on?.('accountsChanged', (accs) => {
+        if (!accs || !accs.length) this.disconnect();
+        else { this.address = toChecksum(accs[0]); onWalletChange(); }
+      });
+      window.ethereum.on?.('chainChanged', (cidHex) => {
+        this.chainId = parseInt(cidHex, 16);
+        onWalletChange();
+      });
+      this._listenersBound = true;
+    }
+    return this.address;
+  },
+
+  disconnect() {
+    this.address = null;
+    this.chainId = null;
+    LabState.walletAddress = null;
+    LabState.ownedSeeds = [];
+    LabState.tokens = {};
+    Storage.save(LabState);
+    if (donorSeed !== null || recipientSeed !== null) resetArena();
+    renderCollection();
+    renderWalletUI();
+  },
+
+  // === Try silent reconnect — checks if any accounts already authorised ===
+  async tryReconnect() {
+    if (!this.hasProvider()) return false;
+    try {
+      const accs = await window.ethereum.request({ method: 'eth_accounts' });
+      if (!accs || !accs.length) return false;
+      this.address = toChecksum(accs[0]);
+      const chainHex = await window.ethereum.request({ method: 'eth_chainId' });
+      this.chainId = parseInt(chainHex, 16);
+      return true;
+    } catch { return false; }
+  },
+
+  // === Ensure correct chain ===
+  async ensureChain(targetChainId) {
+    if (this.chainId === targetChainId) return true;
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: '0x' + targetChainId.toString(16) }],
+      });
+      this.chainId = targetChainId;
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  // === Fetch owned tokens ===
+  async fetchOwned() {
+    if (!this.address) return { tokens: [], contractDeployed: false };
+    const r = await fetch(`${WORKER_URL}/api/owned/${this.address}`);
+    if (!r.ok) throw new Error(`/api/owned returned ${r.status}`);
+    return await r.json();
+  },
+
+  // === Fetch state for many tokens at once ===
+  async fetchStates(tokenIds) {
+    if (!tokenIds.length) return {};
+    const url = `${WORKER_URL}/api/state-batch?tokens=${tokenIds.join(',')}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`/api/state-batch returned ${r.status}`);
+    const data = await r.json();
+    return data.states || {};
+  },
+
+  // === Sign a conjugation (EIP-712 typed data) ===
+  async signConjugate(donorId, recipientId, trait, nonce, deadline) {
+    if (!this.config) throw new Error('Backend config not loaded.');
+    if (!this.config.contractDeployed) throw new Error('Mint contract not yet deployed.');
+    const typedData = {
+      domain: {
+        name: 'Bioms Lab',
+        version: '1',
+        chainId: this.config.chainId,
+        verifyingContract: this.config.contractAddress,
+      },
+      types: {
+        EIP712Domain: [
+          { name: 'name', type: 'string' },
+          { name: 'version', type: 'string' },
+          { name: 'chainId', type: 'uint256' },
+          { name: 'verifyingContract', type: 'address' },
+        ],
+        Conjugate: [
+          { name: 'donorId', type: 'uint256' },
+          { name: 'recipientId', type: 'uint256' },
+          { name: 'trait', type: 'string' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      },
+      primaryType: 'Conjugate',
+      message: {
+        donorId: String(donorId),
+        recipientId: String(recipientId),
+        trait,
+        nonce: String(nonce),
+        deadline: String(deadline),
+      },
+    };
+    return await window.ethereum.request({
+      method: 'eth_signTypedData_v4',
+      params: [this.address, JSON.stringify(typedData)],
+    });
+  },
+
+  // === POST conjugation ===
+  async submitConjugate(donorId, recipientId, trait) {
+    if (!this.config?.contractDeployed) throw new Error('Mint contract not yet deployed.');
+    if (!await this.ensureChain(this.config.chainId)) {
+      throw new Error(`Switch your wallet to chain ${this.config.chainId} (Ethereum) to conjugate.`);
+    }
+    const nonce = Date.now();
+    const deadline = Date.now() + 5 * 60 * 1000;
+    const signature = await this.signConjugate(donorId, recipientId, trait, nonce, deadline);
+    const r = await fetch(`${WORKER_URL}/api/conjugate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        donorId, recipientId, trait,
+        nonce, deadline,
+        address: this.address,
+        signature,
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    return data; // { ok, rejected, log }
+  },
+};
+
+// EIP-55 checksum (compact in-page implementation — avoids viem on the client)
+function toChecksum(addr) {
+  if (!addr || !/^0x[0-9a-fA-F]{40}$/.test(addr)) return addr;
+  const lower = addr.toLowerCase().slice(2);
+  // Use crypto.subtle keccak via TextEncoder? No — keccak isn't built into
+  // browsers. Instead, accept the address as-is (lowercased). Eth signature
+  // verification on the worker side does case-insensitive comparison.
+  return '0x' + lower;
+}
+
+// Called when wallet account or chain changes mid-session.
+async function onWalletChange() {
+  if (LabState.mode !== 'wallet') return;
+  await syncWalletData({ silent: true });
+}
+
+// Pull owned tokens + their state from the worker, into LabState.
+async function syncWalletData(opts = {}) {
+  if (!Wallet.address) {
+    LabState.ownedSeeds = [];
+    LabState.tokens = {};
+    Storage.save(LabState);
+    renderCollection();
+    return;
+  }
+  Wallet.syncing = true;
+  if (!opts.silent) renderWalletUI();
+  try {
+    if (!Wallet.config) await Wallet.probeWorker();
+    if (!Wallet.workerOnline) {
+      renderWalletUI();
+      return;
+    }
+    const { tokens, contractDeployed } = await Wallet.fetchOwned();
+    if (!contractDeployed) {
+      LabState.ownedSeeds = [];
+      LabState.tokens = {};
+      LabState.walletAddress = Wallet.address;
+      Storage.save(LabState);
+      renderCollection();
+      return;
+    }
+    LabState.walletAddress = Wallet.address;
+    LabState.ownedSeeds = tokens;
+    const states = tokens.length ? await Wallet.fetchStates(tokens) : {};
+    LabState.tokens = {};
+    for (const [id, data] of Object.entries(states)) {
+      LabState.tokens[id] = workerStateToLocal(data);
+    }
+    Storage.save(LabState);
+    if (donorSeed !== null && !LabState.ownedSeeds.includes(donorSeed)) clearSlot('donor');
+    if (recipientSeed !== null && !LabState.ownedSeeds.includes(recipientSeed)) clearSlot('recipient');
+    renderCollection();
+  } catch (e) {
+    setStatus(`Sync failed: ${e.message}`, 'fail');
+  } finally {
+    Wallet.syncing = false;
+    renderWalletUI();
+  }
+}
+
+// Convert worker's { mutations, depletions } shape to LabState.tokens[seed] shape.
+function workerStateToLocal(data) {
+  const t = {};
+  if (data.mutations) {
+    if (data.mutations.palette) t.receivedPalette = data.mutations.palette;
+    if (data.mutations.organelles?.length) t.receivedOrganelles = [...data.mutations.organelles];
+    if (data.mutations.anomalies?.length) t.receivedAnomalies = [...data.mutations.anomalies];
+  }
+  if (data.depletions?.length) {
+    t.donated = data.depletions.map(d => ({
+      trait: d.trait, to: d.to, donatedAt: d.donatedAt, regeneratesAt: d.regeneratesAt,
+    }));
+  }
+  return t;
+}
+
+// Refresh only the given tokens (after a successful conjugation).
+async function refreshTokens(tokenIds) {
+  if (!Wallet.address || !tokenIds.length) return;
+  try {
+    const states = await Wallet.fetchStates(tokenIds);
+    for (const [id, data] of Object.entries(states)) {
+      LabState.tokens[id] = workerStateToLocal(data);
+    }
+    Storage.save(LabState);
+  } catch (e) {
+    console.warn('Refresh failed', e);
+  }
+}
 
 // ============================================================
 // TRAIT COMPUTATION
@@ -848,23 +1216,28 @@ function effectiveState(seed) {
     if (d.regeneratesAt > now) depletedNow.add(d.trait);
   }
 
-  // Organelles: start from base, add received, remove depleted
+  // Organelles: start from base, add received, remove depleted.
+  // Defensive: only add to organelles set if the trait is actually an
+  // organelle (guards against corrupt state where an anomaly id sneaks
+  // into receivedOrganelles).
   const organelles = new Set(base.organelles);
-  for (const o of (t.receivedOrganelles || [])) organelles.add(o);
+  for (const o of (t.receivedOrganelles || [])) {
+    if (TRANSFERABLE_BY_ID[o]?.kind === 'organelle') organelles.add(o);
+  }
   for (const o of depletedNow) {
-    // only organelle-kind traits remove from the set
-    if (TRANSFERABLE_BY_ID[o] && TRANSFERABLE_BY_ID[o].kind === 'organelle') {
-      organelles.delete(o);
-    }
+    if (TRANSFERABLE_BY_ID[o]?.kind === 'organelle') organelles.delete(o);
   }
 
   // Palette: received overrides base. Depleted palette doesn't change visual
   // (you always have SOME color), it just blocks re-donating.
   const palette = t.receivedPalette || base.palette;
 
-  // Anomalies: base value, then "+ received" or "- depleted" overrides
+  // Anomalies: base value, then "+ received" or "- depleted" overrides.
+  // Same defensive filter — only honor receivedAnomalies entries that
+  // are actually anomaly-kind traits.
   function effectiveAnomaly(name) {
-    if ((t.receivedAnomalies || []).includes(name)) return true;
+    const received = (t.receivedAnomalies || []).filter(a => TRANSFERABLE_BY_ID[a]?.kind === 'anomaly');
+    if (received.includes(name)) return true;
     if (depletedNow.has(name)) return false;
     return base[name];
   }
@@ -935,6 +1308,10 @@ function previewUrl(seed, opts = {}) {
 // COLLECTION MANAGEMENT
 // ============================================================
 function addSeed(seed) {
+  if (LabState.mode === 'wallet') {
+    setStatus('In wallet mode the collection comes from your address — use Refresh to re-sync.', 'fail');
+    return false;
+  }
   seed = parseInt(seed, 10);
   if (!Number.isFinite(seed) || seed < 0 || seed > 2999) return false;
   if (LabState.ownedSeeds.includes(seed)) return false;
@@ -1005,9 +1382,27 @@ function fmtRemaining(ms) {
 }
 
 function renderCollection() {
+  // Demo-only actions hidden in wallet mode (collection is read-only from chain)
+  const demoActions = document.getElementById('demoActions');
+  if (demoActions) demoActions.style.display = (LabState.mode === 'wallet') ? 'none' : '';
+
   if (LabState.ownedSeeds.length === 0) {
     collectionGrid.style.display = 'none';
     collectionEmpty.style.display = 'block';
+    // Mode-specific empty text
+    if (LabState.mode === 'wallet') {
+      if (!Wallet.address) {
+        collectionEmpty.textContent = 'Connect your wallet to see your Bioms.';
+      } else if (Wallet.workerOnline === false) {
+        collectionEmpty.textContent = 'Lab API not reachable. Wallet conjugation activates once the backend is deployed.';
+      } else if (Wallet.config && !Wallet.config.contractDeployed) {
+        collectionEmpty.textContent = 'Mint contract is not deployed yet — your Bioms will appear here automatically after the drop.';
+      } else {
+        collectionEmpty.textContent = `No Bioms found in ${shortAddr(Wallet.address)}. Try Demo mode to practice the mechanic.`;
+      }
+    } else {
+      collectionEmpty.textContent = 'Your collection is empty. Add a Biom by seed (0–2999) or pull four random ones to start.';
+    }
     return;
   }
   collectionGrid.style.display = 'grid';
@@ -1250,62 +1645,97 @@ function performConjugation(donor, recipient, traitId) {
   return { ok: !rejected, rejected, logEntry };
 }
 
+// Mode-aware conjugation dispatcher. Demo = local logic. Wallet = sign +
+// POST to worker; on success, append a synthetic log entry locally and
+// re-pull the two touched tokens from the worker.
+async function performConjugationDispatch(donor, recipient, trait) {
+  if (LabState.mode === 'wallet') {
+    try {
+      const data = await Wallet.submitConjugate(donor, recipient, trait);
+      // Mirror the worker's log entry into local cache so the UI shows it
+      // immediately (the next /api/log fetch would also surface it, but we
+      // want zero round-trip lag here).
+      if (data.log) {
+        LabState.log.unshift({
+          ts: data.log.ts,
+          donor: data.log.donor,
+          recipient: data.log.recipient,
+          trait: data.log.trait,
+          op: data.log.op,
+        });
+        if (LabState.log.length > 100) LabState.log.length = 100;
+      }
+      // Refresh both tokens from worker so their depletions/mutations are accurate
+      await refreshTokens([donor, recipient]);
+      Storage.save(LabState);
+      return { ok: data.ok, rejected: data.rejected };
+    } catch (e) {
+      const msg = String(e?.message || e);
+      // User-rejected sign isn't an error worth shouting about
+      const userReject = /user rejected|user denied|action_rejected/i.test(msg);
+      return { ok: false, error: userReject ? 'Signature cancelled.' : msg };
+    }
+  }
+  // Demo mode — purely local
+  return performConjugation(donor, recipient, trait);
+}
+
 async function runConjugationAnimation() {
   isAnimating = true;
   updateConjugateBtn();
-  setStatus('Conjugating…');
+  const donor = donorSeed, recipient = recipientSeed, traitNow = selectedTrait;
+  setStatus(LabState.mode === 'wallet' ? 'Sign in your wallet…' : 'Conjugating…');
 
   pilusArena.classList.add('active');
   pilusArena.classList.remove('success', 'fail');
 
-  // Animate plasmid dot traveling along the pilus (0 → 100 on the svg viewBox)
-  // SVG is 100 wide; on mobile (stacked) we'd ideally animate vertically but
-  // for simplicity we keep the horizontal animation always — it still reads.
+  // Animate plasmid dot traveling along the pilus (0 → 100 on the svg viewBox).
   const totalMs = 1400;
   const startTs = performance.now();
-  await new Promise(resolve => {
+  const animatePromise = new Promise(resolve => {
     function step(t) {
       const elapsed = t - startTs;
       const p = Math.min(1, elapsed / totalMs);
-      const x = p * 100;
-      // Slight arc: y dips down then up (visual interest)
-      const y = 30 + Math.sin(p * Math.PI) * 8;
-      plasmidDot.setAttribute('cx', x);
-      plasmidDot.setAttribute('cy', y);
+      plasmidDot.setAttribute('cx', p * 100);
+      plasmidDot.setAttribute('cy', 30 + Math.sin(p * Math.PI) * 8);
       if (p < 1) requestAnimationFrame(step);
       else resolve();
     }
     requestAnimationFrame(step);
   });
 
-  // Now resolve the game result
-  const result = performConjugation(donorSeed, recipientSeed, selectedTrait);
-  if (result.ok) {
+  // Run the game logic IN PARALLEL with the animation so wallet sign +
+  // network round-trip overlap with the visual. We await both before resolving.
+  const resultPromise = performConjugationDispatch(donor, recipient, traitNow);
+  const [, result] = await Promise.all([animatePromise, resultPromise]);
+
+  if (result.error) {
+    pilusArena.classList.add('fail');
+    setStatus(result.error, 'fail');
+  } else if (result.ok) {
     pilusArena.classList.add('success');
     donorSlot.classList.add('flash-success');
     recipientSlot.classList.add('flash-success');
-    setStatus(`Transfer accepted — ${TRANSFERABLE_BY_ID[selectedTrait].label} moved to #${recipientSeed}.`, 'ok');
+    setStatus(`Transfer accepted — ${TRANSFERABLE_BY_ID[traitNow].label} moved to #${recipient}.`, 'ok');
   } else if (result.rejected) {
     pilusArena.classList.add('fail');
     recipientSlot.classList.add('flash-fail');
-    setStatus(`Rejected — recipient #${recipientSeed} did not accept the ${TRANSFERABLE_BY_ID[selectedTrait].label}.`, 'fail');
+    setStatus(`Rejected — recipient #${recipient} did not accept the ${TRANSFERABLE_BY_ID[traitNow].label}.`, 'fail');
     // Bounce plasmid back
     await new Promise(resolve => {
       const startTs2 = performance.now();
       function step(t) {
         const elapsed = t - startTs2;
         const p = Math.min(1, elapsed / 600);
-        const x = 100 - p * 100;
-        const y = 30;
-        plasmidDot.setAttribute('cx', x);
-        plasmidDot.setAttribute('cy', y);
+        plasmidDot.setAttribute('cx', 100 - p * 100);
+        plasmidDot.setAttribute('cy', 30);
         if (p < 1) requestAnimationFrame(step);
         else resolve();
       }
       requestAnimationFrame(step);
     });
   } else {
-    setStatus(`${TRANSFERABLE_BY_ID[selectedTrait].label} unavailable.`, 'fail');
+    setStatus(`${TRANSFERABLE_BY_ID[traitNow]?.label || traitNow} unavailable.`, 'fail');
   }
 
   // Refresh visuals
@@ -1321,7 +1751,7 @@ async function runConjugationAnimation() {
   plasmidDot.setAttribute('cx', 0);
 
   // After successful transfer, clear the selected trait (it's now on cooldown)
-  selectedTrait = null;
+  if (result.ok) selectedTrait = null;
   renderTraitPicker();
 
   isAnimating = false;
@@ -1363,17 +1793,105 @@ function renderLog() {
 // ============================================================
 // MODE TOGGLE — Demo vs Wallet
 // ============================================================
-const modeDemoBtn = document.getElementById('modeDemoBtn');
-const modeWalletBtn = document.getElementById('modeWalletBtn');
-const modeNote = document.getElementById('modeNote');
+const modeDemoBtn         = document.getElementById('modeDemoBtn');
+const modeWalletBtn       = document.getElementById('modeWalletBtn');
+const modeNote            = document.getElementById('modeNote');
+const walletBlock         = document.getElementById('walletBlock');
+const walletStatus        = document.getElementById('walletStatus');
+const walletConnectBtn    = document.getElementById('walletConnectBtn');
+const walletRefreshBtn    = document.getElementById('walletRefreshBtn');
+const walletDisconnectBtn = document.getElementById('walletDisconnectBtn');
 
+function shortAddr(a) {
+  if (!a) return '';
+  return a.slice(0, 6) + '…' + a.slice(-4);
+}
+
+function renderWalletUI() {
+  if (LabState.mode !== 'wallet') {
+    walletBlock.classList.remove('visible');
+    modeNote.style.display = '';
+    return;
+  }
+  walletBlock.classList.add('visible');
+  modeNote.style.display = 'none';
+
+  // Status text logic
+  if (Wallet.syncing) {
+    walletStatus.textContent = 'Syncing…';
+    walletStatus.className = 'wallet-status';
+  } else if (!Wallet.hasProvider()) {
+    walletStatus.innerHTML = 'No wallet detected. Install <a href="https://metamask.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">MetaMask</a> or <a href="https://rabby.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Rabby</a>.';
+    walletStatus.className = 'wallet-status bad';
+  } else if (!Wallet.address) {
+    walletStatus.textContent = 'Not connected.';
+    walletStatus.className = 'wallet-status';
+  } else if (Wallet.workerOnline === false) {
+    walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> Backend unreachable. <span style="color: var(--ink-3);">The Lab API isn't deployed yet — wallet conjugation unlocks post-mint.</span>`;
+    walletStatus.className = 'wallet-status bad';
+  } else if (Wallet.config && !Wallet.config.contractDeployed) {
+    walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> Connected. <span style="color: var(--ink-3);">Mint contract not yet deployed — wallet mode activates the moment the drop goes live.</span>`;
+    walletStatus.className = 'wallet-status';
+  } else if (LabState.ownedSeeds.length === 0) {
+    walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> No Bioms in this wallet yet.`;
+    walletStatus.className = 'wallet-status';
+  } else {
+    walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> ${LabState.ownedSeeds.length} Biom${LabState.ownedSeeds.length === 1 ? '' : 's'} synced.`;
+    walletStatus.className = 'wallet-status ok';
+  }
+
+  // Button visibility
+  const connected = !!Wallet.address;
+  walletConnectBtn.hidden = connected;
+  walletRefreshBtn.hidden = !connected;
+  walletDisconnectBtn.hidden = !connected;
+  walletConnectBtn.disabled = !Wallet.hasProvider() || Wallet.syncing;
+  walletRefreshBtn.disabled = Wallet.syncing;
+}
+
+// Async mode switch. Saves current state to its own key, loads the
+// target mode's cache, and (if going to wallet) attempts auto-sync.
+async function setMode(newMode) {
+  if (newMode === LabState.mode || isAnimating) return;
+  // Persist current state to its own slot
+  Storage.save(LabState);
+  // Load (or init) target mode
+  LabState = Storage.load(newMode);
+  resetArena();
+
+  if (newMode === 'demo') {
+    modeDemoBtn.classList.add('active');
+    modeWalletBtn.classList.remove('active');
+    modeDemoBtn.setAttribute('aria-selected', 'true');
+    modeWalletBtn.setAttribute('aria-selected', 'false');
+    modeNote.textContent = 'Demo: practice with any Bioms by seed. Cooldowns are shortened to 60 seconds so you can feel the mechanic. State saves to this browser.';
+    renderCollection();
+    renderWalletUI();
+  } else {
+    modeDemoBtn.classList.remove('active');
+    modeWalletBtn.classList.add('active');
+    modeDemoBtn.setAttribute('aria-selected', 'false');
+    modeWalletBtn.setAttribute('aria-selected', 'true');
+    renderWalletUI();
+    // Probe worker, try silent reconnect, sync
+    await Wallet.probeWorker();
+    if (await Wallet.tryReconnect()) {
+      await syncWalletData();
+    } else {
+      renderCollection();
+      renderWalletUI();
+    }
+  }
+}
+
+// Used by boot path to apply visual state for the loaded mode without
+// triggering side effects (like a wallet auto-connect prompt).
 function applyMode() {
   if (LabState.mode === 'wallet') {
     modeDemoBtn.classList.remove('active');
     modeWalletBtn.classList.add('active');
     modeDemoBtn.setAttribute('aria-selected', 'false');
     modeWalletBtn.setAttribute('aria-selected', 'true');
-    modeNote.innerHTML = `<span class="wallet-stub"><span class="pill">post-mint</span> Wallet conjugation unlocks after mint. The on-chain backend (Worker + D1 + dynamic <code>tokenURI</code>) will mirror this exact UI — your existing demo state stays in this browser.</span>`;
   } else {
     modeDemoBtn.classList.add('active');
     modeWalletBtn.classList.remove('active');
@@ -1381,9 +1899,27 @@ function applyMode() {
     modeWalletBtn.setAttribute('aria-selected', 'false');
     modeNote.textContent = 'Demo: practice with any Bioms by seed. Cooldowns are shortened to 60 seconds so you can feel the mechanic. State saves to this browser.';
   }
+  renderWalletUI();
 }
-modeDemoBtn.addEventListener('click', () => { LabState.mode = 'demo'; Storage.save(LabState); applyMode(); });
-modeWalletBtn.addEventListener('click', () => { LabState.mode = 'wallet'; Storage.save(LabState); applyMode(); });
+
+modeDemoBtn.addEventListener('click',   () => { setMode('demo'); });
+modeWalletBtn.addEventListener('click', () => { setMode('wallet'); });
+
+walletConnectBtn.addEventListener('click', async () => {
+  if (isAnimating) return;
+  try {
+    await Wallet.connect();
+    await Wallet.probeWorker();
+    await syncWalletData();
+  } catch (e) {
+    setStatus(e.message || 'Wallet connect failed.', 'fail');
+    renderWalletUI();
+  }
+});
+walletRefreshBtn.addEventListener('click', async () => {
+  await syncWalletData();
+});
+walletDisconnectBtn.addEventListener('click', () => Wallet.disconnect());
 
 // ============================================================
 // WIRE UP
@@ -1438,11 +1974,25 @@ renderSlots();
 renderTraitPicker();
 renderLog();
 
-// First-time user nudge — seed the collection with one Biom so the page
-// isn't blank on first visit. Doesn't fire if user has cleared it.
-if (LabState.ownedSeeds.length === 0 && !localStorage.getItem(STORAGE_KEY + '-seeded')) {
+// Wallet mode boot: probe worker + try silent reconnect (if user previously
+// authorised the site, no popup will fire). On success, pull latest state.
+if (LabState.mode === 'wallet') {
+  (async () => {
+    await Wallet.probeWorker();
+    if (await Wallet.tryReconnect()) {
+      await syncWalletData();
+    } else {
+      renderWalletUI();
+      renderCollection();
+    }
+  })();
+}
+
+// First-time demo nudge — seed the collection with four Bioms so the page
+// isn't blank on first visit. Only applies in demo mode.
+if (LabState.mode === 'demo' && LabState.ownedSeeds.length === 0 && !localStorage.getItem(DEMO_STORAGE_KEY + '-seeded')) {
   addRandom(4);
-  localStorage.setItem(STORAGE_KEY + '-seeded', '1');
+  localStorage.setItem(DEMO_STORAGE_KEY + '-seeded', '1');
 }
 </script>
 
