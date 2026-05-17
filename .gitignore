@@ -15,6 +15,9 @@ test-results/
 # Node (if ever added)
 node_modules/
 
+# Wrangler local mock state (R2/KV/D1 development emulation — should not be committed)
+.wrangler/
+
 # OS
 .DS_Store
 Thumbs.db

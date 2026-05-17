@@ -547,7 +547,7 @@
 //
 // PNG_BASE: '' for same-origin, or an absolute URL like 'https://pngs.thebioms.com'
 // if the PNGs live on an R2 custom domain.
-const PNG_BASE = '';
+const PNG_BASE = 'https://pngs.thebioms.com';
 const padSeed   = (n) => String(n).padStart(5, '0');
 const masterUrl = (seed) => `${PNG_BASE}/pngs/preview/${padSeed(seed)}.png`;
 const stainUrl  = (stainId) => `${PNG_BASE}/pngs/explore/stain-${stainId}.png`;
