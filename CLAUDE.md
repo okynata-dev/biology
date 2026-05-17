@@ -45,7 +45,7 @@ When the owner says "go", do this in order:
 
 | File | Role |
 |---|---|
-| `index.html` | Landing page. Nav, hero, demo, stain showcase. Embeds `preview.html` and `rare-*.html` via `<iframe>`. |
+| `index.html` | Landing page. Nav, hero (one live `preview.html` iframe), stain showcase, anatomy, mint info. All non-hero specimens are pre-rendered PNGs from `pngs.thebioms.com/explore/`. |
 | `preview.html` | **The token renderer.** This is the file pointed to by NFT `animation_url`. Renders a Biom from `?seed=N`, with breathing animation + mouse parallax. Has URL param overrides (`?fit=1`, `?bg=white`, `?scale=N`, `?forceMorph=`, `?forceStain=`, `?forceLifecycle=`, `?forceReserve=`, `?forceOrganelles=a,b,c`, `?forcePhage=1`, `?forceEndo=1`, `?forceBiofilm=1`, `?static=1`, `?noise=0`, `?nointeract=1`). The engine logic is inlined here (legacy) — has its own copy independent of `specimen-engine.js`. |
 | `make.html` | Banner Maker — interactive canvas editor. Drag/scale/rotate/flip/templates. Live preview uses the DOM renderer. **PNG export composites the pre-rendered master PNG** (from `{PNG_BASE}/preview/{NNNNN}.png`, zero-padded 5-digit, populated by `batch_screenshots.py` at mint time) via `canvas.drawImage` — pixel-identical to the live preview since the master PNG was itself screenshotted from `preview.html` in real Chromium. Falls back to **native 2D Canvas** (NOT html2canvas — see Section 5) if the master PNG is missing. Imports `specimen-engine.js`. The `PNG_BASE` constant at the top of the script sets the host (empty string = same origin; otherwise an absolute URL like `https://pngs.thebioms.com` for an R2 custom domain). The bucket layout is `preview/` and `explore/` at root — the local `pngs/` source directory drops on upload. |
 | `explore.html` | Trait Explorer — 46 trait cards with isolated traits + academic descriptions. **Each card is a pre-rendered PNG** from `/pngs/explore/{cat}-{id}.png` (populated by `batch_explore.py`). Previously was 46 simultaneous iframes mounting full specimen-engine instances — that melted laptops. `<img loading="lazy">` keeps offscreen images out of memory. |
@@ -75,7 +75,7 @@ All work below was completed in the Cowork session and is verified working:
 - **Brand**: `Bioms` (no "The"). Domain `thebioms.com`. X handle `@theBioms`. Each token = `BIOM #N`. Species name (procedural latin-ish, 1024 namespace) surfaced as a filterable OpenSea trait.
 - **Fit-mode rendering**: in `?fit=1` URL, the capsule envelope is sized smaller (`bbox×1.15 + 6/8`) so it fits inside the card; biofilm halo also reduced. PFP mode (default, no fit) keeps deliberate oversize for bust crop.
 - **Capsule and clipping fixed** for banner/explore use.
-- **Engine extracted** to `specimen-engine.js`, used by `make.html`. `preview.html` and `rare-*.html` still have inline engine copies (kept in sync — see Critical Invariants).
+- **Engine extracted** to `specimen-engine.js`, used by `make.html`. `preview.html` still has an inline engine copy (kept in sync — see Critical Invariants).
 - **Canvas renderer (`renderSpecimenToCanvas`)** with proper CSS-matching matrix composition (transforms compose in `T_position × T(-50%) × T(tx,ty) × center-pivot × scale × rotate × back-from-pivot` order). Glass effect simulated with 6 layers per panel: base fill, inner top highlight, inner bottom shadow, diagonal sheen (overlay blend), convex radial highlight (overlay blend), outer border stroke.
 
 ---
@@ -84,12 +84,11 @@ All work below was completed in the Cowork session and is verified working:
 
 ### 4.1 — RNG parity
 
-The procedural genome is the foundation of the entire collection. **Four** independent implementations must produce identical traits for any given seed:
+The procedural genome is the foundation of the entire collection. **Three** independent implementations must produce identical traits for any given seed:
 
 1. `preview.html` — inline JS in `<script>`
-2. `rare-aurora.html`, `rare-ghost.html`, `rare-variable.html` — inline JS, each mirrored from preview.html
-3. `specimen-engine.js` — used by `make.html`
-4. `generate_metadata.py` — Python, used at mint time
+2. `specimen-engine.js` — used by `make.html`
+3. `generate_metadata.py` — Python, used at mint time
 
 The `mulberry32(seed)` PRNG is the only randomness source. The sequence of `rng()` calls in `randomize()` / `generateState()` is:
 
@@ -136,7 +135,7 @@ Internal PNG references inside metadata use zero-padding (`00247.png`) — that'
 
 ### 4.3 — IS_FIT_MODE flag
 
-The `?fit=1` URL parameter signals "render specimen fully inside the card" (used by `make.html`, `explore.html`). Without it (PFP / NFT default), capsule is deliberately oversized for bust crop. In `specimen-engine.js` this is the `isFitMode` option; in `preview.html` and `rare-*.html` it's a top-level `IS_FIT_MODE` const. Both modes are needed. Don't remove either path.
+The `?fit=1` URL parameter signals "render specimen fully inside the card" (used by `make.html`, `explore.html`). Without it (PFP / NFT default), capsule is deliberately oversized for bust crop. In `specimen-engine.js` this is the `isFitMode` option; in `preview.html` it's a top-level `IS_FIT_MODE` const. Both modes are needed. Don't remove either path.
 
 ### 4.4 — URL params used by other pages
 
@@ -176,7 +175,7 @@ Setup steps for hosting the master PNGs are in `README.md` → "Hosting pre-rend
 
 ### Engine duplication
 
-`specimen-engine.js` and `preview.html` (+ 3 rare-*.html) contain duplicated rendering logic. Kept this way deliberately:
+`specimen-engine.js` and `preview.html` contain duplicated rendering logic. Kept this way deliberately:
 
 - ES module imports break `file://` page loading (Chrome blocks `<script src>` cross-origin for file URLs)
 - `preview.html` is the NFT `animation_url` target — must work standalone, no external deps

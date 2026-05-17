@@ -6,7 +6,7 @@
 <title>Bioms</title>
 <meta name="description" content="A single Biom specimen — generative microbiology rendered live in your browser.">
 <meta name="theme-color" content="#ffffff">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -254,7 +254,7 @@
 <body>
 
 <div class="stage">
-  <div class="pfp-card">
+  <div class="pfp-card" id="pfpCard" role="img" aria-label="Generative Biom specimen">
     <div class="scene"><div class="composition" id="comp"></div></div>
   </div>
 </div>
@@ -1155,18 +1155,24 @@ function formatBorderRadius(r) {
 // ============================================================
 // LIVE ANIMATION LOOP — breathing border-radius + organelle drift
 // Optimized: 30fps, transforms only, no layout thrashing
+// Panels NodeList is cached and re-populated by buildScene() — saves a
+// DOM walk every frame (mycelium specimens have 40-80 panels).
+// Skips work entirely while the tab/iframe is hidden so OpenSea card feeds
+// with many specimens don't burn CPU off-screen.
 // ============================================================
 let animStart = performance.now();
 let lastFrame = 0;
 const FRAME_INTERVAL = 1000 / 30; // 30fps
+let cachedPanels = [];  // refreshed in buildScene()
 
 function liveLoop(now) {
   requestAnimationFrame(liveLoop);
+  if (document.hidden) { lastFrame = now; return; }
   if (now - lastFrame < FRAME_INTERVAL) return;
   lastFrame = now;
 
   const t = (now - animStart) / 1000;
-  const panels = document.querySelectorAll('.panel');
+  const panels = cachedPanels;
 
   panels.forEach(el => {
     let needsTransform = false;
@@ -1304,6 +1310,9 @@ function buildScene() {
     root.appendChild(el);
   });
 
+  // Refresh the animation-loop's panel cache (only place panels mutate).
+  cachedPanels = Array.from(root.querySelectorAll('.panel'));
+
   // Update card labels — none in preview mode
 }
 
@@ -1348,6 +1357,10 @@ function randomize(forcedSeed) {
   state.biofilmHalo  = rng() < 0.02;
 
   buildScene();
+
+  // Keep the a11y label in sync with the active seed (click-to-randomize path).
+  const pfp = document.getElementById('pfpCard');
+  if (pfp) pfp.setAttribute('aria-label', `Generative Biom specimen #${state.seed}`);
 }
 
 // =============================================================
@@ -1555,10 +1568,20 @@ const IS_FIT_MODE = new URLSearchParams(window.location.search).get('fit') === '
 
 // Init — use URL seed if given, otherwise random
 applyScaleFromURL();      // Set CSS variables BEFORE first render
-randomize(urlSeed);
+randomize(urlSeed);       // calls buildScene() at the end
+// Only re-render if URL actually passed force-* overrides — otherwise the
+// randomize() call above already built the correct scene.
+const _ovParams = new URLSearchParams(window.location.search);
+const _hasOverrides = ['forceMorph','forceStain','forceLifecycle','forceReserve',
+  'forcePhage','forceEndo','forceBiofilm','forceOrganelles','forceCells']
+  .some(k => _ovParams.has(k));
 applyOverridesFromURL();
 applyBackgroundFromURL();
-buildScene();  // re-render with any overrides applied
+if (_hasOverrides) buildScene();
+
+// Stamp the real seed into the a11y label so screen-readers get the token id.
+const _pfp = document.getElementById('pfpCard');
+if (_pfp) _pfp.setAttribute('aria-label', `Generative Biom specimen #${state.seed}`);
 </script>
 
 </body>

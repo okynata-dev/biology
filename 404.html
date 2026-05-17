@@ -92,6 +92,14 @@
     margin-left: 4px;
   }
   .nav-x:hover { color: var(--ink); text-decoration: none; }
+
+  /* Keyboard focus — visible ring only on keyboard focus, not mouse-click. */
+  a:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
   .x-icon { width: 15px; height: 15px; display: block; }
   @media (max-width: 600px) {
     nav { padding: 14px 18px; }

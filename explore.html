@@ -6,22 +6,25 @@
 <title>Bioms — Explore</title>
 <meta name="description" content="Every Biom trait isolated — 11 morphologies, 12 stains, 10 organelles, reserve granules, lifecycle states, and ultra-rare anomalies.">
 <meta name="theme-color" content="#ece9e0">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="apple-touch-icon" href="favicon.svg">
-<link rel="canonical" href="https://thebioms.com/explore.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/favicon.svg">
+<link rel="canonical" href="https://thebioms.com/explore">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Bioms">
 <meta property="og:title" content="Explore — Bioms">
 <meta property="og:description" content="Every Biom trait isolated — morphologies, stains, organelles, lifecycle states, anomalies.">
-<meta property="og:url" content="https://thebioms.com/explore.html">
+<meta property="og:url" content="https://thebioms.com/explore">
 <meta property="og:image" content="https://thebioms.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A Bioms specimen — glass-morph microbial cells">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@theBioms">
 <meta name="twitter:creator" content="@timsouw">
+<meta name="twitter:image" content="https://thebioms.com/og-image.png">
+<meta name="twitter:image:alt" content="A Bioms specimen — glass-morph microbial cells">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -103,6 +106,16 @@
     margin-left: 4px;
   }
   .nav-x:hover { color: var(--ink); text-decoration: none; }
+
+  /* Keyboard focus — visible ring only on keyboard focus, not mouse-click. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
   .x-icon { width: 15px; height: 15px; display: block; }
   @media (max-width: 600px) {
     nav { padding: 14px 18px; }
@@ -167,9 +180,13 @@
     flex-direction: column;
     transition: transform 0.15s, box-shadow 0.15s;
   }
-  .trait-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  /* Hover-lift only on real pointer devices — on touch (iOS) the hover
+     state latches sticky until next tap elsewhere. */
+  @media (hover: hover) {
+    .trait-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    }
   }
   .trait-preview {
     aspect-ratio: 1;
@@ -267,7 +284,7 @@
     <span>Bioms</span>
   </a>
   <div class="nav-links">
-    <a href="/explore" class="active">Explore</a>
+    <a href="/explore" class="active" aria-current="page">Explore</a>
     <a href="/make">Banners</a>
     <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
       <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

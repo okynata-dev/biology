@@ -40,7 +40,7 @@ A generative NFT collection of microscopic life forms. Each Biom is rendered cli
 Most files work via `file://` (double-click in Finder), with two caveats:
 
 - `make.html` and `explore.html` load `specimen-engine.js` — Chrome blocks `<script src="…">` for local files. **Either** use `python3 -m http.server 8000` in this folder and visit `http://localhost:8000/`, **or** drag the file into Chrome (some browsers allow this with file URLs).
-- `preview.html`, `rare-*.html`, `index.html`, `asset-template.html` work standalone.
+- `preview.html`, `index.html`, `asset-template.html` work standalone.
 
 ---
 

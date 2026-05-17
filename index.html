@@ -6,8 +6,8 @@
 <title>Bioms</title>
 <meta name="description" content="A generative archive of microbial specimens. Each one generated live from a seed in your browser. On Ethereum.">
 <meta name="theme-color" content="#ece9e0">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="apple-touch-icon" href="favicon.svg">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/favicon.svg">
 <link rel="canonical" href="https://thebioms.com/">
 
 <meta property="og:type" content="website">
@@ -23,6 +23,8 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@theBioms">
 <meta name="twitter:creator" content="@timsouw">
+<meta name="twitter:image" content="https://thebioms.com/og-image.png">
+<meta name="twitter:image:alt" content="A Bioms specimen — glass-morph microbial cells">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -114,6 +116,17 @@
   }
   .nav-x:hover { color: var(--ink); text-decoration: none; }
   .x-icon { width: 15px; height: 15px; display: block; }
+
+  /* Keyboard focus — visible ring only when focus came from keyboard,
+     never on mouse-click (matches platform expectation). */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
   @media (max-width: 600px) {
     nav { padding: 14px 18px; }
     .nav-links { gap: 14px; font-size: 13px; }

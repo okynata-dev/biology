@@ -6,22 +6,25 @@
 <title>Bioms — Banners</title>
 <meta name="description" content="Make banners, wallpapers, and PFPs from any Bioms specimen. Twitter header, OpenSea banner, phone wallpaper, 4K desktop — export at any size.">
 <meta name="theme-color" content="#ece9e0">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="apple-touch-icon" href="favicon.svg">
-<link rel="canonical" href="https://thebioms.com/make.html">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/favicon.svg">
+<link rel="canonical" href="https://thebioms.com/make">
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Bioms">
 <meta property="og:title" content="Banners — Bioms">
 <meta property="og:description" content="Make banners, wallpapers, and PFPs from any Bioms specimen.">
-<meta property="og:url" content="https://thebioms.com/make.html">
+<meta property="og:url" content="https://thebioms.com/make">
 <meta property="og:image" content="https://thebioms.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A Bioms specimen — glass-morph microbial cells">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@theBioms">
 <meta name="twitter:creator" content="@timsouw">
+<meta name="twitter:image" content="https://thebioms.com/og-image.png">
+<meta name="twitter:image:alt" content="A Bioms specimen — glass-morph microbial cells">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -105,6 +108,16 @@
     margin-left: 4px;
   }
   .nav-x:hover { color: var(--ink); text-decoration: none; }
+
+  /* Keyboard focus — visible ring only on keyboard focus, not mouse-click. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
   .x-icon { width: 15px; height: 15px; display: block; }
   @media (max-width: 600px) {
     nav { padding: 14px 18px; }
@@ -412,7 +425,7 @@
   </a>
   <div class="nav-links">
     <a href="/explore">Explore</a>
-    <a href="/make" class="active">Banners</a>
+    <a href="/make" class="active" aria-current="page">Banners</a>
     <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
       <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
@@ -449,16 +462,16 @@
           <div class="ctrl-label">Format</div>
           <div class="format-grid" id="formatGrid"></div>
           <div class="custom-row" id="customRow">
-            <input type="number" class="num-input" id="customW" placeholder="W" min="100" max="8000" />
-            <input type="number" class="num-input" id="customH" placeholder="H" min="100" max="8000" />
+            <input type="number" class="num-input" id="customW" placeholder="W" min="100" max="8000" aria-label="Custom width in pixels" />
+            <input type="number" class="num-input" id="customH" placeholder="H" min="100" max="8000" aria-label="Custom height in pixels" />
           </div>
         </div>
 
         <div class="ctrl-group">
           <div class="ctrl-label">Biom</div>
           <div class="seed-row">
-            <input id="seedInput" class="seed-input" type="number" min="0" max="2999" value="247" />
-            <button class="btn secondary small" id="randomBtn">⤴</button>
+            <input id="seedInput" class="seed-input" type="number" min="0" max="2999" value="247" aria-label="Biom seed" />
+            <button type="button" class="btn secondary small" id="randomBtn" aria-label="Random seed" title="Random seed">⤴</button>
           </div>
         </div>
 
@@ -475,8 +488,8 @@
         <div class="ctrl-group">
           <div class="ctrl-label">Flip</div>
           <div class="flip-row">
-            <button class="btn secondary" id="flipHBtn">↔ Horizontal</button>
-            <button class="btn secondary" id="flipVBtn">↕ Vertical</button>
+            <button type="button" class="btn secondary" id="flipHBtn" aria-label="Flip horizontally">↔ Horizontal</button>
+            <button type="button" class="btn secondary" id="flipVBtn" aria-label="Flip vertically">↕ Vertical</button>
           </div>
         </div>
 
@@ -485,9 +498,9 @@
           <div class="template-grid" id="templateGrid"></div>
         </div>
 
-        <button class="btn secondary" id="resetBtn">Reset transform</button>
-        <button class="btn" id="downloadBtn">Download PNG</button>
-        <button class="btn secondary" id="packBtn" title="Download all 7 standard formats in one go. Each gets its own smart auto-layout.">Download all 7 formats</button>
+        <button type="button" class="btn secondary" id="resetBtn">Reset transform</button>
+        <button type="button" class="btn" id="downloadBtn">Download PNG</button>
+        <button type="button" class="btn secondary" id="packBtn" title="Download all 7 standard formats in one go. Each gets its own smart auto-layout.">Download all 7 formats</button>
         <div style="font-size: 10px; color: var(--ink-3); text-align: center; letter-spacing: 0.04em; margin-top: -4px; text-transform: uppercase;">
           Pack picks the right crop for each format
         </div>
@@ -711,9 +724,12 @@ function applyTransform() {
 // =========================================================================
 FORMATS.forEach((f, i) => {
   const btn = document.createElement('button');
+  btn.type = 'button';
   btn.className = 'format-btn' + (i === 0 ? ' active' : '');
   btn.dataset.id = f.id;
-  btn.innerHTML = `<span class="fname">${f.label}</span><span class="fsize">${f.w && f.h ? f.w + ' × ' + f.h : 'W × H'}</span>`;
+  const sizeLabel = f.w && f.h ? `${f.w} × ${f.h}` : 'W × H';
+  btn.setAttribute('aria-label', `${f.label} format, ${sizeLabel}`);
+  btn.innerHTML = `<span class="fname">${f.label}</span><span class="fsize">${sizeLabel}</span>`;
   btn.addEventListener('click', () => selectFormat(f));
   formatGrid.appendChild(btn);
 });
@@ -775,9 +791,11 @@ function updateMeta(w, h, label) {
 function buildTemplateButtons() {
   TEMPLATES.forEach((t) => {
     const btn = document.createElement('button');
+    btn.type = 'button';
     btn.className = 'template-btn';
     btn.dataset.id = t.id;
     btn.title = t.label;
+    btn.setAttribute('aria-label', `Layout: ${t.label}`);
     const iconLeft  = 50 + (t.x / 2);
     const iconTop   = 50 + (t.y / 2);
     const iconSize  = Math.max(15, Math.min(70, t.scale * 35));
@@ -836,7 +854,11 @@ function endDrag() {
   canvas.classList.remove('dragging');
 }
 
-canvas.addEventListener('mousedown', (e) => { e.preventDefault(); startDrag(e.clientX, e.clientY); });
+canvas.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  startDrag(e.clientX, e.clientY);
+  deselectTemplates();
+});
 window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
 window.addEventListener('mouseup', endDrag);
 
@@ -861,6 +883,7 @@ canvas.addEventListener('wheel', (e) => {
   scaleSlider.value = Math.round(state.scale * 100);
   scaleVal.textContent = Math.round(state.scale * 100) + '%';
   applyTransform();
+  deselectTemplates();
 }, { passive: false });
 
 // =========================================================================
@@ -895,9 +918,6 @@ resetBtn.addEventListener('click', () => {
 function deselectTemplates() {
   document.querySelectorAll('.template-btn.active').forEach(b => b.classList.remove('active'));
 }
-
-canvas.addEventListener('mousedown', deselectTemplates);
-canvas.addEventListener('wheel', deselectTemplates, { passive: true });
 
 seedInput.addEventListener('change', () => {
   const s = Math.max(0, Math.min(2999, parseInt(seedInput.value, 10) || 0));

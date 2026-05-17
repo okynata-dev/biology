@@ -1,7 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /api/
-Disallow: /render.html
 Disallow: /asset-template.html
 
 Sitemap: https://thebioms.com/sitemap.xml
