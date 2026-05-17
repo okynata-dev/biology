@@ -490,7 +490,8 @@
     stroke: var(--ok);
   }
   .pilus-arena.fail .pilus-line {
-    stroke: var(--bad);
+    /* Rejection — neutral muted tone. Not an error; just didn't land. */
+    stroke: var(--ink-3);
   }
   .plasmid-dot {
     fill: #b94a8c;
@@ -539,14 +540,38 @@
     color: var(--bg);
     border-color: var(--ink);
   }
-  .trait-chip.disabled {
-    opacity: 0.35;
-    cursor: not-allowed;
+  /* Regenerating chips: shown after a divider line, smaller + non-interactive.
+     They tell the user what WILL be available later without polluting the
+     primary action set. */
+  .picker-regen {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
   }
-  .trait-chip .why {
-    font-size: 10px;
-    color: var(--bad);
-    margin-left: 4px;
+  .picker-regen-label {
+    font-size: 12px;
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+    margin-right: 4px;
+  }
+  .trait-chip.regen {
+    background: transparent;
+    border-color: var(--rule);
+    color: var(--ink-3);
+    font-size: 12px;
+    padding: 5px 11px;
+    cursor: default;
+  }
+  .trait-chip.regen:hover { border-color: var(--rule); }
+  /* Empty-state info line inside the picker (donor has nothing to give). */
+  .picker-info {
+    color: var(--ink-2);
+    font-size: 14px;
+    margin: 0;
   }
 
   /* === CONJUGATE BUTTON === */
@@ -590,6 +615,10 @@
   }
   .status-line.ok { color: var(--ok); }
   .status-line.fail { color: var(--bad); }
+  /* `miss` — for game-event misses (rejections). Not an error; just a roll
+     didn't land. Neutral tone, distinct from --bad which signals a real
+     problem (network failure, signature cancelled, etc.). */
+  .status-line.miss { color: var(--ink-2); }
 
   /* === LOG === */
   .log-list {
@@ -628,7 +657,7 @@
     font-weight: 500;
   }
   .log-status.ok { color: var(--ok); }
-  .log-status.fail { color: var(--bad); }
+  .log-status.fail { color: var(--ink-3); }
 
   /* === MUTATION BADGES on biom cards === */
   .mutation-badges {
@@ -670,11 +699,16 @@
     50% { box-shadow: 0 0 0 8px rgba(74, 124, 74, 0.3); }
   }
   .slot.flash-success { animation: pulse-glow 1.2s ease-out; }
-  @keyframes pulse-glow-bad {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(154, 91, 61, 0); }
-    50% { box-shadow: 0 0 0 8px rgba(154, 91, 61, 0.3); }
+  /* Recipient "shake" on rejection — feels like the cell turning away,
+     not an error. Smaller deflection than a real failure would be. */
+  @keyframes recipient-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(2px); }
   }
-  .slot.flash-fail { animation: pulse-glow-bad 1.2s ease-out; }
+  .slot.flash-fail { animation: recipient-shake 0.5s ease-out; }
 </style>
 </head>
 <body>
@@ -1551,26 +1585,47 @@ function renderTraitPicker() {
     return;
   }
   traitPicker.classList.remove('empty');
-  const options = transferableForDonor(donorSeed);
-  traitOptions.innerHTML = options.map(opt => {
+
+  const all = transferableForDonor(donorSeed);
+  const available = all.filter(o => o.transferable);
+  const regenerating = all.filter(o => o.has && o.onCooldown);
+  // Absent traits are hidden entirely — clutter without value. The picker
+  // shows ONLY what this donor can transfer right now.
+
+  if (available.length === 0) {
+    const cdText = regenerating.length
+      ? ` Wait for ${regenerating.map(r => r.label.toLowerCase()).join(', ')} to regenerate.`
+      : '';
+    traitOptions.innerHTML = `<p class="picker-info">This donor has nothing to transfer right now.${cdText} Pick another donor, or wait.</p>`;
+    return;
+  }
+
+  const availableChips = available.map(opt => {
     const isActive = selectedTrait === opt.id;
-    const disabled = !opt.transferable;
-    let why = '';
-    if (!opt.has) why = 'absent';
-    else if (opt.onCooldown) why = 'cooldown';
     return `
       <button type="button"
-              class="trait-chip ${isActive ? 'active' : ''} ${disabled ? 'disabled' : ''}"
+              class="trait-chip ${isActive ? 'active' : ''}"
               data-trait="${opt.id}"
-              ${disabled ? 'disabled' : ''}
               title="${opt.desc}">
         ${opt.label}
-        ${why ? `<span class="why">${why}</span>` : ''}
       </button>
     `;
   }).join('');
-  traitOptions.querySelectorAll('.trait-chip').forEach(chip => {
-    if (chip.disabled) return;
+
+  // Regenerating chips shown after a separator, smaller + non-interactive.
+  // Keeps the user informed without flooding the primary action area.
+  let regenChips = '';
+  if (regenerating.length) {
+    regenChips = `
+      <div class="picker-regen">
+        <span class="picker-regen-label">Regenerating:</span>
+        ${regenerating.map(r => `<span class="trait-chip regen" title="${r.desc}">${r.label}</span>`).join('')}
+      </div>
+    `;
+  }
+
+  traitOptions.innerHTML = availableChips + regenChips;
+  traitOptions.querySelectorAll('.trait-chip:not(.regen)').forEach(chip => {
     chip.addEventListener('click', () => {
       selectedTrait = chip.dataset.trait;
       renderTraitPicker();
@@ -1716,11 +1771,11 @@ async function runConjugationAnimation() {
     pilusArena.classList.add('success');
     donorSlot.classList.add('flash-success');
     recipientSlot.classList.add('flash-success');
-    setStatus(`Transfer accepted — ${TRANSFERABLE_BY_ID[traitNow].label} moved to #${recipient}.`, 'ok');
+    setStatus(`${TRANSFERABLE_BY_ID[traitNow].label} transferred to #${recipient}.`, 'ok');
   } else if (result.rejected) {
     pilusArena.classList.add('fail');
     recipientSlot.classList.add('flash-fail');
-    setStatus(`Rejected — recipient #${recipient} did not accept the ${TRANSFERABLE_BY_ID[traitNow].label}.`, 'fail');
+    setStatus(`No transfer — recipient #${recipient} rejected. Try again or pick another trait.`, 'miss');
     // Bounce plasmid back
     await new Promise(resolve => {
       const startTs2 = performance.now();
