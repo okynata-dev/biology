@@ -156,4 +156,4 @@ See chat history for full design.
 Source code: MIT (do whatever).
 Artwork / generated specimens: holders retain their token rights per OpenSea standard.
 
-Built by [@timso_eth](https://twitter.com/timso_eth) · 2026
+Built by [@timsouw](https://twitter.com/timsouw) · 2026

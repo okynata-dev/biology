@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bioms</title>
-<meta name="description" content="3,000 procedural microbial specimens. Each one generated live from a seed in your browser. Series I, on Ethereum.">
+<meta name="description" content="A generative archive of microbial specimens. Each one generated live from a seed in your browser. Series I, on Ethereum.">
 <meta name="theme-color" content="#ece9e0">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.svg">
@@ -13,7 +13,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Bioms">
 <meta property="og:title" content="Bioms">
-<meta property="og:description" content="3,000 procedural microbial specimens. Each one generated live from a seed in your browser. Series I, on Ethereum.">
+<meta property="og:description" content="A generative archive of microbial specimens. Each one generated live from a seed in your browser. Series I, on Ethereum.">
 <meta property="og:url" content="https://thebioms.com/">
 <meta property="og:image" content="https://thebioms.com/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -22,7 +22,7 @@
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@theBioms">
-<meta name="twitter:creator" content="@timso_eth">
+<meta name="twitter:creator" content="@timsouw">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -103,17 +103,18 @@
   }
   .nav-links a:hover { color: var(--ink); text-decoration: none; }
   .nav-links a.active { color: var(--ink); font-weight: 500; }
-  .nav-links a.external::after {
-    content: " ↗";
-    font-size: 11px;
-    opacity: 0.55;
-    margin-left: 1px;
-    display: inline-block;
+  .nav-x {
+    display: inline-flex;
+    align-items: center;
+    color: var(--ink-3);
+    transition: color 0.15s;
+    margin-left: 4px;
   }
+  .nav-x:hover { color: var(--ink); text-decoration: none; }
+  .x-icon { width: 15px; height: 15px; display: block; }
   @media (max-width: 600px) {
     nav { padding: 14px 18px; }
     .nav-links { gap: 14px; font-size: 13px; }
-    .nav-links a.external { display: none; }
   }
 
   section {
@@ -158,6 +159,22 @@
   .hero {
     padding-top: 60px;
     padding-bottom: 60px;
+  }
+  .hero-lead {
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--ink-2);
+    max-width: 520px;
+  }
+  .hero-meta {
+    margin-top: 32px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    font-size: 14px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
   }
   .hero-layout {
     display: grid;
@@ -301,6 +318,35 @@
     background: var(--paper);
   }
 
+  .roadmap-list {
+    list-style: none;
+    margin: 28px 0 0;
+    padding: 0;
+    counter-reset: rm;
+  }
+  .roadmap-list li {
+    padding: 24px 0;
+    border-top: 1px solid var(--rule);
+    counter-increment: rm;
+    position: relative;
+    padding-left: 0;
+  }
+  .roadmap-list li:last-child { border-bottom: 1px solid var(--rule); }
+  .roadmap-list .rm-phase {
+    font-size: 13px;
+    color: var(--ink-3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .roadmap-list .rm-body {
+    font-size: 16px;
+    color: var(--ink-2);
+    line-height: 1.5;
+    max-width: 580px;
+  }
+
   .format-list {
     list-style: none;
     margin: 28px 0 0;
@@ -408,7 +454,11 @@
   <div class="nav-links">
     <a href="/explore">Explore</a>
     <a href="/make">Banners</a>
-    <a href="https://twitter.com/theBioms" class="external" target="_blank" rel="noopener">@theBioms</a>
+    <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
+      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    </a>
   </div>
 </nav>
 
@@ -417,13 +467,13 @@
     <div class="hero-layout">
       <div>
         <h1>Bioms.</h1>
-        <p style="font-size: 19px; line-height: 1.5; color: var(--ink-2); max-width: 520px;">
-          Three thousand microbial specimens, each one a single Biom. Drawn from real microbiology — Gram staining, organelles, colony shape — and rendered live in your browser. Each one breathes.
+        <p class="hero-lead">
+          A generative archive of microbial specimens, each one a single Biom. Drawn from real microbiology — Gram staining, organelles, colony shape — and rendered live in your browser. Each one breathes.
         </p>
-        <div style="margin-top: 32px; display: flex; gap: 24px; flex-wrap: wrap; font-size: 14px; color: var(--ink-3); font-variant-numeric: tabular-nums;">
-          <span>3,000 specimens</span>
+        <div class="hero-meta">
+          <span>Series I</span>
           <span>Ethereum</span>
-          <span>Mint date pending</span>
+          <span>Mint TBA</span>
         </div>
       </div>
       <div class="hero-frame" data-specimen data-seed="247"></div>
@@ -441,7 +491,7 @@
       The look comes from microscope slides — bacterial staining under a light microscope. The animation is invented. Real bacteria don't actually breathe. In this archive they do.
     </p>
     <p>
-      By <a href="https://twitter.com/timso_eth" target="_blank" rel="noopener">Timsouw</a>. The code that renders each specimen is the same code you're looking at right now — open the page source.
+      By <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">Timsouw</a>. The code that renders each specimen is the same code you're looking at right now — open the page source.
     </p>
   </div>
 </section>
@@ -572,10 +622,10 @@
 
 <section>
   <div class="wrap text-col">
-    <div class="label-small">Downloads</div>
-    <h2>Render anything.</h2>
+    <div class="label-small">For holders</div>
+    <h2>What you get.</h2>
     <p>
-      Any Biom, any size — Twitter header, OpenSea banner, phone wallpaper, 4K desktop. Drag, rotate, scale, export. Or pull the whole asset pack in one click.
+      Every Biom comes with everything you need — the unique procedural specimen, plus a full asset pack pre-rendered in every format you might want. Yours, royalty-free.
     </p>
     <ul class="format-list">
       <li>
@@ -603,6 +653,9 @@
         <span class="format-use">wallpaper</span>
       </li>
     </ul>
+    <p style="margin-top: 28px;">
+      Plus the Banner Maker — render your Biom at any custom size, drag, scale, rotate, flip. The same tool that produced the asset pack, in your hands.
+    </p>
     <div class="cta-row">
       <a href="/make" class="btn">Open Banner Maker</a>
       <a href="/explore" class="btn btn-ghost">Explore traits</a>
@@ -612,17 +665,41 @@
 
 <section>
   <div class="wrap text-col">
-    <div class="label-small">The drop</div>
-    <h2>Series I — 3,000 specimens.</h2>
+    <div class="label-small">Roadmap</div>
+    <h2>What's next.</h2>
     <p>
-      Mint date and pricing announced soon. Sign up to be first in line.
+      Series I is the foundation. Here's what we're building on top.
+    </p>
+    <ol class="roadmap-list">
+      <li>
+        <div class="rm-phase">Phase 1 — Series I drop</div>
+        <div class="rm-body">The collection launches on Ethereum. Every holder gets their Biom, the asset pack, and Banner Maker access from day one.</div>
+      </li>
+      <li>
+        <div class="rm-phase">Phase 2 — Lab</div>
+        <div class="rm-body">Connect your wallet, pick two Bioms you own, splice a trait from one onto the other. Modeled on real bacterial conjugation: pilus transfer, donor cooldown, ~15% rejection. Mutations persist on-chain and surface on OpenSea.</div>
+      </li>
+      <li>
+        <div class="rm-phase">Phase 3 — Series II</div>
+        <div class="rm-body">The next generation. Composable with Series I — your specimens become genome donors for the next archive.</div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap text-col">
+    <div class="label-small">The drop</div>
+    <h2>Series I.</h2>
+    <p>
+      Supply, mint date, and pricing announced soon. Sign up to be first in line.
     </p>
 
     <dl class="info-list">
-      <div><dt>Supply</dt><dd>3,000</dd></div>
+      <div><dt>Supply</dt><dd>TBA</dd></div>
       <div><dt>Chain</dt><dd>Ethereum</dd></div>
       <div><dt>Standard</dt><dd>ERC-721 · OpenSea Drop</dd></div>
-      <div><dt>Mint price</dt><dd>Coming soon</dd></div>
+      <div><dt>Mint price</dt><dd>TBA</dd></div>
     </dl>
 
     <div class="cta-row">
@@ -637,7 +714,7 @@
   <div class="footer-meta">
     <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
     <span class="sep">·</span>
-    <a href="https://twitter.com/timso_eth" target="_blank" rel="noopener">by @timso_eth</a>
+    <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">by @timsouw</a>
   </div>
 </footer>
 

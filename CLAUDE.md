@@ -300,7 +300,7 @@ Contract's `tokenURI(id)` returns `https://thebioms.com/api/metadata/${id}`. Wor
 
 ## Section 8 — Contact / origin
 
-- **Project owner**: `@timso_eth` on Twitter (personal handle, not the project handle)
+- **Project owner**: `@timsouw` on Twitter (personal handle, not the project handle)
 - **Project handle**: `@theBioms`
 - **Project email**: `hello@thebioms.com` (set up via Cloudflare Email Routing after deploy — Section 1)
 - **Domain**: `thebioms.com`
