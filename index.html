@@ -158,51 +158,31 @@
     margin-bottom: 8px;
   }
 
-  /* === HERO — BIOMS as five bacteria === */
-  /* Each letter is rendered as <span> with the corresponding pre-rendered
-   * specimen PNG painted INSIDE it via background-clip: text. SVG turbulence
-   * filter applied to the whole wordmark wobbles the letter contours so they
-   * stop being geometric and start looking like organic cells. */
+  /* === HERO — BIOMS hand-drawn as five organic bacteria === */
+  /* Each letter is a group of overlapping circles merged into one organic
+   * blob shape by the SVG metaball filter (goo). On top, cells/organelles
+   * sit as smaller circles. Pili are tiny circles around the perimeter
+   * (also goo-merged, so they appear as soft protrusions of the cell wall).
+   * Scattered floating particles wander outside the letters. */
   .hero {
-    padding: 72px 32px 96px;
+    padding: 60px 32px 80px;
     text-align: center;
     overflow: hidden;
   }
-  .bioms-wordmark {
-    display: inline-flex;
-    align-items: baseline;
-    justify-content: center;
-    font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
-    font-weight: 900;
-    font-size: clamp(110px, 22vw, 320px);
-    line-height: 0.9;
-    letter-spacing: -0.06em;
-    /* Organic edge wobble + soft drop shadow */
-    filter: url(#bm-wobble) drop-shadow(0 16px 28px rgba(28, 26, 22, 0.12))
-                            drop-shadow(0 4px 6px rgba(28, 26, 22, 0.06));
-    animation: bm-breathe 7s ease-in-out infinite;
+  .bioms-wordmark-svg {
+    display: block;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 1100px;
+    height: auto;
+    animation: bm-breathe 8s ease-in-out infinite;
     transform-origin: center;
-    /* High-quality image rendering so the bacterial features stay crisp */
-    -webkit-font-smoothing: antialiased;
+    filter: drop-shadow(0 20px 32px rgba(28, 26, 22, 0.10))
+            drop-shadow(0 6px 10px rgba(28, 26, 22, 0.05));
   }
-  .bm {
-    background-size: 220% 220%;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
-    display: inline-block;
-    /* tiny per-letter offset for organic feel */
-  }
-  .bm:nth-child(1) { background-position: 45% 50%; }
-  .bm:nth-child(2) { background-position: 50% 45%; }
-  .bm:nth-child(3) { background-position: 50% 55%; }
-  .bm:nth-child(4) { background-position: 55% 50%; }
-  .bm:nth-child(5) { background-position: 50% 50%; background-size: 240% 240%; }
   @keyframes bm-breathe {
     0%, 100% { transform: scale(1); }
-    50%      { transform: scale(1.01); }
+    50%      { transform: scale(1.008); }
   }
   .hero-tag {
     margin: 28px auto 0;
@@ -505,19 +485,240 @@
   </div>
 </nav>
 
-<!-- SVG filter for organic edge wobble on the wordmark.
-     Lives outside the wordmark so we can apply via CSS filter: url(#bm-wobble) -->
-<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
-  <filter id="bm-wobble" x="-5%" y="-5%" width="110%" height="110%">
-    <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="9" result="noise"/>
-    <feDisplacementMap in="SourceGraphic" in2="noise" scale="6" xChannelSelector="R" yChannelSelector="G"/>
-  </filter>
-</svg>
-
 <section class="hero">
   <div class="wrap">
     <h1 class="visually-hidden">Bioms</h1>
-    <div class="bioms-wordmark" aria-hidden="true"><span class="bm" style="background-image:url('https://pngs.thebioms.com/explore/stain-gramPositive.png')">B</span><span class="bm" style="background-image:url('https://pngs.thebioms.com/explore/stain-methylene.png')">I</span><span class="bm" style="background-image:url('https://pngs.thebioms.com/explore/stain-fluorescent.png')">O</span><span class="bm" style="background-image:url('https://pngs.thebioms.com/explore/stain-gramNegative.png')">M</span><span class="bm" style="background-image:url('https://pngs.thebioms.com/explore/stain-iridescent_aurora.png')">S</span></div>
+
+    <!--
+      Hand-drawn BIOMS wordmark — each letter is an organic bacterial blob.
+      Layers per letter:
+        1. Body — overlapping circles merged into a single irregular cell wall
+           by the metaball/goo filter. Includes tiny pili circles around the
+           perimeter that become rounded protrusions after merging.
+        2. Cells — darker circles inside (organelles), NOT goo-merged so they
+           stay distinct on top of the body.
+        3. Highlights — tiny white circles on cells (light catchpoints).
+        4. Yellow/orange accents — reserve granules.
+      Outside the letters: floating background particles (free-swimming cells).
+    -->
+    <svg class="bioms-wordmark-svg" viewBox="0 0 1200 320" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <!-- Metaball filter: blur then threshold so overlapping circles smoothly merge -->
+        <filter id="goo" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur"/>
+          <feColorMatrix in="blur" type="matrix"
+            values="1 0 0 0 0
+                    0 1 0 0 0
+                    0 0 1 0 0
+                    0 0 0 22 -11" result="goo"/>
+          <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+        </filter>
+        <!-- Slightly stronger version for the O (ring needs more merge) -->
+        <filter id="goo-soft" x="-10%" y="-10%" width="120%" height="120%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+          <feColorMatrix in="blur" type="matrix"
+            values="1 0 0 0 0
+                    0 1 0 0 0
+                    0 0 1 0 0
+                    0 0 0 20 -9" result="goo"/>
+          <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+        </filter>
+      </defs>
+
+      <!-- ===== Background floating cells (behind the wordmark) ===== -->
+      <g opacity="0.65">
+        <circle cx="110" cy="40"   r="6"  fill="rgba(180,145,225,0.7)"/>
+        <ellipse cx="380" cy="60"  rx="9" ry="4" fill="rgba(215,100,170,0.7)" transform="rotate(-20 380 60)"/>
+        <circle cx="600" cy="30"   r="5"  fill="rgba(60,170,100,0.65)"/>
+        <circle cx="900" cy="50"   r="4"  fill="rgba(70,135,220,0.7)"/>
+        <circle cx="1080" cy="80"  r="6"  fill="rgba(215,100,170,0.65)"/>
+        <ellipse cx="40" cy="290"  rx="7" ry="3" fill="rgba(180,145,225,0.65)" transform="rotate(15 40 290)"/>
+        <circle cx="500" cy="300"  r="5"  fill="rgba(255,210,100,0.75)"/>
+        <ellipse cx="780" cy="290" rx="8" ry="4" fill="rgba(70,135,220,0.6)" transform="rotate(-10 780 290)"/>
+        <circle cx="1140" cy="270" r="5"  fill="rgba(60,170,100,0.6)"/>
+      </g>
+
+      <!-- ============ Letter B — gramPositive violet ============ -->
+      <g transform="translate(50, 30)">
+        <!-- Body (overlapping cells merged into B shape via goo) -->
+        <g filter="url(#goo)" fill="rgba(185,150,225,0.78)">
+          <!-- Vertical spine (3 stacked cells) -->
+          <circle cx="38" cy="50"  r="42"/>
+          <circle cx="38" cy="125" r="42"/>
+          <circle cx="38" cy="200" r="42"/>
+          <!-- Top loop -->
+          <circle cx="110" cy="68"  r="55"/>
+          <!-- Bottom loop (bigger) -->
+          <circle cx="118" cy="195" r="62"/>
+          <!-- Pili around perimeter -->
+          <circle cx="-4"  cy="20"  r="7"/>
+          <circle cx="155" cy="20"  r="6"/>
+          <circle cx="170" cy="125" r="5"/>
+          <circle cx="180" cy="245" r="8"/>
+          <circle cx="-6"  cy="240" r="6"/>
+          <circle cx="-10" cy="125" r="5"/>
+          <circle cx="35"  cy="-8"  r="6"/>
+          <circle cx="100" cy="-5"  r="5"/>
+          <circle cx="95"  cy="265" r="5"/>
+        </g>
+        <!-- Cells (organelles) inside — sit on top, distinct -->
+        <g>
+          <!-- Top loop cells -->
+          <circle cx="105" cy="60" r="13" fill="rgba(120,65,180,0.92)"/>
+          <circle cx="112" cy="55" r="3.5" fill="rgba(255,255,255,0.85)"/>
+          <!-- Spine cell -->
+          <circle cx="38" cy="55" r="11" fill="rgba(120,65,180,0.9)"/>
+          <circle cx="42" cy="48" r="3" fill="rgba(255,255,255,0.8)"/>
+          <!-- Bottom loop cells -->
+          <circle cx="125" cy="185" r="14" fill="rgba(120,65,180,0.92)"/>
+          <circle cx="132" cy="178" r="4" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="38" cy="195" r="11" fill="rgba(120,65,180,0.9)"/>
+          <circle cx="42" cy="188" r="3" fill="rgba(255,255,255,0.8)"/>
+          <!-- Yellow accent (reserve granule) -->
+          <circle cx="70" cy="125" r="8" fill="rgba(255,220,100,0.92)"/>
+          <circle cx="55" cy="240" r="6" fill="rgba(255,220,100,0.88)"/>
+        </g>
+      </g>
+
+      <!-- ============ Letter I — gramNegative/safranin pink ============ -->
+      <g transform="translate(245, 30)">
+        <g filter="url(#goo)" fill="rgba(245,170,205,0.78)">
+          <circle cx="40" cy="45"  r="38"/>
+          <circle cx="40" cy="125" r="38"/>
+          <circle cx="40" cy="205" r="38"/>
+          <!-- Pili -->
+          <circle cx="-5" cy="55"  r="6"/>
+          <circle cx="85" cy="55"  r="5"/>
+          <circle cx="-5" cy="125" r="5"/>
+          <circle cx="85" cy="195" r="6"/>
+          <circle cx="-5" cy="205" r="5"/>
+          <circle cx="40" cy="-8"  r="6"/>
+          <circle cx="40" cy="253" r="6"/>
+        </g>
+        <g>
+          <!-- Three cells, one per segment -->
+          <circle cx="40" cy="50" r="11" fill="rgba(215,100,170,0.92)"/>
+          <circle cx="45" cy="42" r="3" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="40" cy="125" r="14" fill="rgba(215,100,170,0.92)"/>
+          <circle cx="46" cy="116" r="4" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="40" cy="200" r="12" fill="rgba(215,100,170,0.92)"/>
+          <circle cx="46" cy="192" r="3" fill="rgba(255,255,255,0.85)"/>
+        </g>
+      </g>
+
+      <!-- ============ Letter O — fluorescent green ============ -->
+      <g transform="translate(345, 30)">
+        <!-- Ring of cells around the perimeter, merged by goo -->
+        <g filter="url(#goo-soft)" fill="rgba(165,230,180,0.78)">
+          <circle cx="180" cy="125" r="40"/>
+          <circle cx="160" cy="195" r="42"/>
+          <circle cx="100" cy="220" r="42"/>
+          <circle cx="40"  cy="195" r="42"/>
+          <circle cx="20"  cy="125" r="40"/>
+          <circle cx="40"  cy="55"  r="42"/>
+          <circle cx="100" cy="30"  r="42"/>
+          <circle cx="160" cy="55"  r="42"/>
+          <!-- Pili around outside -->
+          <circle cx="200" cy="180" r="6"/>
+          <circle cx="200" cy="70"  r="6"/>
+          <circle cx="0"   cy="180" r="6"/>
+          <circle cx="0"   cy="70"  r="6"/>
+          <circle cx="100" cy="-10" r="6"/>
+          <circle cx="100" cy="262" r="6"/>
+        </g>
+        <!-- Organelle cells around the ring -->
+        <g>
+          <circle cx="180" cy="120" r="10" fill="rgba(60,170,100,0.92)"/>
+          <circle cx="185" cy="113" r="3" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="100" cy="30"  r="13" fill="rgba(60,170,100,0.92)"/>
+          <circle cx="106" cy="22"  r="4" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="20"  cy="125" r="10" fill="rgba(60,170,100,0.9)"/>
+          <circle cx="25"  cy="118" r="3" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="100" cy="220" r="12" fill="rgba(60,170,100,0.92)"/>
+          <circle cx="106" cy="212" r="3.5" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="160" cy="195" r="9" fill="rgba(60,170,100,0.88)"/>
+          <circle cx="40"  cy="195" r="9" fill="rgba(60,170,100,0.88)"/>
+          <circle cx="40"  cy="55"  r="8" fill="rgba(60,170,100,0.85)"/>
+          <circle cx="160" cy="55"  r="9" fill="rgba(60,170,100,0.88)"/>
+        </g>
+      </g>
+
+      <!-- ============ Letter M — methylene blue ============ -->
+      <g transform="translate(570, 30)">
+        <g filter="url(#goo)" fill="rgba(155,200,245,0.78)">
+          <!-- Left vertical (3 stacked) -->
+          <circle cx="35"  cy="70"  r="40"/>
+          <circle cx="35"  cy="140" r="40"/>
+          <circle cx="35"  cy="210" r="40"/>
+          <!-- Right vertical (3 stacked) -->
+          <circle cx="195" cy="70"  r="40"/>
+          <circle cx="195" cy="140" r="40"/>
+          <circle cx="195" cy="210" r="40"/>
+          <!-- Center peak connecting both -->
+          <circle cx="85"  cy="60"  r="32"/>
+          <circle cx="145" cy="60"  r="32"/>
+          <circle cx="115" cy="105" r="32"/>
+          <!-- Pili -->
+          <circle cx="-5"  cy="50"  r="6"/>
+          <circle cx="235" cy="50"  r="6"/>
+          <circle cx="-5"  cy="220" r="7"/>
+          <circle cx="235" cy="220" r="7"/>
+          <circle cx="115" cy="-5"  r="5"/>
+          <circle cx="35"  cy="255" r="6"/>
+          <circle cx="195" cy="255" r="6"/>
+        </g>
+        <g>
+          <!-- Cells along the M shape -->
+          <circle cx="35" cy="70" r="12" fill="rgba(70,135,220,0.92)"/>
+          <circle cx="41" cy="62" r="3.5" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="35" cy="140" r="11" fill="rgba(70,135,220,0.88)"/>
+          <circle cx="35" cy="210" r="13" fill="rgba(70,135,220,0.92)"/>
+          <circle cx="40" cy="202" r="3.5" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="195" cy="70" r="12" fill="rgba(70,135,220,0.92)"/>
+          <circle cx="201" cy="62" r="3.5" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="195" cy="140" r="11" fill="rgba(70,135,220,0.88)"/>
+          <circle cx="195" cy="210" r="13" fill="rgba(70,135,220,0.92)"/>
+          <circle cx="200" cy="202" r="3.5" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="115" cy="100" r="10" fill="rgba(70,135,220,0.88)"/>
+          <!-- Magenta accent (foreign organelle, like the reference) -->
+          <circle cx="85" cy="60" r="8" fill="rgba(215,100,170,0.92)"/>
+        </g>
+      </g>
+
+      <!-- ============ Letter S — gramNegative/safranin pink ============ -->
+      <g transform="translate(830, 30)">
+        <g filter="url(#goo)" fill="rgba(245,170,205,0.78)">
+          <!-- Top curve (right → left) -->
+          <circle cx="140" cy="50"  r="40"/>
+          <circle cx="85"  cy="60"  r="36"/>
+          <circle cx="45"  cy="105" r="38"/>
+          <!-- Middle (curve to bottom) -->
+          <circle cx="90"  cy="145" r="38"/>
+          <circle cx="135" cy="175" r="38"/>
+          <!-- Bottom curve (right → left) -->
+          <circle cx="115" cy="220" r="36"/>
+          <circle cx="55"  cy="220" r="40"/>
+          <!-- Pili -->
+          <circle cx="175" cy="30"  r="6"/>
+          <circle cx="15"  cy="95"  r="6"/>
+          <circle cx="170" cy="195" r="6"/>
+          <circle cx="15"  cy="240" r="6"/>
+          <circle cx="135" cy="3"   r="5"/>
+          <circle cx="60"  cy="260" r="5"/>
+        </g>
+        <g>
+          <circle cx="140" cy="50" r="13" fill="rgba(215,100,170,0.92)"/>
+          <circle cx="146" cy="42" r="4" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="90" cy="145" r="12" fill="rgba(215,100,170,0.92)"/>
+          <circle cx="96" cy="138" r="3.5" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="55" cy="220" r="14" fill="rgba(215,100,170,0.92)"/>
+          <circle cx="61" cy="212" r="4" fill="rgba(255,255,255,0.85)"/>
+          <circle cx="135" cy="175" r="10" fill="rgba(215,100,170,0.88)"/>
+          <circle cx="115" cy="220" r="9" fill="rgba(215,100,170,0.88)"/>
+        </g>
+      </g>
+
+    </svg>
 
     <p class="hero-tag">A generative archive of microbial specimens. Each one rendered live in your browser, from a single seed.</p>
 
