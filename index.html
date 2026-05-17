@@ -340,64 +340,46 @@
     background: var(--paper);
   }
 
-  /* === LORE — schizo-academic manifesto === */
-  .lore {
-    background: var(--paper);
-    padding: 96px 32px;
-  }
-  .lore .text-col {
-    max-width: 680px;
-  }
-  .lore .label-small {
-    text-align: center;
-    margin-bottom: 32px;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    font-size: 11px;
-  }
-  .lore-line {
-    font-family: "Iowan Old Style", "Palatino", "Georgia", serif;
-    font-size: clamp(20px, 2.4vw, 28px);
-    line-height: 1.45;
-    color: var(--ink);
-    text-align: center;
-    margin-bottom: 32px;
-    font-weight: 400;
-    letter-spacing: -0.005em;
-  }
-  .lore-line:last-child { margin-bottom: 0; color: var(--ink-2); font-style: italic; }
-  @media (max-width: 600px) {
-    .lore { padding: 64px 24px; }
-  }
-
-  .format-list {
-    list-style: none;
-    margin: 28px 0 0;
-    padding: 0;
-    max-width: 540px;
-  }
-  .format-list li {
+  /* === QUICK-CTA — big hover card linking straight to the Banner Maker === */
+  .quick-cta { padding: 64px 32px; }
+  .quick-cta-card {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: baseline;
-    gap: 16px;
-    padding: 14px 0;
-    border-top: 1px solid var(--rule);
-    font-size: 15px;
+    gap: 24px;
+    padding: 36px 40px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 16px;
+    text-decoration: none;
     color: var(--ink);
+    transition: background 0.2s, transform 0.2s, border-color 0.2s, box-shadow 0.2s;
   }
-  .format-list li:last-child { border-bottom: 1px solid var(--rule); }
-  .format-list strong { font-weight: 500; }
-  .format-list .format-dim {
-    color: var(--ink-3);
-    font-size: 13px;
-    margin-left: 4px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-variant-numeric: tabular-nums;
+  .quick-cta-card:hover {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 36px rgba(28,26,22,0.18);
+    text-decoration: none;
   }
-  .format-list .format-use {
-    color: var(--ink-3);
-    font-size: 13px;
+  .quick-cta-card:hover .label-small { color: rgba(236,233,224,0.65); }
+  .quick-cta-text { display: flex; flex-direction: column; gap: 4px; }
+  .quick-cta-title {
+    font-size: clamp(28px, 4vw, 44px);
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    line-height: 1.05;
+  }
+  .quick-cta-arrow {
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 300;
+    transition: transform 0.2s;
+  }
+  .quick-cta-card:hover .quick-cta-arrow { transform: translateX(8px); }
+  @media (max-width: 600px) {
+    .quick-cta { padding: 48px 18px; }
+    .quick-cta-card { padding: 28px 24px; }
   }
 
   .info-list {
@@ -490,231 +472,398 @@
     <h1 class="visually-hidden">Bioms</h1>
 
     <!--
-      Hand-drawn BIOMS wordmark — each letter is an organic bacterial blob.
-      Layers per letter:
-        1. Body — overlapping circles merged into a single irregular cell wall
-           by the metaball/goo filter. Includes tiny pili circles around the
-           perimeter that become rounded protrusions after merging.
-        2. Cells — darker circles inside (organelles), NOT goo-merged so they
-           stay distinct on top of the body.
-        3. Highlights — tiny white circles on cells (light catchpoints).
-        4. Yellow/orange accents — reserve granules.
-      Outside the letters: floating background particles (free-swimming cells).
+      BIOMS wordmark — built from REAL Bioms visual language.
+      Each letter is a colony of overlapping CAPSULE cells (ellipses, not
+      circles), each rendered in the engine's actual layering:
+        outer envelope (alpha 0.30) → body (0.55) → bodyDark (0.55)
+        + organelle nucleoid dot
+        + hair-like pili lines (thin strokes around perimeter)
+        + glass sheen highlight on the body
+      Cells overlap visibly — NOT goo-merged — so you see distinct
+      capsules the way a real microscope colony looks.
+      Stain colors match specimen-engine.js PALETTES verbatim.
     -->
-    <svg class="bioms-wordmark-svg" viewBox="0 0 1200 320" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <svg class="bioms-wordmark-svg" viewBox="0 0 1240 320" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <defs>
-        <!-- Metaball filter: blur then threshold so overlapping circles smoothly merge -->
+        <!-- Soft metaball: blur then very gentle threshold so even low-alpha
+             fills merge into one continuous translucent silhouette. Used for
+             the connecting envelope BEHIND the distinct cells. -->
         <filter id="goo" x="-10%" y="-10%" width="120%" height="120%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur"/>
+          <feGaussianBlur in="SourceGraphic" stdDeviation="9" result="blur"/>
           <feColorMatrix in="blur" type="matrix"
             values="1 0 0 0 0
                     0 1 0 0 0
                     0 0 1 0 0
-                    0 0 0 22 -11" result="goo"/>
-          <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
-        </filter>
-        <!-- Slightly stronger version for the O (ring needs more merge) -->
-        <filter id="goo-soft" x="-10%" y="-10%" width="120%" height="120%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
-          <feColorMatrix in="blur" type="matrix"
-            values="1 0 0 0 0
-                    0 1 0 0 0
-                    0 0 1 0 0
-                    0 0 0 20 -9" result="goo"/>
+                    0 0 0 6 -1" result="goo"/>
           <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
         </filter>
       </defs>
 
-      <!-- ===== Background floating cells (behind the wordmark) ===== -->
-      <g opacity="0.65">
-        <circle cx="110" cy="40"   r="6"  fill="rgba(180,145,225,0.7)"/>
-        <ellipse cx="380" cy="60"  rx="9" ry="4" fill="rgba(215,100,170,0.7)" transform="rotate(-20 380 60)"/>
-        <circle cx="600" cy="30"   r="5"  fill="rgba(60,170,100,0.65)"/>
-        <circle cx="900" cy="50"   r="4"  fill="rgba(70,135,220,0.7)"/>
-        <circle cx="1080" cy="80"  r="6"  fill="rgba(215,100,170,0.65)"/>
-        <ellipse cx="40" cy="290"  rx="7" ry="3" fill="rgba(180,145,225,0.65)" transform="rotate(15 40 290)"/>
-        <circle cx="500" cy="300"  r="5"  fill="rgba(255,210,100,0.75)"/>
-        <ellipse cx="780" cy="290" rx="8" ry="4" fill="rgba(70,135,220,0.6)" transform="rotate(-10 780 290)"/>
-        <circle cx="1140" cy="270" r="5"  fill="rgba(60,170,100,0.6)"/>
+      <!-- ===== Background free-swimming cells (small, scattered) ===== -->
+      <g opacity="0.55">
+        <ellipse cx="80"   cy="40"  rx="7" ry="3.5" fill="rgba(140,90,180,0.55)"  transform="rotate(-20 80 40)"/>
+        <ellipse cx="400"  cy="55"  rx="6" ry="3"   fill="rgba(240,140,180,0.55)" transform="rotate(15 400 55)"/>
+        <ellipse cx="640"  cy="30"  rx="5" ry="2.5" fill="rgba(120,220,140,0.55)" transform="rotate(-10 640 30)"/>
+        <ellipse cx="960"  cy="50"  rx="6" ry="3"   fill="rgba(80,130,220,0.55)"  transform="rotate(20 960 50)"/>
+        <ellipse cx="1180" cy="60"  rx="7" ry="3.5" fill="rgba(240,140,180,0.55)" transform="rotate(-25 1180 60)"/>
+        <ellipse cx="50"   cy="290" rx="6" ry="3"   fill="rgba(140,90,180,0.55)"  transform="rotate(10 50 290)"/>
+        <ellipse cx="520"  cy="295" rx="8" ry="3.5" fill="rgba(255,220,90,0.7)"   transform="rotate(-5 520 295)"/>
+        <ellipse cx="820"  cy="285" rx="6" ry="3"   fill="rgba(80,130,220,0.55)"  transform="rotate(15 820 285)"/>
+        <ellipse cx="1150" cy="280" rx="7" ry="3.5" fill="rgba(120,220,140,0.55)" transform="rotate(-15 1150 280)"/>
       </g>
 
-      <!-- ============ Letter B — gramPositive violet ============ -->
-      <g transform="translate(50, 30)">
-        <!-- Body (overlapping cells merged into B shape via goo) -->
-        <g filter="url(#goo)" fill="rgba(185,150,225,0.78)">
-          <!-- Vertical spine (3 stacked cells) -->
-          <circle cx="38" cy="50"  r="42"/>
-          <circle cx="38" cy="125" r="42"/>
-          <circle cx="38" cy="200" r="42"/>
-          <!-- Top loop -->
-          <circle cx="110" cy="68"  r="55"/>
-          <!-- Bottom loop (bigger) -->
-          <circle cx="118" cy="195" r="62"/>
-          <!-- Pili around perimeter -->
-          <circle cx="-4"  cy="20"  r="7"/>
-          <circle cx="155" cy="20"  r="6"/>
-          <circle cx="170" cy="125" r="5"/>
-          <circle cx="180" cy="245" r="8"/>
-          <circle cx="-6"  cy="240" r="6"/>
-          <circle cx="-10" cy="125" r="5"/>
-          <circle cx="35"  cy="-8"  r="6"/>
-          <circle cx="100" cy="-5"  r="5"/>
-          <circle cx="95"  cy="265" r="5"/>
+      <!-- ============ B — gramPositive violet ============ -->
+      <g transform="translate(60, 30)">
+        <!-- Connecting envelope — the bacterium's outer cell wall, goo-merged
+             into one continuous letter silhouette behind the distinct cells -->
+        <g filter="url(#goo)" fill="rgba(155,110,195,0.45)">
+          <circle cx="42"  cy="60"  r="40"/>
+          <circle cx="42"  cy="140" r="40"/>
+          <circle cx="42"  cy="220" r="40"/>
+          <circle cx="115" cy="72"  r="52"/>
+          <circle cx="120" cy="205" r="58"/>
         </g>
-        <!-- Cells (organelles) inside — sit on top, distinct -->
-        <g>
-          <!-- Top loop cells -->
-          <circle cx="105" cy="60" r="13" fill="rgba(120,65,180,0.92)"/>
-          <circle cx="112" cy="55" r="3.5" fill="rgba(255,255,255,0.85)"/>
-          <!-- Spine cell -->
-          <circle cx="38" cy="55" r="11" fill="rgba(120,65,180,0.9)"/>
-          <circle cx="42" cy="48" r="3" fill="rgba(255,255,255,0.8)"/>
-          <!-- Bottom loop cells -->
-          <circle cx="125" cy="185" r="14" fill="rgba(120,65,180,0.92)"/>
-          <circle cx="132" cy="178" r="4" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="38" cy="195" r="11" fill="rgba(120,65,180,0.9)"/>
-          <circle cx="42" cy="188" r="3" fill="rgba(255,255,255,0.8)"/>
-          <!-- Yellow accent (reserve granule) -->
-          <circle cx="70" cy="125" r="8" fill="rgba(255,220,100,0.92)"/>
-          <circle cx="55" cy="240" r="6" fill="rgba(255,220,100,0.88)"/>
+        <g stroke="rgba(110,70,160,0.5)" stroke-width="1.4" stroke-linecap="round" fill="none">
+          <line x1="22" y1="20"  x2="12"  y2="6"/>
+          <line x1="14" y1="50"  x2="0"   y2="46"/>
+          <line x1="12" y1="90"  x2="-4"  y2="92"/>
+          <line x1="14" y1="135" x2="-2"  y2="138"/>
+          <line x1="12" y1="180" x2="-4"  y2="184"/>
+          <line x1="16" y1="220" x2="2"   y2="232"/>
+          <line x1="22" y1="252" x2="14"  y2="266"/>
+          <line x1="55" y1="14"  x2="55"  y2="-2"/>
+          <line x1="120" y1="22" x2="124" y2="6"/>
+          <line x1="158" y1="50" x2="174" y2="44"/>
+          <line x1="170" y1="90" x2="188" y2="88"/>
+          <line x1="160" y1="138" x2="178" y2="140"/>
+          <line x1="172" y1="180" x2="192" y2="184"/>
+          <line x1="170" y1="225" x2="190" y2="228"/>
+          <line x1="142" y1="262" x2="148" y2="278"/>
+          <line x1="92"  y1="270" x2="92"  y2="284"/>
         </g>
-      </g>
-
-      <!-- ============ Letter I — gramNegative/safranin pink ============ -->
-      <g transform="translate(245, 30)">
-        <g filter="url(#goo)" fill="rgba(245,170,205,0.78)">
-          <circle cx="40" cy="45"  r="38"/>
-          <circle cx="40" cy="125" r="38"/>
-          <circle cx="40" cy="205" r="38"/>
-          <!-- Pili -->
-          <circle cx="-5" cy="55"  r="6"/>
-          <circle cx="85" cy="55"  r="5"/>
-          <circle cx="-5" cy="125" r="5"/>
-          <circle cx="85" cy="195" r="6"/>
-          <circle cx="-5" cy="205" r="5"/>
-          <circle cx="40" cy="-8"  r="6"/>
-          <circle cx="40" cy="253" r="6"/>
+        <!-- Spine top -->
+        <g transform="translate(42, 60)">
+          <ellipse rx="28" ry="40" fill="rgba(155,110,195,0.30)"/>
+          <ellipse rx="22" ry="33" fill="rgba(140,90,180,0.55)"/>
+          <ellipse rx="14" ry="22" fill="rgba(90,50,140,0.55)"/>
+          <circle cx="0" cy="-6" r="4" fill="rgba(55,25,100,0.7)"/>
+          <ellipse cx="-7" cy="-14" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
         </g>
-        <g>
-          <!-- Three cells, one per segment -->
-          <circle cx="40" cy="50" r="11" fill="rgba(215,100,170,0.92)"/>
-          <circle cx="45" cy="42" r="3" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="40" cy="125" r="14" fill="rgba(215,100,170,0.92)"/>
-          <circle cx="46" cy="116" r="4" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="40" cy="200" r="12" fill="rgba(215,100,170,0.92)"/>
-          <circle cx="46" cy="192" r="3" fill="rgba(255,255,255,0.85)"/>
+        <!-- Spine middle -->
+        <g transform="translate(42, 140)">
+          <ellipse rx="28" ry="40" fill="rgba(155,110,195,0.30)"/>
+          <ellipse rx="22" ry="33" fill="rgba(140,90,180,0.55)"/>
+          <ellipse rx="14" ry="22" fill="rgba(90,50,140,0.55)"/>
+          <circle cx="0" cy="0" r="4.5" fill="rgba(55,25,100,0.7)"/>
+          <circle cx="-2" cy="-14" r="2.5" fill="rgba(55,25,100,0.55)"/>
+          <ellipse cx="-7" cy="-16" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+          <circle cx="6" cy="10" r="3.5" fill="rgba(255,220,90,0.78)"/>
         </g>
-      </g>
-
-      <!-- ============ Letter O — fluorescent green ============ -->
-      <g transform="translate(345, 30)">
-        <!-- Ring of cells around the perimeter, merged by goo -->
-        <g filter="url(#goo-soft)" fill="rgba(165,230,180,0.78)">
-          <circle cx="180" cy="125" r="40"/>
-          <circle cx="160" cy="195" r="42"/>
-          <circle cx="100" cy="220" r="42"/>
-          <circle cx="40"  cy="195" r="42"/>
-          <circle cx="20"  cy="125" r="40"/>
-          <circle cx="40"  cy="55"  r="42"/>
-          <circle cx="100" cy="30"  r="42"/>
-          <circle cx="160" cy="55"  r="42"/>
-          <!-- Pili around outside -->
-          <circle cx="200" cy="180" r="6"/>
-          <circle cx="200" cy="70"  r="6"/>
-          <circle cx="0"   cy="180" r="6"/>
-          <circle cx="0"   cy="70"  r="6"/>
-          <circle cx="100" cy="-10" r="6"/>
-          <circle cx="100" cy="262" r="6"/>
+        <!-- Spine bottom -->
+        <g transform="translate(42, 220)">
+          <ellipse rx="28" ry="40" fill="rgba(155,110,195,0.30)"/>
+          <ellipse rx="22" ry="33" fill="rgba(140,90,180,0.55)"/>
+          <ellipse rx="14" ry="22" fill="rgba(90,50,140,0.55)"/>
+          <circle cx="0" cy="6" r="4" fill="rgba(55,25,100,0.7)"/>
+          <ellipse cx="-7" cy="-14" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
         </g>
-        <!-- Organelle cells around the ring -->
-        <g>
-          <circle cx="180" cy="120" r="10" fill="rgba(60,170,100,0.92)"/>
-          <circle cx="185" cy="113" r="3" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="100" cy="30"  r="13" fill="rgba(60,170,100,0.92)"/>
-          <circle cx="106" cy="22"  r="4" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="20"  cy="125" r="10" fill="rgba(60,170,100,0.9)"/>
-          <circle cx="25"  cy="118" r="3" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="100" cy="220" r="12" fill="rgba(60,170,100,0.92)"/>
-          <circle cx="106" cy="212" r="3.5" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="160" cy="195" r="9" fill="rgba(60,170,100,0.88)"/>
-          <circle cx="40"  cy="195" r="9" fill="rgba(60,170,100,0.88)"/>
-          <circle cx="40"  cy="55"  r="8" fill="rgba(60,170,100,0.85)"/>
-          <circle cx="160" cy="55"  r="9" fill="rgba(60,170,100,0.88)"/>
+        <!-- Top loop -->
+        <g transform="translate(115, 72)">
+          <ellipse rx="46" ry="36" fill="rgba(155,110,195,0.30)"/>
+          <ellipse rx="38" ry="28" fill="rgba(140,90,180,0.55)"/>
+          <ellipse rx="28" ry="19" fill="rgba(90,50,140,0.55)"/>
+          <circle cx="-5" cy="-2" r="5" fill="rgba(55,25,100,0.72)"/>
+          <circle cx="12" cy="3" r="3.5" fill="rgba(55,25,100,0.6)"/>
+          <ellipse cx="-12" cy="-12" rx="14" ry="5" fill="rgba(255,255,255,0.45)" transform="rotate(-22)"/>
+        </g>
+        <!-- Bottom loop -->
+        <g transform="translate(120, 205)">
+          <ellipse rx="52" ry="40" fill="rgba(155,110,195,0.30)"/>
+          <ellipse rx="44" ry="32" fill="rgba(140,90,180,0.55)"/>
+          <ellipse rx="33" ry="22" fill="rgba(90,50,140,0.55)"/>
+          <circle cx="-4" cy="0" r="6" fill="rgba(55,25,100,0.75)"/>
+          <circle cx="14" cy="-4" r="3.5" fill="rgba(55,25,100,0.6)"/>
+          <circle cx="-12" cy="8" r="3" fill="rgba(200,160,220,0.7)"/>
+          <ellipse cx="-14" cy="-12" rx="15" ry="5.5" fill="rgba(255,255,255,0.45)" transform="rotate(-22)"/>
         </g>
       </g>
 
-      <!-- ============ Letter M — methylene blue ============ -->
-      <g transform="translate(570, 30)">
-        <g filter="url(#goo)" fill="rgba(155,200,245,0.78)">
-          <!-- Left vertical (3 stacked) -->
-          <circle cx="35"  cy="70"  r="40"/>
-          <circle cx="35"  cy="140" r="40"/>
-          <circle cx="35"  cy="210" r="40"/>
-          <!-- Right vertical (3 stacked) -->
-          <circle cx="195" cy="70"  r="40"/>
-          <circle cx="195" cy="140" r="40"/>
-          <circle cx="195" cy="210" r="40"/>
-          <!-- Center peak connecting both -->
-          <circle cx="85"  cy="60"  r="32"/>
-          <circle cx="145" cy="60"  r="32"/>
-          <circle cx="115" cy="105" r="32"/>
-          <!-- Pili -->
-          <circle cx="-5"  cy="50"  r="6"/>
-          <circle cx="235" cy="50"  r="6"/>
-          <circle cx="-5"  cy="220" r="7"/>
-          <circle cx="235" cy="220" r="7"/>
-          <circle cx="115" cy="-5"  r="5"/>
-          <circle cx="35"  cy="255" r="6"/>
-          <circle cx="195" cy="255" r="6"/>
+      <!-- ============ I — methylene blue ============ -->
+      <g transform="translate(260, 30)">
+        <g filter="url(#goo)" fill="rgba(110,150,220,0.45)">
+          <circle cx="38" cy="60"  r="36"/>
+          <circle cx="38" cy="140" r="36"/>
+          <circle cx="38" cy="220" r="36"/>
         </g>
-        <g>
-          <!-- Cells along the M shape -->
-          <circle cx="35" cy="70" r="12" fill="rgba(70,135,220,0.92)"/>
-          <circle cx="41" cy="62" r="3.5" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="35" cy="140" r="11" fill="rgba(70,135,220,0.88)"/>
-          <circle cx="35" cy="210" r="13" fill="rgba(70,135,220,0.92)"/>
-          <circle cx="40" cy="202" r="3.5" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="195" cy="70" r="12" fill="rgba(70,135,220,0.92)"/>
-          <circle cx="201" cy="62" r="3.5" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="195" cy="140" r="11" fill="rgba(70,135,220,0.88)"/>
-          <circle cx="195" cy="210" r="13" fill="rgba(70,135,220,0.92)"/>
-          <circle cx="200" cy="202" r="3.5" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="115" cy="100" r="10" fill="rgba(70,135,220,0.88)"/>
-          <!-- Magenta accent (foreign organelle, like the reference) -->
-          <circle cx="85" cy="60" r="8" fill="rgba(215,100,170,0.92)"/>
+        <g stroke="rgba(60,100,200,0.5)" stroke-width="1.4" stroke-linecap="round" fill="none">
+          <line x1="14" y1="30"  x2="0"   y2="22"/>
+          <line x1="12" y1="80"  x2="-4"  y2="80"/>
+          <line x1="14" y1="135" x2="-2"  y2="138"/>
+          <line x1="12" y1="180" x2="-4"  y2="184"/>
+          <line x1="14" y1="230" x2="2"   y2="246"/>
+          <line x1="62" y1="30"  x2="76"  y2="22"/>
+          <line x1="64" y1="80"  x2="80"  y2="80"/>
+          <line x1="62" y1="135" x2="78"  y2="138"/>
+          <line x1="64" y1="180" x2="80"  y2="184"/>
+          <line x1="62" y1="230" x2="74"  y2="246"/>
+          <line x1="38" y1="14"  x2="38"  y2="-2"/>
+          <line x1="38" y1="266" x2="38"  y2="282"/>
+        </g>
+        <g transform="translate(38, 60)">
+          <ellipse rx="24" ry="36" fill="rgba(110,150,220,0.30)"/>
+          <ellipse rx="19" ry="29" fill="rgba(80,130,220,0.55)"/>
+          <ellipse rx="13" ry="20" fill="rgba(40,80,170,0.55)"/>
+          <circle cx="0" cy="-6" r="4.5" fill="rgba(20,40,120,0.72)"/>
+          <ellipse cx="-6" cy="-14" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(38, 140)">
+          <ellipse rx="24" ry="36" fill="rgba(110,150,220,0.30)"/>
+          <ellipse rx="19" ry="29" fill="rgba(80,130,220,0.55)"/>
+          <ellipse rx="13" ry="20" fill="rgba(40,80,170,0.55)"/>
+          <circle cx="0" cy="0" r="5" fill="rgba(20,40,120,0.72)"/>
+          <circle cx="-2" cy="-13" r="2.5" fill="rgba(20,40,120,0.55)"/>
+          <ellipse cx="-6" cy="-16" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+          <circle cx="6" cy="10" r="3.5" fill="rgba(255,200,100,0.75)"/>
+        </g>
+        <g transform="translate(38, 220)">
+          <ellipse rx="24" ry="36" fill="rgba(110,150,220,0.30)"/>
+          <ellipse rx="19" ry="29" fill="rgba(80,130,220,0.55)"/>
+          <ellipse rx="13" ry="20" fill="rgba(40,80,170,0.55)"/>
+          <circle cx="0" cy="6" r="4.5" fill="rgba(20,40,120,0.72)"/>
+          <ellipse cx="-6" cy="-14" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
         </g>
       </g>
 
-      <!-- ============ Letter S — gramNegative/safranin pink ============ -->
-      <g transform="translate(830, 30)">
-        <g filter="url(#goo)" fill="rgba(245,170,205,0.78)">
-          <!-- Top curve (right → left) -->
-          <circle cx="140" cy="50"  r="40"/>
-          <circle cx="85"  cy="60"  r="36"/>
-          <circle cx="45"  cy="105" r="38"/>
-          <!-- Middle (curve to bottom) -->
-          <circle cx="90"  cy="145" r="38"/>
-          <circle cx="135" cy="175" r="38"/>
-          <!-- Bottom curve (right → left) -->
-          <circle cx="115" cy="220" r="36"/>
-          <circle cx="55"  cy="220" r="40"/>
-          <!-- Pili -->
-          <circle cx="175" cy="30"  r="6"/>
-          <circle cx="15"  cy="95"  r="6"/>
-          <circle cx="170" cy="195" r="6"/>
-          <circle cx="15"  cy="240" r="6"/>
-          <circle cx="135" cy="3"   r="5"/>
-          <circle cx="60"  cy="260" r="5"/>
+      <!-- ============ O — fluorescent green (ring of tangential capsules) ============ -->
+      <g transform="translate(360, 30)">
+        <g filter="url(#goo)" fill="rgba(160,230,170,0.45)">
+          <circle cx="180" cy="50"  r="36"/>
+          <circle cx="225" cy="130" r="36"/>
+          <circle cx="180" cy="210" r="36"/>
+          <circle cx="100" cy="235" r="36"/>
+          <circle cx="55"  cy="210" r="36"/>
+          <circle cx="15"  cy="130" r="36"/>
+          <circle cx="55"  cy="50"  r="36"/>
+          <circle cx="100" cy="25"  r="36"/>
         </g>
-        <g>
-          <circle cx="140" cy="50" r="13" fill="rgba(215,100,170,0.92)"/>
-          <circle cx="146" cy="42" r="4" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="90" cy="145" r="12" fill="rgba(215,100,170,0.92)"/>
-          <circle cx="96" cy="138" r="3.5" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="55" cy="220" r="14" fill="rgba(215,100,170,0.92)"/>
-          <circle cx="61" cy="212" r="4" fill="rgba(255,255,255,0.85)"/>
-          <circle cx="135" cy="175" r="10" fill="rgba(215,100,170,0.88)"/>
-          <circle cx="115" cy="220" r="9" fill="rgba(215,100,170,0.88)"/>
+        <g stroke="rgba(90,180,120,0.5)" stroke-width="1.4" stroke-linecap="round" fill="none">
+          <line x1="-2"  y1="100" x2="-18"  y2="98"/>
+          <line x1="-2"  y1="160" x2="-18"  y2="162"/>
+          <line x1="10"  y1="60"  x2="-2"   y2="50"/>
+          <line x1="10"  y1="205" x2="-4"   y2="220"/>
+          <line x1="60"  y1="10"  x2="55"   y2="-6"/>
+          <line x1="180" y1="10"  x2="184"  y2="-6"/>
+          <line x1="226" y1="60"  x2="240"  y2="48"/>
+          <line x1="242" y1="100" x2="258"  y2="98"/>
+          <line x1="242" y1="160" x2="258"  y2="162"/>
+          <line x1="228" y1="205" x2="244"  y2="220"/>
+          <line x1="180" y1="250" x2="184"  y2="266"/>
+          <line x1="60"  y1="250" x2="55"   y2="266"/>
+        </g>
+        <g transform="translate(180, 50) rotate(-25)">
+          <ellipse rx="34" ry="24" fill="rgba(160,230,170,0.30)"/>
+          <ellipse rx="28" ry="18" fill="rgba(120,220,140,0.55)"/>
+          <ellipse rx="20" ry="12" fill="rgba(60,160,100,0.55)"/>
+          <circle cx="-3" cy="0" r="4" fill="rgba(30,100,70,0.7)"/>
+          <ellipse cx="-8" cy="-6" rx="9" ry="3" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(225, 130) rotate(70)">
+          <ellipse rx="34" ry="24" fill="rgba(160,230,170,0.30)"/>
+          <ellipse rx="28" ry="18" fill="rgba(120,220,140,0.55)"/>
+          <ellipse rx="20" ry="12" fill="rgba(60,160,100,0.55)"/>
+          <circle cx="-3" cy="0" r="4" fill="rgba(30,100,70,0.7)"/>
+          <ellipse cx="-8" cy="-6" rx="9" ry="3" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(180, 210) rotate(25)">
+          <ellipse rx="34" ry="24" fill="rgba(160,230,170,0.30)"/>
+          <ellipse rx="28" ry="18" fill="rgba(120,220,140,0.55)"/>
+          <ellipse rx="20" ry="12" fill="rgba(60,160,100,0.55)"/>
+          <circle cx="-3" cy="0" r="4" fill="rgba(30,100,70,0.7)"/>
+          <circle cx="6" cy="3" r="3" fill="rgba(255,180,80,0.75)"/>
+          <ellipse cx="-8" cy="-6" rx="9" ry="3" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(100, 235) rotate(-25)">
+          <ellipse rx="34" ry="24" fill="rgba(160,230,170,0.30)"/>
+          <ellipse rx="28" ry="18" fill="rgba(120,220,140,0.55)"/>
+          <ellipse rx="20" ry="12" fill="rgba(60,160,100,0.55)"/>
+          <circle cx="-3" cy="0" r="4" fill="rgba(30,100,70,0.7)"/>
+          <ellipse cx="-8" cy="-6" rx="9" ry="3" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(55, 210) rotate(-65)">
+          <ellipse rx="34" ry="24" fill="rgba(160,230,170,0.30)"/>
+          <ellipse rx="28" ry="18" fill="rgba(120,220,140,0.55)"/>
+          <ellipse rx="20" ry="12" fill="rgba(60,160,100,0.55)"/>
+          <circle cx="-3" cy="0" r="4" fill="rgba(30,100,70,0.7)"/>
+          <ellipse cx="-8" cy="-6" rx="9" ry="3" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(15, 130) rotate(-90)">
+          <ellipse rx="34" ry="24" fill="rgba(160,230,170,0.30)"/>
+          <ellipse rx="28" ry="18" fill="rgba(120,220,140,0.55)"/>
+          <ellipse rx="20" ry="12" fill="rgba(60,160,100,0.55)"/>
+          <circle cx="-3" cy="0" r="4" fill="rgba(30,100,70,0.7)"/>
+          <ellipse cx="-8" cy="-6" rx="9" ry="3" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(55, 50) rotate(-115)">
+          <ellipse rx="34" ry="24" fill="rgba(160,230,170,0.30)"/>
+          <ellipse rx="28" ry="18" fill="rgba(120,220,140,0.55)"/>
+          <ellipse rx="20" ry="12" fill="rgba(60,160,100,0.55)"/>
+          <circle cx="-3" cy="0" r="4" fill="rgba(30,100,70,0.7)"/>
+          <ellipse cx="-8" cy="-6" rx="9" ry="3" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(100, 25) rotate(155)">
+          <ellipse rx="34" ry="24" fill="rgba(160,230,170,0.30)"/>
+          <ellipse rx="28" ry="18" fill="rgba(120,220,140,0.55)"/>
+          <ellipse rx="20" ry="12" fill="rgba(60,160,100,0.55)"/>
+          <circle cx="-3" cy="0" r="4" fill="rgba(30,100,70,0.7)"/>
+          <ellipse cx="-8" cy="-6" rx="9" ry="3" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+      </g>
+
+      <!-- ============ M — gramNegative pink ============ -->
+      <g transform="translate(660, 30)">
+        <g filter="url(#goo)" fill="rgba(245,160,195,0.45)">
+          <circle cx="38"  cy="60"  r="38"/>
+          <circle cx="38"  cy="140" r="38"/>
+          <circle cx="38"  cy="220" r="38"/>
+          <circle cx="190" cy="60"  r="38"/>
+          <circle cx="190" cy="140" r="38"/>
+          <circle cx="190" cy="220" r="38"/>
+          <circle cx="80"  cy="65"  r="30"/>
+          <circle cx="148" cy="65"  r="30"/>
+          <circle cx="114" cy="100" r="30"/>
+        </g>
+        <g stroke="rgba(210,100,150,0.5)" stroke-width="1.4" stroke-linecap="round" fill="none">
+          <line x1="12" y1="50"  x2="-4"  y2="44"/>
+          <line x1="10" y1="100" x2="-6"  y2="100"/>
+          <line x1="12" y1="160" x2="-4"  y2="164"/>
+          <line x1="14" y1="220" x2="-2"  y2="226"/>
+          <line x1="208" y1="50" x2="224" y2="44"/>
+          <line x1="210" y1="100" x2="226" y2="100"/>
+          <line x1="208" y1="160" x2="224" y2="164"/>
+          <line x1="206" y1="220" x2="222" y2="226"/>
+          <line x1="35"  y1="14"  x2="32"  y2="-2"/>
+          <line x1="185" y1="14"  x2="188" y2="-2"/>
+          <line x1="35"  y1="266" x2="35"  y2="282"/>
+          <line x1="185" y1="266" x2="185" y2="282"/>
+        </g>
+        <g transform="translate(38, 60)">
+          <ellipse rx="26" ry="34" fill="rgba(245,160,195,0.30)"/>
+          <ellipse rx="20" ry="27" fill="rgba(240,140,180,0.55)"/>
+          <ellipse rx="14" ry="18" fill="rgba(200,70,130,0.55)"/>
+          <circle cx="0" cy="-6" r="4" fill="rgba(140,30,90,0.72)"/>
+          <ellipse cx="-7" cy="-14" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(38, 140)">
+          <ellipse rx="26" ry="34" fill="rgba(245,160,195,0.30)"/>
+          <ellipse rx="20" ry="27" fill="rgba(240,140,180,0.55)"/>
+          <ellipse rx="14" ry="18" fill="rgba(200,70,130,0.55)"/>
+          <circle cx="0" cy="0" r="4.5" fill="rgba(140,30,90,0.72)"/>
+          <ellipse cx="-7" cy="-14" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(38, 220)">
+          <ellipse rx="26" ry="34" fill="rgba(245,160,195,0.30)"/>
+          <ellipse rx="20" ry="27" fill="rgba(240,140,180,0.55)"/>
+          <ellipse rx="14" ry="18" fill="rgba(200,70,130,0.55)"/>
+          <circle cx="0" cy="6" r="4" fill="rgba(140,30,90,0.72)"/>
+          <ellipse cx="-7" cy="-14" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(190, 60)">
+          <ellipse rx="26" ry="34" fill="rgba(245,160,195,0.30)"/>
+          <ellipse rx="20" ry="27" fill="rgba(240,140,180,0.55)"/>
+          <ellipse rx="14" ry="18" fill="rgba(200,70,130,0.55)"/>
+          <circle cx="0" cy="-6" r="4" fill="rgba(140,30,90,0.72)"/>
+          <ellipse cx="-7" cy="-14" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(190, 140)">
+          <ellipse rx="26" ry="34" fill="rgba(245,160,195,0.30)"/>
+          <ellipse rx="20" ry="27" fill="rgba(240,140,180,0.55)"/>
+          <ellipse rx="14" ry="18" fill="rgba(200,70,130,0.55)"/>
+          <circle cx="0" cy="0" r="4.5" fill="rgba(140,30,90,0.72)"/>
+          <ellipse cx="-7" cy="-14" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(190, 220)">
+          <ellipse rx="26" ry="34" fill="rgba(245,160,195,0.30)"/>
+          <ellipse rx="20" ry="27" fill="rgba(240,140,180,0.55)"/>
+          <ellipse rx="14" ry="18" fill="rgba(200,70,130,0.55)"/>
+          <circle cx="0" cy="6" r="4" fill="rgba(140,30,90,0.72)"/>
+          <ellipse cx="-7" cy="-14" rx="9" ry="3.5" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <!-- Middle peak (two diagonal cells meeting in V) -->
+        <g transform="translate(80, 60) rotate(55)">
+          <ellipse rx="32" ry="20" fill="rgba(245,160,195,0.30)"/>
+          <ellipse rx="26" ry="16" fill="rgba(240,140,180,0.55)"/>
+          <ellipse rx="18" ry="10" fill="rgba(200,70,130,0.55)"/>
+          <circle cx="-3" cy="0" r="3.5" fill="rgba(140,30,90,0.7)"/>
+          <ellipse cx="-7" cy="-5" rx="8" ry="3" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(148, 60) rotate(-55)">
+          <ellipse rx="32" ry="20" fill="rgba(245,160,195,0.30)"/>
+          <ellipse rx="26" ry="16" fill="rgba(240,140,180,0.55)"/>
+          <ellipse rx="18" ry="10" fill="rgba(200,70,130,0.55)"/>
+          <circle cx="-3" cy="0" r="3.5" fill="rgba(140,30,90,0.7)"/>
+          <ellipse cx="-7" cy="-5" rx="8" ry="3" fill="rgba(255,255,255,0.45)" transform="rotate(-25)"/>
+        </g>
+        <circle cx="114" cy="98" r="6" fill="rgba(140,30,90,0.85)"/>
+        <circle cx="116" cy="94" r="2" fill="rgba(255,255,255,0.7)"/>
+      </g>
+
+      <!-- ============ S — iridescent_aurora (multi-color chain) ============ -->
+      <g transform="translate(940, 30)">
+        <g filter="url(#goo)" fill="rgba(170,180,220,0.45)">
+          <circle cx="135" cy="55"  r="36"/>
+          <circle cx="75"  cy="80"  r="34"/>
+          <circle cx="35"  cy="115" r="32"/>
+          <circle cx="90"  cy="145" r="34"/>
+          <circle cx="135" cy="180" r="34"/>
+          <circle cx="100" cy="215" r="32"/>
+          <circle cx="55"  cy="225" r="36"/>
+        </g>
+        <g stroke="rgba(120,180,200,0.5)" stroke-width="1.4" stroke-linecap="round" fill="none">
+          <line x1="150" y1="20"  x2="160" y2="6"/>
+          <line x1="170" y1="50"  x2="186" y2="46"/>
+          <line x1="10"  y1="115" x2="-6"  y2="120"/>
+          <line x1="20"  y1="75"  x2="6"   y2="64"/>
+          <line x1="20"  y1="155" x2="6"   y2="158"/>
+          <line x1="170" y1="195" x2="186" y2="200"/>
+          <line x1="10"  y1="215" x2="-6"  y2="222"/>
+          <line x1="160" y1="246" x2="170" y2="262"/>
+          <line x1="40"  y1="252" x2="34"  y2="266"/>
+        </g>
+        <g transform="translate(135, 55) rotate(15)">
+          <ellipse rx="36" ry="22" fill="rgba(160,200,220,0.30)"/>
+          <ellipse rx="30" ry="17" fill="rgba(160,140,220,0.55)"/>
+          <ellipse rx="22" ry="11" fill="rgba(80,120,180,0.55)"/>
+          <circle cx="-4" cy="0" r="4" fill="rgba(40,60,120,0.72)"/>
+          <ellipse cx="-9" cy="-6" rx="10" ry="3.5" fill="rgba(255,255,255,0.5)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(75, 80) rotate(-25)">
+          <ellipse rx="32" ry="22" fill="rgba(220,180,210,0.30)"/>
+          <ellipse rx="26" ry="17" fill="rgba(255,180,200,0.55)"/>
+          <ellipse rx="18" ry="11" fill="rgba(200,140,180,0.55)"/>
+          <circle cx="-4" cy="0" r="4" fill="rgba(120,80,140,0.7)"/>
+          <ellipse cx="-9" cy="-6" rx="10" ry="3.5" fill="rgba(255,255,255,0.5)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(90, 145) rotate(-10)">
+          <ellipse rx="36" ry="22" fill="rgba(160,220,200,0.30)"/>
+          <ellipse rx="30" ry="17" fill="rgba(140,200,200,0.55)"/>
+          <ellipse rx="22" ry="11" fill="rgba(80,150,180,0.55)"/>
+          <circle cx="-4" cy="0" r="4" fill="rgba(40,90,120,0.7)"/>
+          <circle cx="8" cy="3" r="3" fill="rgba(255,200,120,0.7)"/>
+          <ellipse cx="-10" cy="-6" rx="11" ry="3.5" fill="rgba(255,255,255,0.5)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(115, 200) rotate(20)">
+          <ellipse rx="32" ry="22" fill="rgba(245,210,180,0.30)"/>
+          <ellipse rx="26" ry="17" fill="rgba(255,180,140,0.55)"/>
+          <ellipse rx="18" ry="11" fill="rgba(220,140,120,0.55)"/>
+          <circle cx="-4" cy="0" r="4" fill="rgba(140,80,60,0.7)"/>
+          <ellipse cx="-9" cy="-6" rx="10" ry="3.5" fill="rgba(255,255,255,0.5)" transform="rotate(-25)"/>
+        </g>
+        <g transform="translate(55, 225) rotate(-15)">
+          <ellipse rx="36" ry="22" fill="rgba(180,160,220,0.30)"/>
+          <ellipse rx="30" ry="17" fill="rgba(160,140,220,0.55)"/>
+          <ellipse rx="22" ry="11" fill="rgba(110,80,170,0.55)"/>
+          <circle cx="-4" cy="0" r="4" fill="rgba(60,40,100,0.7)"/>
+          <ellipse cx="-9" cy="-6" rx="10" ry="3.5" fill="rgba(255,255,255,0.5)" transform="rotate(-25)"/>
         </g>
       </g>
 
@@ -748,20 +897,6 @@
   </div>
 </section>
 
-<section class="lore">
-  <div class="wrap text-col">
-    <div class="label-small">The lore</div>
-    <p class="lore-line">
-      Bacteria solved distributed consensus three and a half billion years before Ethereum did.
-    </p>
-    <p class="lore-line">
-      Plasmid transfer over pilus — peer-to-peer asset exchange. Horizontal gene transfer — the first airdrop. Endospores — true digital permanence, dormant for millennia.
-    </p>
-    <p class="lore-line">
-      The blockchain is just catching up. Bioms are a record of the original consensus.
-    </p>
-  </div>
-</section>
 
 <section>
   <div class="wrap">
@@ -868,46 +1003,15 @@
   </div>
 </section>
 
-<section>
-  <div class="wrap text-col">
-    <div class="label-small">For holders</div>
-    <h2>What you get.</h2>
-    <p>
-      Every Biom comes with everything you need — the unique procedural specimen, plus a full asset pack pre-rendered in every format you might want. Yours, royalty-free.
-    </p>
-    <ul class="format-list">
-      <li>
-        <span><strong>Square portrait</strong> <span class="format-dim">PNG · 1080×1080</span></span>
-        <span class="format-use">Instagram, profile</span>
-      </li>
-      <li>
-        <span><strong>Twitter header</strong> <span class="format-dim">PNG · 1500×500</span></span>
-        <span class="format-use">profile banner</span>
-      </li>
-      <li>
-        <span><strong>Twitter post</strong> <span class="format-dim">PNG · 1200×675</span></span>
-        <span class="format-use">sharing card</span>
-      </li>
-      <li>
-        <span><strong>OpenSea banner</strong> <span class="format-dim">PNG · 1400×400</span></span>
-        <span class="format-use">collection page</span>
-      </li>
-      <li>
-        <span><strong>Phone wallpaper</strong> <span class="format-dim">PNG · 1080×1920</span></span>
-        <span class="format-use">lock screen</span>
-      </li>
-      <li>
-        <span><strong>4K desktop</strong> <span class="format-dim">PNG · 3840×2160</span></span>
-        <span class="format-use">wallpaper</span>
-      </li>
-    </ul>
-    <p style="margin-top: 28px;">
-      Plus the Banner Maker — render your Biom at any custom size, drag, scale, rotate, flip. The same tool that produced the asset pack, in your hands.
-    </p>
-    <div class="cta-row">
-      <a href="/make" class="btn">Open Banner Maker</a>
-      <a href="/explore" class="btn btn-ghost">Explore traits</a>
-    </div>
+<section class="quick-cta">
+  <div class="wrap">
+    <a href="/make" class="quick-cta-card">
+      <span class="quick-cta-text">
+        <span class="label-small">Banner Maker</span>
+        <span class="quick-cta-title">Make your banner.</span>
+      </span>
+      <span class="quick-cta-arrow">→</span>
+    </a>
   </div>
 </section>
 
