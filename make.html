@@ -554,27 +554,33 @@ const packBtn        = document.getElementById('packBtn');
 // scrubs seeds and transforms. Export uses the pre-rendered PNG when it's
 // loaded (HQ path), or falls back to the local canvas renderer.
 
-let specimenImg = null;        // HTMLImageElement once loaded
-let specimenImgSeed = null;    // seed it was loaded for
-let specimenImgError = null;   // last load error, if any
+let specimenImg = null;          // HTMLImageElement once loaded
+let specimenImgSeed = null;      // seed it was loaded for
+let specimenImgError = null;     // last load error, if any
+let specimenImgPromise = null;   // in-flight load Promise so render can await it
 
 function preloadSpecimen(seed) {
   specimenImg = null;
   specimenImgError = null;
   specimenImgSeed = seed;
-  const img = new Image();
-  img.crossOrigin = 'anonymous';  // needed for canvas.drawImage → toBlob
-  img.onload = () => {
-    if (specimenImgSeed !== seed) return;  // raced past — ignore
-    specimenImg = img;
-    updateExportStatus();
-  };
-  img.onerror = (e) => {
-    if (specimenImgSeed !== seed) return;
-    specimenImgError = e;
-    updateExportStatus();
-  };
-  img.src = PNG_PATH(seed);
+  specimenImgPromise = new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';  // needed for canvas.drawImage → toBlob
+    img.onload = () => {
+      if (specimenImgSeed !== seed) { resolve(false); return; }
+      specimenImg = img;
+      updateExportStatus();
+      resolve(true);
+    };
+    img.onerror = () => {
+      if (specimenImgSeed !== seed) { resolve(false); return; }
+      specimenImgError = new Error(`failed to load ${PNG_PATH(seed)} — likely CORS or 404`);
+      console.error('[make] specimen image failed:', PNG_PATH(seed));
+      updateExportStatus();
+      resolve(false);
+    };
+    img.src = PNG_PATH(seed);
+  });
 }
 
 function updateExportStatus() {
@@ -583,7 +589,7 @@ function updateExportStatus() {
   if (specimenImg) {
     setRenderStatus('Pre-rendered HQ source ready · pixel-perfect export', 'ok');
   } else if (specimenImgError) {
-    setRenderStatus('No pre-rendered PNG for this seed · export will use local fallback', 'warn');
+    setRenderStatus('Pre-rendered PNG unavailable · will use local fallback', 'warn');
   } else {
     setRenderStatus('Loading HQ source…');
   }
@@ -909,23 +915,40 @@ function localRender(seed, w, h, opts) {
   });
 }
 
-// Returns { source: 'hq' | 'local' }
+// Returns { source: 'hq' | 'local', hqError?: Error }
 async function renderAndDownload(seed, w, h, formatId, opts) {
   const filename = `bioms-biom-${seed}-${formatId}-${w}x${h}.png`;
 
+  // Wait for the master PNG to finish loading (or definitively fail) before
+  // deciding on a render path. A click that arrives during the initial
+  // download otherwise silently degrades to the local fallback.
+  if (specimenImgSeed === seed && specimenImgPromise && !specimenImg && !specimenImgError) {
+    setRenderStatus(`Waiting for HQ source (${w}×${h})…`);
+    await Promise.race([
+      specimenImgPromise,
+      new Promise((r) => setTimeout(r, 20000)),  // hard cap so we never hang
+    ]);
+  }
+
+  let hqError = null;
   if (specimenImg && specimenImgSeed === seed) {
     try {
       const blob = await hqRender(w, h, opts);
       downloadBlob(blob, filename);
       return { source: 'hq' };
     } catch (e) {
+      hqError = e;
       console.warn('HQ render failed, falling back to local:', e);
     }
+  } else if (specimenImgError) {
+    hqError = specimenImgError;
+  } else {
+    hqError = new Error('master PNG did not finish loading in time');
   }
 
   const blob = await localRender(seed, w, h, opts);
   downloadBlob(blob, filename);
-  return { source: 'local' };
+  return { source: 'local', hqError };
 }
 
 downloadBtn.addEventListener('click', async () => {
@@ -942,7 +965,8 @@ downloadBtn.addEventListener('click', async () => {
     if (result.source === 'hq') {
       setRenderStatus('Pre-rendered HQ · real glass blur', 'ok');
     } else {
-      setRenderStatus('Local fallback · no glass blur (master PNG unavailable)', 'warn');
+      const reason = result.hqError ? result.hqError.message : 'unknown';
+      setRenderStatus(`Local fallback · ${reason}`, 'warn');
     }
   } catch (err) {
     console.error('Download failed:', err);
