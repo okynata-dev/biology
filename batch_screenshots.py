@@ -122,39 +122,102 @@ def main():
     print(f"Rendering {args.count} specimens at {width}x{height} (format={args.format}) using {args.workers} worker(s)")
     print(f"Output: {output_dir}")
 
+    # Restart the browser every N renders so a worker's RAM/CPU footprint
+    # stays bounded across thousands of seeds. With 6 workers × 3000-px viewport,
+    # a single browser starts thrashing after ~300-400 renders on a 16 GB Mac.
+    RESTART_EVERY = 200
+
+    def _launch(p):
+        launch_kwargs = {
+            "headless": True,
+            "args": ["--no-sandbox", "--disable-dev-shm-usage"],
+        }
+        if CHROME_PATH:
+            launch_kwargs["executable_path"] = CHROME_PATH
+        browser = p.chromium.launch(**launch_kwargs)
+        context = browser.new_context(
+            viewport={"width": width, "height": height},
+            device_scale_factor=1,
+        )
+        page = context.new_page()
+        return browser, page
+
     def render_range(worker_idx, seeds):
-        """One worker renders its slice of seeds."""
+        """One worker renders its slice of seeds. Resilient to transient
+        timeouts: retries each goto once, skips on second failure. Skips
+        seeds whose PNG already exists on disk so reruns resume cheaply.
+        Restarts the browser every RESTART_EVERY successful renders.
+        """
         with sync_playwright() as p:
-            launch_kwargs = {
-                "headless": True,
-                "args": ["--no-sandbox", "--disable-dev-shm-usage"],
-            }
-            if CHROME_PATH:
-                launch_kwargs["executable_path"] = CHROME_PATH
-            browser = p.chromium.launch(**launch_kwargs)
-            context = browser.new_context(
-                viewport={"width": width, "height": height},
-                device_scale_factor=1,
-            )
-            page = context.new_page()
+            browser, page = _launch(p)
+            rendered_since_restart = 0
+            skipped_existing = 0
+            failed = []
+
             for i, seed in enumerate(seeds):
-                # static=1 freezes the breathing animation at phase 0 so PNGs
-                # are deterministic across reruns. Mouse parallax is also a
-                # no-op since headless never moves a cursor.
+                out_path = output_dir / f"{seed:05d}.png"
+                if out_path.exists() and out_path.stat().st_size > 0:
+                    skipped_existing += 1
+                    continue
+
                 if args.format == 'preview':
                     url = f"http://127.0.0.1:{args.port}/{html_name}?seed={seed}&static=1"
                 else:
                     url = f"http://127.0.0.1:{args.port}/{html_name}?seed={seed}&format={args.format}&static=1"
-                page.goto(url, wait_until="networkidle")
-                page.wait_for_timeout(int(args.settle * 1000))
-                out_path = output_dir / f"{seed:05d}.png"
-                page.screenshot(
-                    path=str(out_path),
-                    clip={"x": 0, "y": 0, "width": width, "height": height},
-                )
+
+                ok = False
+                for attempt in range(2):
+                    try:
+                        # `load` is enough — preview.html doesn't fetch over the
+                        # network after the document body finishes. `networkidle`
+                        # was hanging once the system got hot.
+                        page.goto(url, wait_until="load", timeout=15000)
+                        page.wait_for_timeout(int(args.settle * 1000))
+                        page.screenshot(
+                            path=str(out_path),
+                            clip={"x": 0, "y": 0, "width": width, "height": height},
+                        )
+                        ok = True
+                        break
+                    except Exception as e:
+                        if attempt == 0:
+                            # Bounce the browser before retrying — usually it's
+                            # an exhausted browser, not a bad page.
+                            print(f"  [worker {worker_idx}] retry seed {seed} after: {type(e).__name__}")
+                            try:
+                                browser.close()
+                            except Exception:
+                                pass
+                            browser, page = _launch(p)
+                            rendered_since_restart = 0
+                        else:
+                            failed.append(seed)
+                            print(f"  [worker {worker_idx}] ! gave up on seed {seed}: {type(e).__name__}")
+
+                if not ok:
+                    continue
+
+                rendered_since_restart += 1
                 if (i + 1) % 10 == 0 or i == 0:
-                    print(f"  [worker {worker_idx}] {i+1}/{len(seeds)} → seed {seed}")
-            browser.close()
+                    print(f"  [worker {worker_idx}] {i+1}/{len(seeds)} → seed {seed}"
+                          + (f" (skipped {skipped_existing} existing)" if skipped_existing else ""))
+
+                if rendered_since_restart >= RESTART_EVERY:
+                    try:
+                        browser.close()
+                    except Exception:
+                        pass
+                    browser, page = _launch(p)
+                    rendered_since_restart = 0
+
+            try:
+                browser.close()
+            except Exception:
+                pass
+
+            if failed:
+                print(f"  [worker {worker_idx}] ! {len(failed)} seeds failed: {failed[:20]}{'...' if len(failed) > 20 else ''}")
+            return failed
 
     try:
         all_seeds = [args.start + i for i in range(args.count)]
@@ -163,17 +226,24 @@ def main():
         else:
             print("Using Playwright's bundled Chromium (run `playwright install chromium` if missing)")
 
+        all_failed = []
         if args.workers <= 1:
-            render_range(0, all_seeds)
+            failed = render_range(0, all_seeds) or []
+            all_failed.extend(failed)
         else:
             from concurrent.futures import ThreadPoolExecutor
             chunks = [all_seeds[i::args.workers] for i in range(args.workers)]
             with ThreadPoolExecutor(max_workers=args.workers) as ex:
                 futures = [ex.submit(render_range, i, chunk) for i, chunk in enumerate(chunks)]
                 for f in futures:
-                    f.result()
+                    failed = f.result() or []
+                    all_failed.extend(failed)
 
-        print(f"\nDone. {args.count} screenshots saved to {output_dir}/")
+        existing = sorted(int(p.stem) for p in output_dir.glob("*.png"))
+        print(f"\nDone. {len(existing)} / {args.count} PNGs in {output_dir}/")
+        if all_failed:
+            print(f"! {len(all_failed)} seeds failed after retry: {sorted(all_failed)}")
+            print(f"  Rerun the same command — already-rendered PNGs are skipped, only the gaps will be re-attempted.")
     finally:
         server.shutdown()
 
