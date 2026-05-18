@@ -1258,6 +1258,8 @@
     <a href="/explore">Traits</a>
     <span class="sep">·</span>
     <a href="/make">Banners</a>
+    <span class="sep">·</span>
+    <a href="/manifesto">Manifesto</a>
   </div>
   <div class="footer-meta">
     <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
@@ -2224,11 +2226,25 @@ function _cardStateHash(seed) {
   ].join('|');
 }
 
+// Build a short, scannable lineage string for the badge tooltip.
+// "Carries HALOPHILA, AUROCAULA & 3 more" — names first, count second.
+// Returns empty string if no ancestors yet (Genesis tokens).
+function lineageSummary(eff) {
+  if (!eff.ancestors || eff.ancestors.length === 0) return '';
+  const names = eff.ancestors.map(a => window.BiomEngine.label(a.seed));
+  if (names.length <= 2) return `Carries ${names.join(' & ')}.`;
+  return `Carries ${names.slice(0, 2).join(', ')} & ${names.length - 2} more.`;
+}
+
 function _buildCardElement(seed) {
   const eff = effectiveState(seed);
   const traitCount = [...eff.organelles].length - 1;
   const tier = tierForRank(eff.rank);
   const thumbCls = thumbTierClassByRank(eff.rank);
+  const lineage = lineageSummary(eff);
+  const badgeTitle = tier
+    ? `${tier.name} — Rank ${eff.rank}, survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}${lineage ? '. ' + lineage : ''}`
+    : '';
 
   // Inline render via BiomEngine — replaces the per-card iframe (each
   // iframe was a full preview.html document load, which is what made
@@ -2241,19 +2257,25 @@ function _buildCardElement(seed) {
   card.setAttribute('role', 'button');
   card.setAttribute('aria-label',
     `${window.BiomEngine.label(seed)}${eff.rank > 1 ? ` (Rank ${eff.rank})` : ''} — click to pick`);
+  // Traits row gets a second piece of info when the Biom has burned
+  // others: "7 traits · 3 absorbed". Subtle but visible — collectors
+  // can spot which of their tokens carry the most history at a glance.
+  const traitsText = eff.burnsAbsorbed > 0
+    ? `${traitCount} traits · ${eff.burnsAbsorbed} absorbed`
+    : `${traitCount} traits`;
   card.innerHTML = `
     <div class="biom-thumb">
       <div class="biom-thumb-inline ${thumbCls}">
         <div class="scene"><div class="composition"></div></div>
       </div>
-      ${tier ? `<span class="gen-badge ${tier.cls}" title="${tier.name} — Rank ${eff.rank}, survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}">${tier.name}</span>` : ''}
+      ${tier ? `<span class="gen-badge ${tier.cls}" title="${badgeTitle}">${tier.name}</span>` : ''}
       <span class="role-tag" hidden></span>
       <span class="cooldown-tag" hidden></span>
       <div class="mutation-badges" hidden></div>
     </div>
     <div class="biom-info">
       <span class="biom-name">${window.BiomEngine.label(seed)}</span>
-      <span class="biom-traits">${traitCount} traits</span>
+      <span class="biom-traits">${traitsText}</span>
     </div>
   `;
   // Render the specimen into the .composition slot with the effective

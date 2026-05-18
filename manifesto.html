@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bioms — Manifesto</title>
+<meta name="description" content="Why Bioms exists. A note on biology, code, and the things in between.">
+<meta name="theme-color" content="#ece9e0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/favicon.svg">
+
+<meta property="og:title" content="Bioms — Manifesto">
+<meta property="og:description" content="Why Bioms exists.">
+<meta property="og:type" content="article">
+<meta property="og:image" content="/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ece9e0;
+    --paper: #f4f1e8;
+    --ink: #1c1a16;
+    --ink-2: #5b554a;
+    --ink-3: #8b8576;
+    --rule: rgba(28, 26, 22, 0.12);
+  }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    line-height: 1.6;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+    z-index: 1;
+  }
+
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+  a:hover { text-decoration-color: var(--ink); }
+
+  /* === NAV (canonical) === */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    padding: 18px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    background: rgba(236, 233, 224, 0.78);
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 17px; font-weight: 500; letter-spacing: -0.005em;
+    color: var(--ink); text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .brand:hover { opacity: 0.65; text-decoration: none; }
+  .brand-mark { width: 18px; height: 18px; display: block; }
+  .brand-mark .cell-outer { fill: currentColor; }
+  .brand-mark .cell-inner { fill: var(--bg); }
+  .nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
+  .nav-links a {
+    color: var(--ink-3); text-decoration: none;
+    transition: color 0.15s;
+  }
+  .nav-links a:hover { color: var(--ink); text-decoration: none; }
+  .nav-x { display: inline-flex; align-items: center; color: var(--ink-3); transition: color 0.15s; margin-left: 4px; }
+  .nav-x:hover { color: var(--ink); text-decoration: none; }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px;
+  }
+  .x-icon { width: 15px; height: 15px; display: block; }
+  @media (max-width: 600px) {
+    nav { padding: 14px 18px; }
+    .nav-links { gap: 14px; font-size: 13px; }
+  }
+
+  /* === ARTICLE === */
+  .wrap {
+    position: relative; z-index: 2;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: clamp(64px, 12vh, 120px) 32px 96px;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 28px;
+  }
+  h1 {
+    font-size: clamp(40px, 5vw, 56px);
+    letter-spacing: -0.025em;
+    font-weight: 500;
+    line-height: 1.05;
+    margin-bottom: 56px;
+  }
+  article p {
+    font-size: clamp(17px, 1.4vw, 19px);
+    line-height: 1.65;
+    margin-bottom: 28px;
+    color: var(--ink);
+  }
+  article p:last-of-type { margin-bottom: 0; }
+  /* The first paragraph is the thesis — slightly larger and quieter
+     ink-2 so it reads as the opening note, not the punchline. */
+  article p.lede {
+    font-size: clamp(20px, 1.7vw, 24px);
+    line-height: 1.5;
+    color: var(--ink-2);
+    margin-bottom: 40px;
+  }
+  /* Pull-quote — single sentence centered on its own. Used sparingly. */
+  article blockquote {
+    margin: 48px 0;
+    padding-left: 24px;
+    border-left: 1px solid var(--rule);
+    font-size: clamp(18px, 1.5vw, 21px);
+    line-height: 1.5;
+    color: var(--ink);
+    font-style: normal;
+    letter-spacing: -0.005em;
+  }
+  /* Sign-off — small, set apart, italic-ish via spacing only. */
+  .signoff {
+    margin-top: 64px;
+    padding-top: 28px;
+    border-top: 1px solid var(--rule);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .signoff a { color: inherit; text-decoration-color: var(--rule); }
+
+  /* === FOOTER (canonical) === */
+  footer {
+    padding: 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px;
+    font-size: 13px; color: var(--ink-3);
+    border-top: 1px solid var(--rule);
+    position: relative; z-index: 2;
+  }
+  footer a { color: inherit; text-decoration: none; transition: color 0.15s; }
+  footer a:hover { color: var(--ink); }
+  .footer-meta { display: flex; align-items: center; gap: 14px; }
+  .footer-meta .sep { opacity: 0.4; }
+  @media (max-width: 600px) {
+    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <circle class="cell-outer" cx="16" cy="16" r="14"/>
+      <circle class="cell-inner" cx="16" cy="16" r="5"/>
+    </svg>
+    <span>Bioms</span>
+  </a>
+  <div class="nav-links">
+    <a href="/lab">Lab</a>
+    <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
+      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <div class="eyebrow">Manifesto · 2026</div>
+  <h1>A small living thing<br>in a place without any.</h1>
+
+  <article>
+    <p class="lede">Most of what we touch in a day is dead. Glass. Plastic. Pixels lit by electricity. The closer the world gets to digital, the further it drifts from the wet, breathing weirdness that made us in the first place.</p>
+
+    <p>I miss it. Not in a back-to-nature, sell-your-laptop way — I love computers. But I noticed that everything I owned online was inert. NFTs sat on a shelf the same way a photograph sits on a shelf: still, finished, never surprising you twice. I wanted something that pretended, even a little, to be alive.</p>
+
+    <p>So Bioms grew. Three thousand microbes drawn from the same procedural soup as the ones in your gut, your soil, the ocean — coccus and bacillus and spirillum and the rare mycelial branching cousins. Each one is a few kilobytes of code, but each one is also unrepeatable. The same seed always renders the same Biom; no two seeds render alike.</p>
+
+    <p>The rules of the Lab came next. I wanted ownership to mean something verbs can describe, not just a JPEG sitting in your wallet. You can mix two of your Bioms and they will trade a trait. You can burn one into another and the survivor inherits everything — palette, organelles, the bodies of its ancestors. The burned Biom is gone forever. The new one carries it forward.</p>
+
+    <blockquote>
+      This is the part I care about. Most digital things are designed so nothing you do matters. Bioms are designed so that everything you do matters, permanently, on a public ledger that no one can rewrite.
+    </blockquote>
+
+    <p>A Phoenix-rank specimen exists only because someone chose to feed seven other Bioms into it. The math is exponential and the loss is real. You can read its lineage like a sentence: this is the survivor of these. Most collectors will never reach Phoenix. The ones who do will have made a small, irreversible decision over and over.</p>
+
+    <p>That's the whole project. Procedural cells on Ethereum, a Lab where you can breed and burn them, and a quiet bet that giving something the capacity to die makes it more alive than something that can't.</p>
+
+    <div class="signoff">
+      — <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">Tim</a>, somewhere on a Tuesday
+    </div>
+  </article>
+</main>
+
+<footer>
+  <div class="footer-meta">
+    <span>© 2026 Bioms</span>
+    <span class="sep">·</span>
+    <a href="/lab">Lab</a>
+    <span class="sep">·</span>
+    <a href="/explore">Traits</a>
+    <span class="sep">·</span>
+    <a href="/make">Banners</a>
+    <span class="sep">·</span>
+    <a href="/manifesto">Manifesto</a>
+  </div>
+  <div class="footer-meta">
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
+    <span class="sep">·</span>
+    <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">by @timsouw</a>
+  </div>
+</footer>
+
+</body>
+</html>
