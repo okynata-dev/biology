@@ -528,6 +528,22 @@
   }
   .slot.donor .role-label { color: #b94a8c; }
   .slot.recipient .role-label { color: #4a8cb9; }
+  /* Preview-mode pill on a slot when an outcome is selected and this slot
+     is now showing the LIVE prospective hybrid (not its current state). */
+  .slot .preview-badge {
+    position: absolute;
+    top: 12px; right: 50px;   /* leaves room for the × button */
+    z-index: 5;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
+    background: var(--ink);
+    color: var(--bg);
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .slot.preview-mode { box-shadow: 0 0 0 3px rgba(28, 26, 22, 0.14); }
 
   /* Pilus link between donor and recipient */
   .pilus-arena {
@@ -584,8 +600,8 @@
   }
   .outcomes-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
   }
   .outcome-card {
     background: var(--paper);
@@ -1546,6 +1562,11 @@ function previewUrlFor(seed, eff, opts = {}) {
   params.set('seed', seed);
   if (opts.bare !== false) params.set('bare', '1');
   if (opts.nointeract) params.set('nointeract', '1');
+  // static=1 disables the rAF animation loop inside preview.html — engine
+  // still inits and renders one frame, but no continuous CPU after that.
+  // Used for thumbnail cards in the outcomes gallery where N iframes
+  // would otherwise melt the user's laptop.
+  if (opts.static) params.set('static', '1');
   const base = window.BiomEngine.generateState(seed);
   if (eff.palette !== base.palette) params.set('forceStain', eff.palette);
   const baseOrg = [...base.organelles].sort().join(',');
@@ -2028,7 +2049,12 @@ function renderOutcomes() {
   }
   _outcomesEmpty = false;
   outcomesGrid.innerHTML = outcomes.map(opt => {
-    const url = previewUrlFor(opt.changedSeed, opt.previewState, { nointeract: true });
+    // static=1 — engine inits + renders ONCE, no continuous animation.
+    // Big perf win: N cards × no animation loops = laptop survives.
+    // When user selects a card, the recipient slot swaps to a LIVE
+    // (animated) preview of that same outcome — one heavy iframe instead
+    // of N. See renderSlot.
+    const url = previewUrlFor(opt.changedSeed, opt.previewState, { nointeract: true, static: true });
     return `
       <button type="button" class="outcome-card" data-trait="${opt.id}" aria-label="${opt.label}: ${opt.caption}">
         <div class="outcome-frame">
@@ -2094,15 +2120,34 @@ function renderSlot(el, role, seed, isTarget) {
     `;
     return;
   }
-  const url = previewUrl(seed, { nointeract: true });
-  // Cache key includes the label so mode-switches force a re-render of
-  // the role tag without losing the iframe (URL itself doesn't change).
-  const cacheKey = `${url}|${label}`;
+  // When a crossbreed outcome is selected, the slot whose Biom is the
+  // one transforming becomes a LIVE preview of the hybrid (one big
+  // animated iframe replacing the now-static outcome card). The other
+  // slot stays as-is. Apple "tap small card → see it big". Symmetric:
+  // either slot can enter preview mode depending on which seed gains
+  // the trait.
+  let url, isPreview = false;
+  if (arenaMode === 'crossbreed' && selectedTrait && donorSeed !== null && recipientSeed !== null && !isAnimating) {
+    const outcome = findCrossbreedOutcome(donorSeed, recipientSeed, selectedTrait);
+    if (outcome && outcome.changedSeed === seed) {
+      url = previewUrlFor(seed, outcome.previewState, { nointeract: true });
+      isPreview = true;
+    } else {
+      url = previewUrl(seed, { nointeract: true });
+    }
+  } else {
+    url = previewUrl(seed, { nointeract: true });
+  }
+  el.classList.toggle('preview-mode', isPreview);
+  // Cache key includes label + preview flag so mode/preview transitions
+  // trigger a re-render without unnecessary iframe rebuilds.
+  const cacheKey = `${url}|${label}|${isPreview ? 'p' : ''}`;
   if (_slotUrlCache[role] !== cacheKey) {
     _slotUrlCache[role] = cacheKey;
     el.classList.add('filled');
     el.innerHTML = `
       <span class="role-label">${label} · #${seed}</span>
+      ${isPreview ? '<span class="preview-badge">Preview</span>' : ''}
       <button type="button" class="clear-btn" aria-label="Clear ${label}" data-clear="${role}">×</button>
       <iframe src="${url}" loading="eager" aria-label="Biom #${seed} live render"></iframe>
     `;
