@@ -1058,7 +1058,7 @@
 
     <div class="conjugate-row">
       <button class="btn btn-big" id="conjugateBtn" type="button" disabled>Crossbreed</button>
-      <button class="btn btn-ghost" id="resetBtn" type="button">Reset arena</button>
+      <button class="btn btn-ghost" id="resetBtn" type="button">Reset</button>
       <span class="status-line" id="statusLine"></span>
     </div>
 
@@ -2053,7 +2053,7 @@ function onBiomClick(seed) {
   } else {
     // Both slots full. Tell the user how to swap instead of mysteriously
     // shuffling things around behind their back.
-    setStatus('Tap × on a slot below to swap.', 'miss');
+    setStatus('Both slots full. Tap a selected Biom (A or B) to clear it, then pick another.', 'miss');
   }
 }
 
