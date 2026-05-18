@@ -185,8 +185,7 @@
     opacity: 0.5;
   }
   .brand-mark svg { width: 100%; height: 100%; display: block; }
-  .brand-mark .cell-outer { fill: currentColor; }
-  .brand-mark .cell-inner { fill: var(--bg); }
+  .brand-mark circle { fill: currentColor; }
 
   /* Respect users who prefer reduced motion — collapse animations
      to a single static frame, but keep the visual presence. */
@@ -199,8 +198,8 @@
 
 <div class="brand-mark" aria-label="Bioms">
   <svg viewBox="0 0 32 32" aria-hidden="true">
-    <circle class="cell-outer" cx="16" cy="16" r="14"/>
-    <circle class="cell-inner" cx="16" cy="16" r="5"/>
+    <circle cx="11" cy="16" r="8"/>
+    <circle cx="21" cy="16" r="8"/>
   </svg>
 </div>
 

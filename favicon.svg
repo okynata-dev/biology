@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <circle cx="16" cy="16" r="14" fill="#1c1a16"/>
-  <circle cx="16" cy="16" r="5" fill="#ece9e0"/>
+  <!-- Diplo — two cells in the moment of binary fission, the
+       single visual that captures the whole project: bioms breed,
+       fuse, multiply. Reads as paired cells at any size including
+       16px favicon. Background-less so browsers can paint it on
+       any tab colour cleanly. -->
+  <circle cx="11" cy="16" r="8" fill="#1c1a16"/>
+  <circle cx="21" cy="16" r="8" fill="#1c1a16"/>
 </svg>

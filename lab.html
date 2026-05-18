@@ -79,8 +79,7 @@
   }
   .brand:hover { opacity: 0.65; }
   .brand-mark { width: 18px; height: 18px; display: block; }
-  .brand-mark .cell-outer { fill: currentColor; }
-  .brand-mark .cell-inner { fill: var(--bg); }
+  .brand-mark circle { fill: currentColor; }
   .nav-links {
     display: flex; align-items: center; gap: 22px; font-size: 14px;
   }
@@ -394,91 +393,14 @@
     mix-blend-mode: overlay;
     pointer-events: none;
   }
-  /* === GENERATION-TIER STRUCTURAL UPGRADES ===
-   * Visual richness ladder — each tier adds a layered effect that's
-   * visible from across the room. Phoenix specimens read as different
-   * silhouettes even at thumbnail scale; that's the point.
-   *
-   * Tier classes are applied to .biom-thumb-inline by _buildCardElement
-   * based on effective generation. They cascade — higher tiers inherit
-   * lower-tier effects via additive selectors. */
-
-  /* G1 Hybrid — subtle shimmer animated by CSS keyframe (1 layer). */
-  .biom-thumb-inline.tier-hybrid::after {
-    content: "";
-    position: absolute;
-    inset: -20%;
-    background: linear-gradient(115deg,
-      transparent 35%,
-      rgba(255, 255, 255, 0.18) 50%,
-      transparent 65%);
-    animation: hybrid-shimmer 4.5s linear infinite;
-    pointer-events: none;
-    z-index: 4;
-  }
-  @keyframes hybrid-shimmer {
-    0%   { transform: translateX(-60%); }
-    100% { transform: translateX(60%); }
-  }
-
-  /* G3 Chimera — crystalline frame ring; jagged kind-of-hex edge */
-  .biom-thumb-inline.tier-chimera {
-    box-shadow:
-      inset 0 0 0 1px rgba(28,26,22,0.18),
-      inset 0 0 12px rgba(28,26,22,0.08);
-  }
-  .biom-thumb-inline.tier-chimera::before {
-    content: "";
-    position: absolute;
-    inset: 6%;
-    border: 1px solid rgba(28,26,22,0.30);
-    clip-path: polygon(
-      18% 0, 82% 0, 100% 30%, 100% 70%, 82% 100%,
-      18% 100%, 0 70%, 0 30%
-    );
-    pointer-events: none;
-    z-index: 3;
-  }
-
-  /* G5 Phoenix — full halo + slow pulse + warm wash */
-  .biom-thumb-inline.tier-phoenix {
-    background:
-      radial-gradient(circle at 50% 50%,
-        #fff5e6 0%, #f4ead4 45%, #efebe2 100%);
-    animation: phoenix-pulse 3.8s ease-in-out infinite;
-  }
-  .biom-thumb-inline.tier-phoenix::before {
-    content: "";
-    position: absolute;
-    inset: -8%;
-    background: radial-gradient(circle at 50% 50%,
-      rgba(255, 200, 120, 0.45) 0%,
-      rgba(255, 200, 120, 0.20) 25%,
-      rgba(255, 200, 120, 0) 55%);
-    pointer-events: none;
-    z-index: 2;
-  }
-  .biom-thumb-inline.tier-phoenix::after {
-    content: "";
-    position: absolute;
-    inset: -30%;
-    background: linear-gradient(115deg,
-      transparent 30%,
-      rgba(255, 230, 180, 0.42) 50%,
-      transparent 70%);
-    animation: phoenix-shimmer 5.5s linear infinite;
-    pointer-events: none;
-    z-index: 5;
-    mix-blend-mode: screen;
-  }
-  @keyframes phoenix-pulse {
-    0%, 100% { filter: brightness(1.00) saturate(1.05); }
-    50%      { filter: brightness(1.06) saturate(1.18); }
-  }
-  @keyframes phoenix-shimmer {
-    0%   { transform: translateX(-50%); }
-    100% { transform: translateX(50%); }
-  }
+  /* Tier classes are still applied to the thumbnail by JS, but the
+   * decorative overlays (shimmer, crystalline frame, halo) were
+   * removed — the user wants tokens to be just the bacterium, no
+   * extra chrome around it. The Genesis/Hybrid/Chimera/Phoenix
+   * identity now comes from the badge pill alone (top-left of the
+   * card) plus the specimen's own visible mutations (palette
+   * blend, extra organelles, extra cells from absorbed lineage).
+   * That's enough — the biom IS the story. */
   .biom-info {
     padding: 10px 12px;
     display: flex;
@@ -1035,22 +957,11 @@
     100% { opacity: 1; transform: translateY(0); }
   }
 
-  /* === MUTATION BADGES on biom cards === */
-  .mutation-badges {
-    position: absolute;
-    bottom: 8px; right: 8px;
-    display: flex;
-    gap: 3px;
-  }
-  .mutation-badge {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: #b94a8c;
-    border: 1.5px solid white;
-  }
-  .mutation-badge.depleted {
-    background: var(--bad);
-  }
+  /* Mutation badges (the 3-dot indicators that used to sit at the
+     bottom-right corner of each card) were removed — extra chrome
+     on what should just be a clean specimen. The "N absorbed"
+     count next to "5 traits" in the info row carries the same
+     signal in prose, which fits the rest of the design language. */
 
   /* === FOOTER (canonical) === */
   footer {
@@ -1554,8 +1465,8 @@
 <nav>
   <a class="brand" href="/" aria-label="Bioms — home">
     <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-      <circle class="cell-outer" cx="16" cy="16" r="14"/>
-      <circle class="cell-inner" cx="16" cy="16" r="5"/>
+      <circle cx="11" cy="16" r="8"/>
+      <circle cx="21" cy="16" r="8"/>
     </svg>
     <span>Bioms</span>
   </a>
@@ -2734,7 +2645,6 @@ function _buildCardElement(seed) {
       ${tier ? `<span class="gen-badge ${tier.cls}" title="${badgeTitle}">${tier.name}</span>` : ''}
       <span class="role-tag" hidden></span>
       <span class="cooldown-tag" hidden></span>
-      <div class="mutation-badges" hidden></div>
     </div>
     <div class="biom-info">
       <span class="biom-name">${window.BiomEngine.label(seed)}</span>
@@ -2845,22 +2755,8 @@ function _updateCardDynamic(card, seed, now) {
     cdEl.hidden = true;
   }
 
-  // Mutation badges (visual hint that this Biom carries acquired traits)
-  const badgesEl = card.querySelector('.mutation-badges');
-  const receivedCount =
-    (t.receivedPalette ? 1 : 0) +
-    (t.receivedOrganelles || []).length +
-    (t.receivedAnomalies || []).length;
-  const depletedCount = eff.depletedNow.size;
-  if (receivedCount > 0 || depletedCount > 0) {
-    let html = '';
-    for (let i = 0; i < Math.min(receivedCount, 3); i++) html += '<span class="mutation-badge"></span>';
-    for (let i = 0; i < Math.min(depletedCount, 3); i++) html += '<span class="mutation-badge depleted"></span>';
-    badgesEl.innerHTML = html;
-    badgesEl.hidden = false;
-  } else {
-    badgesEl.hidden = true;
-  }
+  // Mutation badges (the corner dots) were removed — the
+  // "N absorbed" text in the info row already signals lineage.
 }
 
 function renderCollection() {

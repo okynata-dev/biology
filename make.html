@@ -85,8 +85,7 @@
   }
   .brand:hover { opacity: 0.65; text-decoration: none; }
   .brand-mark { width: 18px; height: 18px; display: block; }
-  .brand-mark .cell-outer { fill: currentColor; }
-  .brand-mark .cell-inner { fill: var(--bg); }
+  .brand-mark circle { fill: currentColor; }
   .nav-links {
     display: flex;
     align-items: center;
@@ -418,8 +417,8 @@
 <nav>
   <a class="brand" href="/" aria-label="Bioms — home">
     <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-      <circle class="cell-outer" cx="16" cy="16" r="14"/>
-      <circle class="cell-inner" cx="16" cy="16" r="5"/>
+      <circle cx="11" cy="16" r="8"/>
+      <circle cx="21" cy="16" r="8"/>
     </svg>
     <span>Bioms</span>
   </a>
