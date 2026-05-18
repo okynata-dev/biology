@@ -1,16 +1,44 @@
 # Cloudflare Pages — HTTP headers
 # https://developers.cloudflare.com/pages/configuration/headers/
 #
-# Note on iframe embedding: we deliberately do NOT set X-Frame-Options or
-# CSP frame-ancestors globally. preview.html and rare-*.html are NFT
-# animation_url targets — OpenSea and other marketplaces must be able to
-# iframe them from any origin. The rest of the site is read-only (no
-# auth, no destructive actions), so clickjacking risk is negligible.
+# Frame-embedding policy:
+#   preview.html + rare-*.html ARE the NFT animation_url targets —
+#     OpenSea and other marketplaces must iframe them from any origin,
+#     so frame-ancestors stays open there.
+#   Everything else (lab.html, index.html, make.html, explore.html)
+#     hosts wallet flows + user input → frame-ancestors 'none' so
+#     attacker sites can't overlay an invisible "Connect → Sign"
+#     clickjack sequence on top of our buttons.
 
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: interest-cohort=()
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+
+# Lab + landing + make + explore — no third-party framing allowed.
+# Listed individually so the per-path rule wins over the wildcard.
+/
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/index.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/lab.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/make.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/explore.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/manifesto.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/404.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
 
 # Metadata JSON — short cache so mutations can refresh quickly (Phase 2)
 # CORS open so OpenSea / marketplaces / explorers can fetch.

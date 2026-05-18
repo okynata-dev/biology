@@ -529,12 +529,12 @@
 <section class="hero">
   <div class="wrap">
     <div class="hero-grid">
-      <div class="hero-stage" id="heroSpecimen" data-seed="247" aria-label="Live Biom specimen"></div>
+      <div class="hero-stage" id="heroSpecimen" aria-label="Live Biom specimen"></div>
       <div class="hero-text">
         <h1 class="hero-title">Bioms</h1>
         <p class="hero-tag">Living art. Three thousand microbes that breed, fuse, evolve. On Ethereum.</p>
         <div class="hero-caption">
-          <span id="seedChip">BIOM #<span id="seedDisplay">247</span></span>
+          <span id="seedChip">BIOM #<span id="seedDisplay"></span></span>
           <span class="sep" id="seedChipSep">·</span>
           <button type="button" class="caption-btn" id="rollBtn" aria-label="Generate next specimen">Next →</button>
         </div>
@@ -625,8 +625,11 @@
 const REVEAL = false;
 
 // The hero is the only live render on the page. The catalog grid uses
-// pre-rendered master PNGs from R2 (one img per cell, lazy-loaded), so
-// the page runs a single specimen-engine instead of one per card.
+// pre-rendered master PNGs from R2 post-reveal — but pre-reveal we
+// don't reference R2 at all (the bucket URL scheme `00000.png..02999.png`
+// is enumerable and would let snipers map seed→render before launch).
+// Pre-reveal the catalog renders via preview.html iframes with randomized
+// seeds chosen fresh each pageload.
 const PNG_BASE = 'https://pngs.thebioms.com';
 const padSeed  = (n) => String(n).padStart(5, '0');
 const masterUrl = (seed) => `${PNG_BASE}/preview/${padSeed(seed)}.png`;
@@ -648,7 +651,9 @@ const heroEl = document.getElementById('heroSpecimen');
 const seedDisplay = document.getElementById('seedDisplay');
 const seedChip = document.getElementById('seedChip');
 const seedChipSep = document.getElementById('seedChipSep');
-let currentSeed = parseInt(heroEl.dataset.seed, 10) || 247;
+// Don't hardcode a seed in the HTML source — view-source would leak it
+// and snipers would screenshot the "hero". Pick fresh each pageload.
+let currentSeed = Math.floor(Math.random() * 3000);
 mountHeroIframe(heroEl, currentSeed);
 // Pre-reveal: hide just the "BIOM #N" chip + separator (no number, no
 // leak vector). The Next button stays so users can still roll the hero.
@@ -670,16 +675,14 @@ document.getElementById('rollBtn').addEventListener('click', () => {
 });
 
 // Lab section — two preview iframes acting as a "before/after" diptych.
-// Left: a Genesis (G0) specimen. Right: the same conceptual specimen but
-// with forced overrides simulating a Phoenix-tier survivor (gold palette
-// unlock, extra organelles). Renders via preview.html's force-params,
-// no engine load on the landing.
+// Left: a Genesis (G0) specimen. Right: forced overrides simulating a
+// Phoenix-tier survivor (gold palette unlock, extra organelles).
+// Pre-reveal the Genesis seed is randomized per pageload so view-source
+// doesn't pin a specific seed as the "hero example" — Phoenix uses
+// force-params so its seed is mostly aesthetic.
 const heroIframes = {
-  genesis: { seed: 247, params: '' },
-  // Force a high-tier visual using the same overrides the Lab uses:
-  // gold palette, dense cell cluster, extra anomalies. The numeric seed
-  // chosen here is arbitrary — it just sets the morphology.
-  phoenix: { seed: 1900, params: '&forceStain=gold&forceCells=5&forceOrganelles=capsule,nucleoid,ribosomes,pili,flagellum,plasmid,inclusion&forcePhage=1' },
+  genesis: { seed: REVEAL ? 247 : Math.floor(Math.random() * 3000), params: '' },
+  phoenix: { seed: REVEAL ? 1900 : Math.floor(Math.random() * 3000), params: '&forceStain=gold&forceCells=5&forceOrganelles=capsule,nucleoid,ribosomes,pili,flagellum,plasmid,inclusion&forcePhage=1' },
 };
 document.querySelectorAll('iframe[data-lab-seed]').forEach(f => {
   const k = f.dataset.labSeed;
@@ -688,20 +691,53 @@ document.querySelectorAll('iframe[data-lab-seed]').forEach(f => {
   f.src = `preview.html?seed=${cfg.seed}&bare=1${cfg.params}`;
 });
 
-// Catalog grid — twelve hand-picked seeds showcasing the range of the
-// collection (different morphologies + stains). Pre-rendered PNGs from R2;
-// click any cell to open the live specimen at that seed in a new tab.
-// Seeds chosen to span the stain palette + give morphological variety.
-const CATALOG_SEEDS = [44, 132, 2, 176, 5, 247, 38, 64, 156, 109, 1500, 2222];
+// Catalog grid — twelve specimens showcasing the range of the collection.
+// Post-reveal: hand-picked, served as pre-rendered PNGs from R2.
+// Pre-reveal: twelve random seeds picked at pageload, served as iframes
+// so we don't touch the public R2 bucket (which has enumerable file
+// names). Each pageload shows a different set — no static map to scrape.
+const CATALOG_SEEDS_CURATED = [44, 132, 2, 176, 5, 247, 38, 64, 156, 109, 1500, 2222];
+const CATALOG_SEEDS = REVEAL
+  ? CATALOG_SEEDS_CURATED
+  : Array.from({ length: 12 }, () => Math.floor(Math.random() * 3000));
 const catalogGrid = document.getElementById('catalogGrid');
 if (catalogGrid) {
-  const html = CATALOG_SEEDS.map(seed => `
-    <a class="catalog-cell" href="preview.html?seed=${seed}" target="_blank" rel="noopener" aria-label="Open a Biom specimen in a new tab">
-      <img src="${masterUrl(seed)}" alt="Biom specimen" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
-      ${REVEAL ? `<span class="seed-tag">#${String(seed).padStart(4, '0')}</span>` : ''}
-    </a>
-  `).join('');
-  catalogGrid.innerHTML = html;
+  // Build cells as DOM (not innerHTML interpolation) so seed values
+  // never become HTML strings — defense against future code paths that
+  // might forget to escape.
+  for (const seed of CATALOG_SEEDS) {
+    const a = document.createElement('a');
+    a.className = 'catalog-cell';
+    a.href = `preview.html?seed=${seed}`;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.setAttribute('aria-label', 'Open a Biom specimen in a new tab');
+    if (REVEAL) {
+      // Post-reveal: lightweight <img> from R2 — fastest and cheapest.
+      const img = document.createElement('img');
+      img.src = masterUrl(seed);
+      img.alt = 'Biom specimen';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.onerror = () => { a.style.display = 'none'; };
+      a.appendChild(img);
+      const tag = document.createElement('span');
+      tag.className = 'seed-tag';
+      tag.textContent = `#${String(seed).padStart(4, '0')}`;
+      a.appendChild(tag);
+    } else {
+      // Pre-reveal: render via preview.html iframe. Slower per cell
+      // but no R2 dependency. `static=1` disables animation in the
+      // iframe so 12 cells don't burn CPU forever.
+      const f = document.createElement('iframe');
+      f.src = `preview.html?seed=${seed}&bare=1&static=1&nointeract=1`;
+      f.loading = 'lazy';
+      f.title = 'Biom specimen';
+      f.style.cssText = 'width:100%;height:100%;border:0;display:block;pointer-events:none;background:#fff;';
+      a.appendChild(f);
+    }
+    catalogGrid.appendChild(a);
+  }
 }
 
 </script>

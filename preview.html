@@ -641,7 +641,11 @@ function mulberry32(seed) {
 // STATE
 // ============================================================
 const state = {
-  seed: 247,
+  // Default seed is randomized — preview.html is iframed everywhere and
+  // serves as animation_url for NFTs, so when no ?seed= is given (rare,
+  // but happens when someone visits the bare URL) the rendered specimen
+  // shouldn't match any specific tokenId.
+  seed: Math.floor(Math.random() * 3000),
   morphology: 'coccus',
   palette: 'gramPositive',
   cellCount: 4,
@@ -1487,7 +1491,7 @@ function randomize(forcedSeed) {
 
   // Keep the a11y label in sync with the active seed (click-to-randomize path).
   const pfp = document.getElementById('pfpCard');
-  if (pfp) pfp.setAttribute('aria-label', `Generative Biom specimen #${state.seed}`);
+  if (pfp) pfp.setAttribute('aria-label', 'Generative Biom specimen');
 }
 
 // =============================================================
@@ -1731,7 +1735,7 @@ if (_hasOverrides) buildScene();
 
 // Stamp the real seed into the a11y label so screen-readers get the token id.
 const _pfp = document.getElementById('pfpCard');
-if (_pfp) _pfp.setAttribute('aria-label', `Generative Biom specimen #${state.seed}`);
+if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom specimen');
 </script>
 
 </body>

@@ -469,7 +469,7 @@
         <div class="ctrl-group">
           <div class="ctrl-label">Biom</div>
           <div class="seed-row">
-            <input id="seedInput" class="seed-input" type="number" min="0" max="2999" value="247" aria-label="Biom seed" />
+            <input id="seedInput" class="seed-input" type="number" min="0" max="2999" aria-label="Biom seed" />
             <button type="button" class="btn secondary small" id="randomBtn" aria-label="Random seed" title="Random seed">⤴</button>
           </div>
         </div>
@@ -606,8 +606,11 @@ const FORMAT_DEFAULTS = {
 // tx/ty are stored as percent of "baseSize" (= min(canvas w, h)). That makes
 // offsets scale-invariant and resolution-independent — same numbers work
 // for preview pixel coords AND target render pixel coords.
+// Initial seed is randomized at pageload, not hardcoded — avoids
+// leaking a "hero" seed in view-source pre-reveal. seedInput.value
+// gets set during init below.
 const state = {
-  seed: 247,
+  seed: Math.floor(Math.random() * 3000),
   format: FORMATS[0],
   customW: 1500,
   customH: 500,
@@ -699,6 +702,17 @@ function preloadSpecimen(seed) {
   specimenImg = null;
   specimenImgError = null;
   specimenImgSeed = seed;
+  // Pre-reveal: don't fetch from R2 at all. The bucket has enumerable
+  // file names — touching it from a public page would tell crawlers
+  // exactly which subdomain to scrape pre-launch. Skip straight to the
+  // local canvas renderer (renderSpecimenToCanvas already produces a
+  // clean white-background export).
+  if (window.BiomEngine && window.BiomEngine.REVEAL === false) {
+    specimenImgError = new Error('pre-reveal: R2 PNGs intentionally not fetched');
+    specimenImgPromise = Promise.resolve(false);
+    updateExportStatus();
+    return;
+  }
   specimenImgPromise = new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';  // needed for canvas.drawImage → toBlob
@@ -726,6 +740,10 @@ function updateExportStatus() {
   if (renderStatusEl.dataset.locked === '1') return;  // active render in progress
   if (specimenImg) {
     setRenderStatus('Pre-rendered HQ source ready · pixel-perfect export', 'ok');
+  } else if (window.BiomEngine && window.BiomEngine.REVEAL === false) {
+    // Pre-reveal — local renderer is the only path; framed as neutral
+    // not as an error.
+    setRenderStatus('Live render · pixel-perfect export');
   } else if (specimenImgError) {
     setRenderStatus('Pre-rendered PNG unavailable · will use local fallback', 'warn');
   } else {
@@ -1180,7 +1198,9 @@ packBtn.addEventListener('click', async () => {
 // =========================================================================
 buildTemplateButtons();
 
-// Initial render
+// Initial render — seedInput is empty in HTML to keep view-source clean,
+// so push the JS-picked random seed back into the input field on boot.
+seedInput.value = state.seed;
 renderLive();
 preloadSpecimen(state.seed);
 applyTransform();

@@ -277,10 +277,27 @@ async function handleConjugate(req, env, origin) {
   }
   if (getAddress(recovered) !== getAddress(address)) return error('signer_mismatch', 401, origin);
 
+  // Rate limit: max N conjugates per signer per minute. Uses the
+  // used_nonces table as the ledger — every accepted conjugate inserts
+  // a nonce, so counting recent nonces by this signer == counting
+  // recent successful conjugates. A compromised wallet extension can
+  // still sign in bulk, but it can't hammer the endpoint to drain the
+  // user's depletion-bucket faster than this rate.
+  const rateLimit = parseInt(env.CONJUGATE_RATE_PER_MIN || '5', 10);
+  const windowSec = 60;
+  const nowSec0 = Math.floor(Date.now() / 1000);
+  const signerLcEarly = address.toLowerCase();
+  const recentRow = await env.DB.prepare(
+    'SELECT COUNT(*) AS n FROM used_nonces WHERE signer = ? AND used_at > ?'
+  ).bind(signerLcEarly, nowSec0 - windowSec).first();
+  if (recentRow && recentRow.n >= rateLimit) {
+    return error('rate_limited', 429, origin);
+  }
+
   // 2. Verify nonce hasn't been used (replay protection)
   const nonceRow = await env.DB.prepare(
     'SELECT 1 FROM used_nonces WHERE signer = ? AND nonce = ?'
-  ).bind(address.toLowerCase(), nonce).first();
+  ).bind(signerLcEarly, nonce).first();
   if (nonceRow) return error('nonce_used', 401, origin);
 
   // 3. Verify caller owns BOTH tokens on-chain

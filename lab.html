@@ -2919,21 +2919,45 @@ function renderLog() {
     } },
     rejected:   { label: 'Rejected',    ok: false, detail: (e) => TRANSFERABLE_BY_ID[e.trait]?.label || e.trait },
   };
-  const html = LabState.log.slice(0, 20).map(entry => {
-    const s = STATUS[entry.op] || { label: entry.op, ok: false, detail: () => entry.trait || '' };
-    return `
-      <div class="log-row">
-        <span class="log-time">${fmtTime(entry.ts)}</span>
-        <span class="log-desc">
-          <strong>${window.BiomEngine.label(entry.donor)}</strong> → <strong>${window.BiomEngine.label(entry.recipient)}</strong>
-          <span style="color: var(--ink-3);"> — ${s.detail(entry)}</span>
-        </span>
-        <span class="log-status ${s.ok ? 'ok' : 'fail'}">${s.label}</span>
-      </div>
-    `;
-  }).join('');
+  // Build via DOM (not innerHTML interpolation) so worker-supplied
+  // fields can't ever inject HTML. Defense-in-depth — today the worker
+  // restricts `trait` to a known whitelist, but any future field added
+  // to a log entry without escaping would otherwise XSS this list.
   Array.from(logList.querySelectorAll('.log-row')).forEach(el => el.remove());
-  logList.insertAdjacentHTML('beforeend', html);
+  const frag = document.createDocumentFragment();
+  for (const entry of LabState.log.slice(0, 20)) {
+    const s = STATUS[entry.op] || { label: entry.op, ok: false, detail: () => entry.trait || '' };
+    const row = document.createElement('div');
+    row.className = 'log-row';
+
+    const t = document.createElement('span');
+    t.className = 'log-time';
+    t.textContent = fmtTime(entry.ts);
+    row.appendChild(t);
+
+    const desc = document.createElement('span');
+    desc.className = 'log-desc';
+    const donor = document.createElement('strong');
+    donor.textContent = window.BiomEngine.label(entry.donor);
+    desc.appendChild(donor);
+    desc.appendChild(document.createTextNode(' → '));
+    const recip = document.createElement('strong');
+    recip.textContent = window.BiomEngine.label(entry.recipient);
+    desc.appendChild(recip);
+    const detail = document.createElement('span');
+    detail.style.color = 'var(--ink-3)';
+    detail.textContent = ' — ' + s.detail(entry);
+    desc.appendChild(detail);
+    row.appendChild(desc);
+
+    const status = document.createElement('span');
+    status.className = 'log-status ' + (s.ok ? 'ok' : 'fail');
+    status.textContent = s.label;
+    row.appendChild(status);
+
+    frag.appendChild(row);
+  }
+  logList.appendChild(frag);
 }
 
 // ============================================================
@@ -2962,34 +2986,73 @@ function renderWalletUI() {
   walletBlock.classList.add('visible');
   modeNote.style.display = 'none';
 
-  // Status text logic
+  // Status text — built via DOM construction so a malicious provider
+  // returning a non-hex address can't inject HTML through the status
+  // panel. Helper to clear + restart cleanly per branch.
+  const wsClear = () => { while (walletStatus.firstChild) walletStatus.removeChild(walletStatus.firstChild); };
+  const wsAddr = () => {
+    const s = document.createElement('span');
+    s.className = 'addr';
+    s.textContent = shortAddr(Wallet.address);
+    walletStatus.appendChild(s);
+  };
+  const wsMuted = (text) => {
+    const s = document.createElement('span');
+    s.style.color = 'var(--ink-3)';
+    s.textContent = ' ' + text;
+    walletStatus.appendChild(s);
+  };
+  const wsLink = (href, label) => {
+    const a = document.createElement('a');
+    a.href = href; a.target = '_blank'; a.rel = 'noopener';
+    a.style.color = 'inherit'; a.style.textDecoration = 'underline';
+    a.textContent = label;
+    return a;
+  };
+
   if (Wallet.syncing) {
+    wsClear();
     walletStatus.textContent = 'Syncing…';
     walletStatus.className = 'wallet-status';
   } else if (!Wallet.hasProvider()) {
     // No window.ethereum — desktop without an extension OR mobile Safari.
-    // Don't disable the button — keep it clickable so the click handler
-    // can show a friendlier prompt. The status text already tells the
-    // user what to install; the button stays inviting rather than dead.
-    walletStatus.innerHTML = 'No wallet found in this browser. Install <a href="https://metamask.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">MetaMask</a> or <a href="https://rabby.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Rabby</a>, or open this page in your mobile wallet app.';
+    // Button stays clickable so the click handler shows a friendlier
+    // prompt instead of a dead grey button.
+    wsClear();
+    walletStatus.appendChild(document.createTextNode('No wallet found in this browser. Install '));
+    walletStatus.appendChild(wsLink('https://metamask.io', 'MetaMask'));
+    walletStatus.appendChild(document.createTextNode(' or '));
+    walletStatus.appendChild(wsLink('https://rabby.io', 'Rabby'));
+    walletStatus.appendChild(document.createTextNode(', or open this page in your mobile wallet app.'));
     walletStatus.className = 'wallet-status';
   } else if (!Wallet.address) {
+    wsClear();
     walletStatus.textContent = 'Not connected.';
     walletStatus.className = 'wallet-status';
   } else if (Wallet.workerOnline === false) {
-    // Pre-launch: the Lab API isn't deployed yet. This is the EXPECTED
-    // state right now — frame it as a status, not an error. No "bad"
-    // class so it doesn't read as broken.
-    walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> Connected. <span style="color: var(--ink-3);">Mint isn't live yet — wallet conjugation activates after the drop.</span>`;
+    // Pre-launch: the Lab API isn't deployed yet. Frame as a status,
+    // not an error. No "bad" class so it doesn't read as broken.
+    wsClear();
+    wsAddr();
+    walletStatus.appendChild(document.createTextNode(' Connected.'));
+    wsMuted("Mint isn't live yet — wallet conjugation activates after the drop.");
     walletStatus.className = 'wallet-status';
   } else if (Wallet.config && !Wallet.config.contractDeployed) {
-    walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> Connected. <span style="color: var(--ink-3);">Mint contract not yet deployed — wallet mode activates the moment the drop goes live.</span>`;
+    wsClear();
+    wsAddr();
+    walletStatus.appendChild(document.createTextNode(' Connected.'));
+    wsMuted('Mint contract not yet deployed — wallet mode activates the moment the drop goes live.');
     walletStatus.className = 'wallet-status';
   } else if (LabState.ownedSeeds.length === 0) {
-    walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> No Bioms in this wallet yet.`;
+    wsClear();
+    wsAddr();
+    walletStatus.appendChild(document.createTextNode(' No Bioms in this wallet yet.'));
     walletStatus.className = 'wallet-status';
   } else {
-    walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> ${LabState.ownedSeeds.length} Biom${LabState.ownedSeeds.length === 1 ? '' : 's'} synced.`;
+    wsClear();
+    wsAddr();
+    const n = LabState.ownedSeeds.length;
+    walletStatus.appendChild(document.createTextNode(` ${n} Biom${n === 1 ? '' : 's'} synced.`));
     walletStatus.className = 'wallet-status ok';
   }
 

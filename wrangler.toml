@@ -34,6 +34,7 @@ database_id = "REPLACE_WITH_ID_FROM_d1_create"
 CHAIN_ID = "1"
 COOLDOWN_SECONDS = "2592000"   # 30 days
 REJECTION_RATE = "0.15"
+CONJUGATE_RATE_PER_MIN = "5"   # max accepted conjugates per signer per minute
 
 # Secrets (set via wrangler secret put — DO NOT commit values here):
 # - ALCHEMY_KEY        — Alchemy NFT API key, required for ownership checks
