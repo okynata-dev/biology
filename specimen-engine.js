@@ -162,6 +162,9 @@
     const key = `_mix_${[idA, idB].sort().join('_')}`;
     if (PALETTES[key]) return key;
     const mixed = {};
+    // Mark this palette as a burn-blend so resolveColor knows to use the
+    // chimera cycle on body cells (pure A | pure B | gradient per cellIdx).
+    mixed._bodyMode = 'mixCycle';
     const keys = new Set([...Object.keys(pa), ...Object.keys(pb)]);
     for (const k of keys) {
       const va = pa[k], vb = pb[k];
@@ -637,6 +640,19 @@
     if (v === '__GRAM_VARIABLE__') {
       const idx = cellIdx != null ? cellIdx : 0;
       return idx % 2 === 0 ? palette._gramPlus : palette._gramMinus;
+    }
+    // mixCycle mode (used by burn-mix palettes) — body cycles through
+    // PURE parent A, PURE parent B, and a true gradient between them
+    // per cellIdx, so a 6-cell hybrid reads as: A | B | grad | A | B | grad.
+    // The result looks like a chimera, not a flat average.
+    if (name === 'body' && palette._bodyMode === 'mixCycle' && Array.isArray(v) && v.length === 2) {
+      const angle = gradientAngle != null ? gradientAngle : 145;
+      const cycle = [
+        v[0],                                                            // pure parent A
+        v[1],                                                            // pure parent B
+        `linear-gradient(${angle}deg, ${v[0]} 0%, ${v[1]} 100%)`,        // gradient A → B
+      ];
+      return cycle[(cellIdx || 0) % cycle.length];
     }
     if (Array.isArray(v)) {
       const angle = gradientAngle != null ? gradientAngle : 145;
