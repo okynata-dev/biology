@@ -1069,31 +1069,38 @@
   // ============================================================
   // ============================================================
   // BURN-UNLOCK PALETTE SELECTOR
-  // Deterministic — same (burnSeed, absorbSeed, newGen) always yields
+  // Deterministic — same (burnSeed, absorbSeed, newRank) always yields
   // the same outcome. No RNG that changes per page load.
   //
   // Returns: a palette key string from UNLOCK_PALETTES, or null if
   // this burn doesn't qualify for a rare unlock (and the regular
   // multi-mix should be used).
   //
-  // Ladder:
-  //   G3 → 35% radioactive, 25% void, else null
-  //   G5 → 40% plasma, 35% aurora_storm, else null
-  //   G7+ → always gold (the prize)
+  // Rank-based ladder (rank = total Bioms in lineage):
+  //   rank  4+  (Chimera entry)  → 35% radioactive, 25% void
+  //   rank  8+  (Phoenix entry)  → 40% plasma, 35% aurora_storm
+  //   rank 16+  (Phoenix elite)  → always gold (the prize, 16 Bioms consumed)
+  //
+  // The `rank` parameter was previously called `newGeneration` —
+  // semantically the function still works on "the new value" but the
+  // thresholds now match the rank system (1+1=2, 2+2=4 progression).
+  // Old generation-N callsites that haven't migrated map roughly to
+  // rank-(N+1), but rare-unlock criteria are tighter now: reaching the
+  // top tier requires sustained doubling, not just 7 linear burns.
   // ============================================================
-  function pickUnlockPalette(burnSeed, absorbSeed, newGeneration) {
-    if (newGeneration < 3) return null;
-    if (newGeneration >= 7) return 'gold';
+  function pickUnlockPalette(burnSeed, absorbSeed, newRank) {
+    if (newRank < 4) return null;
+    if (newRank >= 16) return 'gold';
     // Deterministic 0–99 from the burn pair. Multiplied prime gives
     // good spread even when seeds are close (e.g. adjacent in collection).
     const h = ((burnSeed * 2654435761) ^ (absorbSeed * 40503)) >>> 0;
     const roll = h % 100;
-    if (newGeneration >= 5) {
+    if (newRank >= 8) {
       if (roll < 40) return 'plasma';
       if (roll < 75) return 'aurora_storm';
       return null;
     }
-    if (newGeneration >= 3) {
+    if (newRank >= 4) {
       if (roll < 35) return 'radioactive';
       if (roll < 60) return 'void';
       return null;

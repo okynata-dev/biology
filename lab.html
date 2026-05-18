@@ -1724,10 +1724,18 @@ function effectiveState(seed) {
     reserveGranule: t.receivedReserve || base.reserveGranule,
     phageAttached, endosymbiont, biofilmHalo,
     depletedNow,
-    // Burn lineage — surfaces in collection card badge + metadata
-    generation: t.generation || 0,
+    // Burn lineage — surfaces in collection card badge + metadata.
+    // `rank` is the canonical rarity number (1 = Genesis, doubles via
+    // equal-rank burns). `generation` is kept as a legacy alias derived
+    // from rank for any old code path that still references it.
+    rank: t.rank || ((t.generation || 0) + 1),
+    generation: t.generation || (t.rank ? t.rank - 1 : 0),
     burnsAbsorbed: t.burnsAbsorbed || 0,
     paletteAncestry: t.paletteAncestry || [base.palette],
+    // Names of ancestors absorbed into this Biom, oldest first. Drives
+    // the lineage display on the card detail view + the burn ritual's
+    // "carries the memory of…" line.
+    ancestors: t.ancestors || [],
     receivedKeys: {
       palette: !!t.receivedPalette,
       organelles: new Set(t.receivedOrganelles || []),
@@ -1998,17 +2006,26 @@ function burnOutcome(burnSeed, absorbSeed) {
   const burnEff = effectiveState(burnSeed);
   const absEff  = effectiveState(absorbSeed);
 
-  // Generation first — needed for the unlock check.
-  const burnGen = LabState.tokens[burnSeed]?.generation || 0;
-  const absGen  = LabState.tokens[absorbSeed]?.generation || 0;
-  const newGeneration = Math.max(burnGen, absGen) + 1;
+  // Rank — sum of parent ranks. Two Genesis (1+1) = rank 2.
+  // Two rank-4 (4+4) = rank 8. Exponential growth via doubling strategy.
+  const burnRank = burnEff.rank;
+  const absRank  = absEff.rank;
+  const newRank  = burnRank + absRank;
+  // Legacy: keep generation in sync for any old code still reading it.
+  const newGeneration = newRank - 1;
+
+  // Ancestor list — survivor inherits everyone its parents inherited,
+  // PLUS the burned token itself. Used for the lineage display + the
+  // burn ritual's "carries the memory of…" line.
+  const ancestors = [
+    ...absEff.ancestors,
+    ...burnEff.ancestors,
+    { seed: burnSeed, rank: burnRank, ts: Date.now() },
+  ];
 
   // === Rare-palette unlock ===
-  // If the new generation crosses a tier threshold AND the deterministic
-  // roll qualifies, the multi-mix is replaced by a single rare palette.
-  // The token's ancestry is reset to just that palette so subsequent
-  // burns mix the rare colour with new acquisitions (chimera variety).
-  const unlocked = window.BiomEngine.pickUnlockPalette(burnSeed, absorbSeed, newGeneration);
+  // Crosses a tier threshold via the new rank value.
+  const unlocked = window.BiomEngine.pickUnlockPalette(burnSeed, absorbSeed, newRank);
 
   let combinedAncestry, mixedPalette;
   if (unlocked) {
@@ -2049,9 +2066,12 @@ function burnOutcome(burnSeed, absorbSeed) {
   const cellCountBumped = burnEff.cellCount > absEff.cellCount
     ? { from: absEff.cellCount, to: burnEff.cellCount } : null;
 
-  const generationBump = { from: absGen, to: newGeneration };
+  // rankBump is the canonical "you got more powerful" signal; keep the
+  // old generationBump alias for code that hasn't been migrated yet.
+  const rankBump = { from: absRank, to: newRank };
+  const generationBump = { from: absRank - 1, to: newGeneration };
 
-  return { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, generationBump, combinedAncestry, unlocked };
+  return { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, generationBump, rankBump, combinedAncestry, unlocked, ancestors };
 }
 
 // ============================================================
@@ -2137,29 +2157,38 @@ function fmtRemaining(ms) {
   return `${d}d`;
 }
 
-// Generation → tier name + class. Replaces 'G1/G2/G3' with poetry:
-//   G0   → Genesis (no badge — pure original)
-//   G1-2 → Hybrid
-//   G3-4 → Chimera (high tier — gold)
-//   G5+  → Phoenix (epic tier — purple)
-// Tiers compress the linear gen number into 4 identity categories
-// that mean something to a buyer.
-function tierForGeneration(gen) {
-  if (gen <= 0) return null;
-  if (gen <= 2) return { name: 'Hybrid',  cls: '' };
-  if (gen <= 4) return { name: 'Chimera', cls: 'high' };
+// === RANK MATH ===
+// Burn rule: newRank = burnerRank + absorberRank.
+//   2 × Genesis (1+1) = rank 2 (Hybrid)
+//   2 × rank-2 (2+2)  = rank 4 (Chimera)
+//   2 × rank-4 (4+4)  = rank 8 (Phoenix)
+// So rank = total Bioms absorbed in the lineage (including self at rank 1).
+// Reaching Phoenix requires 8 Bioms consumed. The mapping to tiers is
+// done via power-of-2 thresholds so the visual ladder feels exponential.
+//
+//   1     → Genesis (no badge — pure original)
+//   2-3   → Hybrid  (you've consumed 1-2 ancestors)
+//   4-7   → Chimera (you've consumed 3-6 ancestors)
+//   8+    → Phoenix (you've consumed 7+ ancestors)
+function tierForRank(rank) {
+  if (rank <= 1) return null;
+  if (rank <= 3) return { name: 'Hybrid',  cls: '' };
+  if (rank <= 7) return { name: 'Chimera', cls: 'high' };
   return            { name: 'Phoenix', cls: 'epic' };
 }
+// Legacy alias — older code still calls this. Generation 0 = rank 1, etc.
+function tierForGeneration(gen) { return tierForRank((gen || 0) + 1); }
 
 // Thumbnail-frame class for the structural upgrades layered on top
-// of the specimen render (shimmer / crystal / halo). Genesis (G0) gets
-// no decoration — base form is the rarity baseline.
-function thumbTierClass(gen) {
-  if (gen <= 0) return '';
-  if (gen <= 2) return 'tier-hybrid';
-  if (gen <= 4) return 'tier-chimera';
+// of the specimen render (shimmer / crystal / halo). Genesis (rank 1)
+// gets no decoration — base form is the rarity baseline.
+function thumbTierClassByRank(rank) {
+  if (rank <= 1) return '';
+  if (rank <= 3) return 'tier-hybrid';
+  if (rank <= 7) return 'tier-chimera';
   return            'tier-phoenix';
 }
+function thumbTierClass(gen) { return thumbTierClassByRank((gen || 0) + 1); }
 
 // ============================================================
 // COLLECTION RENDER — incremental, stable DOM.
@@ -2191,15 +2220,15 @@ function _cardStateHash(seed) {
     eff.phageAttached ? 1 : 0,
     eff.endosymbiont  ? 1 : 0,
     eff.biofilmHalo   ? 1 : 0,
-    eff.generation,
+    eff.rank,
   ].join('|');
 }
 
 function _buildCardElement(seed) {
   const eff = effectiveState(seed);
   const traitCount = [...eff.organelles].length - 1;
-  const tier = tierForGeneration(eff.generation);
-  const thumbCls = thumbTierClass(eff.generation);
+  const tier = tierForRank(eff.rank);
+  const thumbCls = thumbTierClassByRank(eff.rank);
 
   // Inline render via BiomEngine — replaces the per-card iframe (each
   // iframe was a full preview.html document load, which is what made
@@ -2211,13 +2240,13 @@ function _buildCardElement(seed) {
   card.tabIndex = 0;
   card.setAttribute('role', 'button');
   card.setAttribute('aria-label',
-    `${window.BiomEngine.label(seed)}${eff.generation ? ` (Generation ${eff.generation})` : ''} — click to pick`);
+    `${window.BiomEngine.label(seed)}${eff.rank > 1 ? ` (Rank ${eff.rank})` : ''} — click to pick`);
   card.innerHTML = `
     <div class="biom-thumb">
       <div class="biom-thumb-inline ${thumbCls}">
         <div class="scene"><div class="composition"></div></div>
       </div>
-      ${tier ? `<span class="gen-badge ${tier.cls}" title="${tier.name} — Generation ${eff.generation}, survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}">${tier.name}</span>` : ''}
+      ${tier ? `<span class="gen-badge ${tier.cls}" title="${tier.name} — Rank ${eff.rank}, survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}">${tier.name}</span>` : ''}
       <span class="role-tag" hidden></span>
       <span class="cooldown-tag" hidden></span>
       <div class="mutation-badges" hidden></div>
@@ -2521,9 +2550,11 @@ function renderOutcomes() {
   // --- BURN MODE: one big preview, no choice gallery ---
   if (arenaMode === 'burn') {
     document.querySelector('.outcomes-head').textContent = 'After the burn:';
-    outcomesHint.textContent = `#${donorSeed} burns. #${recipientSeed} absorbs every trait — stains blend into a gradient, organelles and anomalies stack, the colony grows. Twice as cool.`;
+    const donorLabel = window.BiomEngine.label(donorSeed);
+    const recipLabel = window.BiomEngine.label(recipientSeed);
+    outcomesHint.textContent = `${donorLabel} burns. ${recipLabel} absorbs every trait — stains blend into a gradient, organelles and anomalies stack, the colony grows. Rank doubles when equals merge.`;
     outcomesHint.hidden = false;
-    const { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, generationBump, combinedAncestry } = burnOutcome(donorSeed, recipientSeed);
+    const { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, rankBump, combinedAncestry } = burnOutcome(donorSeed, recipientSeed);
     const url = previewUrlFor(recipientSeed, next, { nointeract: true });
     // Caption rewritten as flowing prose, one bold cue (the tier change)
     // so the eye knows where to land. Apple-style: don't shout everything.
@@ -2537,11 +2568,15 @@ function renderOutcomes() {
     if (gainedAnomalies.length) additions.push(...gainedAnomalies);
     if (additions.length) lines.push(`Gains ${additions.join(', ')}.`);
     if (cellCountBumped) lines.push(`Grows from ${cellCountBumped.from} to ${cellCountBumped.to} cells.`);
-    const fromTier = tierForGeneration(generationBump.from);
-    const toTier   = tierForGeneration(generationBump.to);
+    const fromTier = tierForRank(rankBump.from);
+    const toTier   = tierForRank(rankBump.to);
     const fromName = fromTier ? fromTier.name : 'Genesis';
     const toName   = toTier   ? toTier.name   : 'Genesis';
-    lines.push(`Becomes <strong>${toName}</strong>.`);
+    // Show the rank math — the doubling is the whole point of the system.
+    const rankPhrase = fromName === toName
+      ? `Stays <strong>${toName}</strong> at rank ${rankBump.to}.`
+      : `Ascends to <strong>${toName}</strong> at rank ${rankBump.to}.`;
+    lines.push(rankPhrase);
     const gainText = lines.length ? lines.join(' ') : 'These two are too similar — try a different burn target.';
     _outcomesEmpty = false;
     outcomesGrid.innerHTML = `
@@ -2767,7 +2802,7 @@ function performCrossbreed(seedA, seedB, outcomeId) {
 // stays absorber's own). Burnt Biom marked destroyed and removed from
 // the collection. Never fails (sacrifice is irreversible).
 function performBurn(burnSeed, absorbSeed) {
-  const { next, generationBump, combinedAncestry } = burnOutcome(burnSeed, absorbSeed);
+  const { next, generationBump, rankBump, combinedAncestry, ancestors } = burnOutcome(burnSeed, absorbSeed);
   const ts2 = Date.now();
 
   // Apply the merged state to absorber. We compute the diff vs the
@@ -2788,12 +2823,15 @@ function performBurn(burnSeed, absorbSeed) {
     applyMutation(absorbSeed, { set_cellCount: next.cellCount });
   }
 
-  // Generation + burns-survived counter on absorber. These feed the UI
-  // (badge on collection card) and the future on-chain metadata
-  // (trait_type: 'Generation', value: N).
+  // Rank + ancestor chain on absorber. Rank is the canonical rarity
+  // metric (1=Genesis, doubles via equal-rank burns); on-chain metadata
+  // will surface it as trait_type 'Rank'. Generation kept as legacy
+  // alias = rank-1.
   const ats = LabState.tokens[absorbSeed] || (LabState.tokens[absorbSeed] = {});
+  ats.rank           = rankBump.to;
   ats.generation     = generationBump.to;
   ats.burnsAbsorbed  = (ats.burnsAbsorbed || 0) + 1;
+  ats.ancestors      = ancestors;
   // Store the full ancestry list (deduped + sorted base palette ids)
   // so future burns can extend it without re-parsing the encoded string.
   ats.paletteAncestry = combinedAncestry;
@@ -2814,6 +2852,7 @@ function performBurn(burnSeed, absorbSeed) {
     trait: 'merge',
     op: 'burn',
     generation: generationBump.to,
+    rank: rankBump.to,
   });
   if (LabState.log.length > 100) LabState.log.length = 100;
 
