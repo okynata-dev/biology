@@ -309,7 +309,7 @@
   // returns just the generated genus name (HALOPHILA, AUROCAULA…);
   // post-reveal it appends "#0247" for collectors who want to track.
   // ============================================================
-  const REVEAL = false;
+  const REVEAL = true;
   function label(seed) {
     const name = pickName(seed);
     if (!REVEAL) return name;
