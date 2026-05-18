@@ -2211,7 +2211,7 @@ function _buildCardElement(seed) {
   card.tabIndex = 0;
   card.setAttribute('role', 'button');
   card.setAttribute('aria-label',
-    `Biom #${seed}${eff.generation ? ` (Generation ${eff.generation})` : ''} — click to pick`);
+    `${window.BiomEngine.label(seed)}${eff.generation ? ` (Generation ${eff.generation})` : ''} — click to pick`);
   card.innerHTML = `
     <div class="biom-thumb">
       <div class="biom-thumb-inline ${thumbCls}">
@@ -2223,7 +2223,7 @@ function _buildCardElement(seed) {
       <div class="mutation-badges" hidden></div>
     </div>
     <div class="biom-info">
-      <span class="biom-name">BIOM #${seed}</span>
+      <span class="biom-name">${window.BiomEngine.label(seed)}</span>
       <span class="biom-traits">${traitCount} traits</span>
     </div>
   `;
@@ -2550,7 +2550,7 @@ function renderOutcomes() {
           <iframe src="${url}" loading="eager" tabindex="-1"></iframe>
         </div>
         <div class="outcome-meta">
-          <div class="outcome-name">#${recipientSeed} after absorbing #${donorSeed}</div>
+          <div class="outcome-name">${window.BiomEngine.label(recipientSeed)} after absorbing ${window.BiomEngine.label(donorSeed)}</div>
           <div class="outcome-caption">${gainText}</div>
         </div>
       </div>
@@ -2925,7 +2925,7 @@ function renderLog() {
       <div class="log-row">
         <span class="log-time">${fmtTime(entry.ts)}</span>
         <span class="log-desc">
-          <strong>BIOM #${entry.donor}</strong> → <strong>BIOM #${entry.recipient}</strong>
+          <strong>${window.BiomEngine.label(entry.donor)}</strong> → <strong>${window.BiomEngine.label(entry.recipient)}</strong>
           <span style="color: var(--ink-3);"> — ${s.detail(entry)}</span>
         </span>
         <span class="log-status ${s.ok ? 'ok' : 'fail'}">${s.label}</span>
@@ -2967,14 +2967,21 @@ function renderWalletUI() {
     walletStatus.textContent = 'Syncing…';
     walletStatus.className = 'wallet-status';
   } else if (!Wallet.hasProvider()) {
-    walletStatus.innerHTML = 'No wallet detected. Install <a href="https://metamask.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">MetaMask</a> or <a href="https://rabby.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Rabby</a>.';
-    walletStatus.className = 'wallet-status bad';
+    // No window.ethereum — desktop without an extension OR mobile Safari.
+    // Don't disable the button — keep it clickable so the click handler
+    // can show a friendlier prompt. The status text already tells the
+    // user what to install; the button stays inviting rather than dead.
+    walletStatus.innerHTML = 'No wallet found in this browser. Install <a href="https://metamask.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">MetaMask</a> or <a href="https://rabby.io" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Rabby</a>, or open this page in your mobile wallet app.';
+    walletStatus.className = 'wallet-status';
   } else if (!Wallet.address) {
     walletStatus.textContent = 'Not connected.';
     walletStatus.className = 'wallet-status';
   } else if (Wallet.workerOnline === false) {
-    walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> Backend unreachable. <span style="color: var(--ink-3);">The Lab API isn't deployed yet — wallet conjugation unlocks post-mint.</span>`;
-    walletStatus.className = 'wallet-status bad';
+    // Pre-launch: the Lab API isn't deployed yet. This is the EXPECTED
+    // state right now — frame it as a status, not an error. No "bad"
+    // class so it doesn't read as broken.
+    walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> Connected. <span style="color: var(--ink-3);">Mint isn't live yet — wallet conjugation activates after the drop.</span>`;
+    walletStatus.className = 'wallet-status';
   } else if (Wallet.config && !Wallet.config.contractDeployed) {
     walletStatus.innerHTML = `<span class="addr">${shortAddr(Wallet.address)}</span> Connected. <span style="color: var(--ink-3);">Mint contract not yet deployed — wallet mode activates the moment the drop goes live.</span>`;
     walletStatus.className = 'wallet-status';
@@ -2986,12 +2993,15 @@ function renderWalletUI() {
     walletStatus.className = 'wallet-status ok';
   }
 
-  // Button visibility
+  // Button visibility — always keep Connect clickable when not connected,
+  // even without a provider. The click handler will show a prompt if no
+  // wallet is detected, instead of leaving the user staring at a dead
+  // grey button wondering if the site is broken.
   const connected = !!Wallet.address;
   walletConnectBtn.hidden = connected;
   walletRefreshBtn.hidden = !connected;
   walletDisconnectBtn.hidden = !connected;
-  walletConnectBtn.disabled = !Wallet.hasProvider() || Wallet.syncing;
+  walletConnectBtn.disabled = Wallet.syncing;
   walletRefreshBtn.disabled = Wallet.syncing;
 }
 
@@ -3053,6 +3063,14 @@ modeWalletBtn.addEventListener('click', () => { setMode('wallet'); });
 
 walletConnectBtn.addEventListener('click', async () => {
   if (isAnimating) return;
+  // No provider → guide the user to install one instead of bouncing off
+  // a silent eth_requestAccounts failure. We open MetaMask in a new tab
+  // (most common); the inline status message already covers Rabby + mobile.
+  if (!Wallet.hasProvider()) {
+    setStatus('No Ethereum wallet detected. Opening MetaMask install page — or use the links in the wallet panel.', 'fail');
+    window.open('https://metamask.io/download/', '_blank', 'noopener');
+    return;
+  }
   try {
     await Wallet.connect();
     await Wallet.probeWorker();
@@ -3075,7 +3093,7 @@ document.getElementById('addSeedBtn').addEventListener('click', () => {
   const v = input.value.trim();
   if (!v) { setStatus('Enter a seed between 0 and 2999.', 'fail'); return; }
   const ok = addSeed(v);
-  if (ok) { input.value = ''; setStatus(`Added BIOM #${v}.`, 'ok'); }
+  if (ok) { input.value = ''; setStatus(`Added ${window.BiomEngine.label(parseInt(v, 10))}.`, 'ok'); }
   else setStatus(`Already in collection or out of range.`, 'fail');
 });
 document.getElementById('seedInputAdd').addEventListener('keydown', (e) => {
@@ -3120,7 +3138,7 @@ document.getElementById('burnConfirmNo').addEventListener('click', () => {
   hideBurnConfirm();
 });
 function showBurnConfirm() {
-  burnConfirmText.innerHTML = `Burn <strong>BIOM #${donorSeed}</strong> forever and merge into <strong>BIOM #${recipientSeed}</strong>?`;
+  burnConfirmText.innerHTML = `Burn <strong>${window.BiomEngine.label(donorSeed)}</strong> forever and merge into <strong>${window.BiomEngine.label(recipientSeed)}</strong>?`;
   burnConfirmEl.classList.add('visible');
   burnConfirmEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }

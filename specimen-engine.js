@@ -296,6 +296,27 @@
   }
 
   // ============================================================
+  // REVEAL FLAG — single source of truth for whether seed numbers
+  // are surfaced to users. Pre-mint / pre-reveal this is FALSE so
+  // snipers can't match a specific seed's traits to a tokenID and
+  // bid for it on a secondary market before reveal day.
+  //
+  // Flip to TRUE on reveal day, then `setBaseURI` on the contract
+  // so OpenSea picks up real metadata.
+  //
+  // `label(seed)` is the canonical user-facing identifier — use it
+  // anywhere the UI would otherwise show "BIOM #247". Pre-reveal it
+  // returns just the generated genus name (HALOPHILA, AUROCAULA…);
+  // post-reveal it appends "#0247" for collectors who want to track.
+  // ============================================================
+  const REVEAL = false;
+  function label(seed) {
+    const name = pickName(seed);
+    if (!REVEAL) return name;
+    return `${name} #${String(seed).padStart(4, '0')}`;
+  }
+
+  // ============================================================
   // STATE GENERATION (mirrors preview.html randomize)
   // ============================================================
   function generateState(seed) {
@@ -1085,6 +1106,8 @@
     renderSpecimenToCanvas,
     generateState,
     pickName,
+    label,
+    REVEAL,
     mixPalettes,
     pickUnlockPalette,
     PALETTES,

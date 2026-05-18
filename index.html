@@ -306,6 +306,106 @@
   }
   @media (hover: none) { .catalog-cell .seed-tag { opacity: 1; } }
 
+  /* === LAB — feature section. Bioms are not just static art; they
+       breed, fuse, and evolve. This section pulls that promise out
+       of the footer-nav into a hero-grade callout. Asymmetric grid
+       mirrors the top hero — specimen pair (parent + survivor) on
+       the left, copy + CTA on the right. */
+  .lab { padding: 80px 32px 100px; }
+  .lab-grid {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    align-items: center;
+    gap: clamp(40px, 6vw, 88px);
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  @media (max-width: 820px) {
+    .lab-grid { grid-template-columns: 1fr; gap: 28px; }
+  }
+  /* Twin-pane visual: two specimens stacked with a thin "→" between,
+     reading as "parent transforms into evolved child". Each pane is
+     a square iframe of preview.html — same render path as the hero. */
+  .lab-visual {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    position: relative;
+  }
+  .lab-pane {
+    aspect-ratio: 1;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--paper);
+    box-shadow: 0 1px 1px rgba(0,0,0,0.03), 0 8px 22px rgba(0,0,0,0.06);
+    position: relative;
+  }
+  .lab-pane iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .lab-pane.evolved {
+    background:
+      radial-gradient(circle at 50% 50%, #fff5e6 0%, #f4ead4 45%, #efebe2 100%);
+  }
+  .lab-pane .pane-label {
+    position: absolute;
+    top: 10px; left: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    pointer-events: none;
+  }
+  .lab-pane.evolved .pane-label { color: rgba(28, 26, 22, 0.55); }
+  .lab-arrow {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    color: var(--ink);
+    pointer-events: none;
+    z-index: 5;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.06);
+  }
+  .lab-copy h2 {
+    margin: 0 0 16px;
+    font-size: clamp(34px, 4vw, 52px);
+    letter-spacing: -0.025em;
+    line-height: 1.04;
+    font-weight: 500;
+  }
+  .lab-copy p {
+    margin: 0 0 16px;
+    font-size: clamp(15px, 1.3vw, 17px);
+    line-height: 1.55;
+    color: var(--ink-2);
+  }
+  .lab-tiers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 18px 0 24px;
+  }
+  .lab-tier {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    color: var(--ink-2);
+    background: var(--paper);
+  }
+  .lab-cta { display: flex; gap: 10px; flex-wrap: wrap; }
+  @media (max-width: 820px) {
+    .lab { padding: 56px 18px 64px; }
+    .lab-cta .btn { flex: 1 1 auto; text-align: center; }
+  }
+
   /* === DROP — closing block. Centered, quiet, simple. No info-list
        grid, no asymmetric layout — just title + one line + two CTAs. === */
   .drop { padding: 120px 32px 140px; }
@@ -434,8 +534,8 @@
         <h1 class="hero-title">Bioms</h1>
         <p class="hero-tag">Living art. Three thousand microbes that breed, fuse, evolve. On Ethereum.</p>
         <div class="hero-caption">
-          <span>BIOM #<span id="seedDisplay">247</span></span>
-          <span class="sep">·</span>
+          <span id="seedChip">BIOM #<span id="seedDisplay">247</span></span>
+          <span class="sep" id="seedChipSep">·</span>
           <button type="button" class="caption-btn" id="rollBtn" aria-label="Generate next specimen">Next →</button>
         </div>
       </div>
@@ -447,6 +547,40 @@
   <div class="wrap">
     <h2 class="catalog-title">Three thousand Bioms.</h2>
     <div class="catalog-grid" id="catalogGrid"></div>
+  </div>
+</section>
+
+
+<section class="lab">
+  <div class="wrap">
+    <div class="lab-grid">
+      <div class="lab-visual" aria-hidden="true">
+        <div class="lab-pane">
+          <span class="pane-label">Genesis</span>
+          <iframe loading="lazy" data-lab-seed="genesis" title="Genesis Biom"></iframe>
+        </div>
+        <div class="lab-pane evolved">
+          <span class="pane-label">Phoenix · G7</span>
+          <iframe loading="lazy" data-lab-seed="phoenix" title="Phoenix-tier Biom"></iframe>
+        </div>
+        <div class="lab-arrow">→</div>
+      </div>
+      <div class="lab-copy">
+        <h2>Bioms breed. Bioms burn. Survivors evolve.</h2>
+        <p>This isn't a static collection. Pair two Bioms to share a trait. Sacrifice one to a fire and feed it to another. The survivor inherits the lineage, gains a generation, and unlocks visual rarities you can't get at mint.</p>
+        <p>Every act of fusion is permanent and on-chain. Burned Bioms are gone forever. The Phoenix tier — the rarest survivors — exists only because someone chose to torch ten others.</p>
+        <div class="lab-tiers">
+          <span class="lab-tier">Genesis</span>
+          <span class="lab-tier">Hybrid</span>
+          <span class="lab-tier">Chimera</span>
+          <span class="lab-tier">Phoenix</span>
+        </div>
+        <div class="lab-cta">
+          <a href="/lab" class="btn">Open the Lab</a>
+          <a href="/lab" class="btn btn-ghost">Try it without a wallet</a>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -468,6 +602,8 @@
   <div class="footer-meta">
     <span>© 2026 Bioms</span>
     <span class="sep">·</span>
+    <a href="/lab">Lab</a>
+    <span class="sep">·</span>
     <a href="/explore">Traits</a>
     <span class="sep">·</span>
     <a href="/make">Banners</a>
@@ -480,6 +616,14 @@
 </footer>
 
 <script>
+// REVEAL — single switch for whether numeric seed IDs are surfaced to
+// users. Pre-mint / pre-reveal this is FALSE: no #0247 chips on the
+// hero or catalog so snipers can't match a specific seed's traits to
+// a tokenID and try to bid early. Mirror of BiomEngine.REVEAL in
+// specimen-engine.js (kept in sync manually since index doesn't load
+// the engine to keep landing perf lean). Flip both on reveal day.
+const REVEAL = false;
+
 // The hero is the only live render on the page. The catalog grid uses
 // pre-rendered master PNGs from R2 (one img per cell, lazy-loaded), so
 // the page runs a single specimen-engine instead of one per card.
@@ -502,9 +646,19 @@ function mountHeroIframe(el, seed) {
 // to swap the iframe to a fresh random seed.
 const heroEl = document.getElementById('heroSpecimen');
 const seedDisplay = document.getElementById('seedDisplay');
+const seedChip = document.getElementById('seedChip');
+const seedChipSep = document.getElementById('seedChipSep');
 let currentSeed = parseInt(heroEl.dataset.seed, 10) || 247;
 mountHeroIframe(heroEl, currentSeed);
-seedDisplay.textContent = String(currentSeed);
+// Pre-reveal: hide just the "BIOM #N" chip + separator (no number, no
+// leak vector). The Next button stays so users can still roll the hero.
+// Post-reveal: echo the rolling seed for collectors who want to remember.
+if (REVEAL) {
+  seedDisplay.textContent = String(currentSeed);
+} else {
+  if (seedChip) seedChip.hidden = true;
+  if (seedChipSep) seedChipSep.hidden = true;
+}
 
 document.getElementById('rollBtn').addEventListener('click', () => {
   // Avoid landing on the same seed twice in a row.
@@ -512,7 +666,26 @@ document.getElementById('rollBtn').addEventListener('click', () => {
   do { next = Math.floor(Math.random() * 3000); } while (next === currentSeed);
   currentSeed = next;
   mountHeroIframe(heroEl, currentSeed);
-  seedDisplay.textContent = String(currentSeed);
+  if (REVEAL) seedDisplay.textContent = String(currentSeed);
+});
+
+// Lab section — two preview iframes acting as a "before/after" diptych.
+// Left: a Genesis (G0) specimen. Right: the same conceptual specimen but
+// with forced overrides simulating a Phoenix-tier survivor (gold palette
+// unlock, extra organelles). Renders via preview.html's force-params,
+// no engine load on the landing.
+const heroIframes = {
+  genesis: { seed: 247, params: '' },
+  // Force a high-tier visual using the same overrides the Lab uses:
+  // gold palette, dense cell cluster, extra anomalies. The numeric seed
+  // chosen here is arbitrary — it just sets the morphology.
+  phoenix: { seed: 1900, params: '&forceStain=gold&forceCells=5&forceOrganelles=capsule,nucleoid,ribosomes,pili,flagellum,plasmid,inclusion&forcePhage=1' },
+};
+document.querySelectorAll('iframe[data-lab-seed]').forEach(f => {
+  const k = f.dataset.labSeed;
+  const cfg = heroIframes[k];
+  if (!cfg) return;
+  f.src = `preview.html?seed=${cfg.seed}&bare=1${cfg.params}`;
 });
 
 // Catalog grid — twelve hand-picked seeds showcasing the range of the
@@ -523,9 +696,9 @@ const CATALOG_SEEDS = [44, 132, 2, 176, 5, 247, 38, 64, 156, 109, 1500, 2222];
 const catalogGrid = document.getElementById('catalogGrid');
 if (catalogGrid) {
   const html = CATALOG_SEEDS.map(seed => `
-    <a class="catalog-cell" href="preview.html?seed=${seed}" target="_blank" rel="noopener" aria-label="Open Biom #${seed} in a new tab">
-      <img src="${masterUrl(seed)}" alt="Biom specimen #${seed}" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
-      <span class="seed-tag">#${String(seed).padStart(4, '0')}</span>
+    <a class="catalog-cell" href="preview.html?seed=${seed}" target="_blank" rel="noopener" aria-label="Open a Biom specimen in a new tab">
+      <img src="${masterUrl(seed)}" alt="Biom specimen" loading="lazy" decoding="async" onerror="this.parentElement.style.display='none'">
+      ${REVEAL ? `<span class="seed-tag">#${String(seed).padStart(4, '0')}</span>` : ''}
     </a>
   `).join('');
   catalogGrid.innerHTML = html;

@@ -451,7 +451,7 @@
           <div class="canvas-hint">Drag · scroll to zoom</div>
         </div>
         <div class="canvas-meta">
-          <span id="metaSeed">BIOM #247</span>
+          <span id="metaSeed">BIOM</span>
           <span class="res" id="metaRes">1500 × 500 · Twitter Header · PNG</span>
         </div>
       </div>
@@ -736,7 +736,7 @@ function updateExportStatus() {
 function renderLive() {
   if (!window.BiomEngine) return;
   window.BiomEngine.renderSpecimen(liveComp, state.seed, { isFitMode: true });
-  metaSeed.textContent = `BIOM #${state.seed}`;
+  metaSeed.textContent = window.BiomEngine.label(state.seed);
 }
 
 function setSeed(seed) {
