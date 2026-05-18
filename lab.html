@@ -312,8 +312,17 @@
       border-color: var(--ink-3);
     }
   }
-  .biom-card.selected-donor { border-color: #b94a8c; border-width: 2px; }
-  .biom-card.selected-recipient { border-color: #4a8cb9; border-width: 2px; }
+  /* Selection — selected cards visually pop. Without arena slots, the
+     collection card IS the selection UI, so it has to read clearly. */
+  .biom-card.selected-donor,
+  .biom-card.selected-recipient {
+    border-width: 3px;
+    transform: translateY(-3px);
+    box-shadow: 0 16px 32px rgba(0,0,0,0.10);
+  }
+  .biom-card.selected-donor     { border-color: #b94a8c; }
+  .biom-card.selected-recipient { border-color: #4a8cb9; }
+  body.mode-burn .biom-card.selected-donor { border-color: #c45a3a; }
   .biom-card.in-use { opacity: 0.4; pointer-events: none; }
   .biom-thumb {
     aspect-ratio: 1;
@@ -343,25 +352,28 @@
     color: var(--ink-3);
     text-align: right;
   }
+  /* Large A/B badge in the corner — replaces the old tiny "DONOR/RECIPIENT"
+     tag. With no arena slots, this is the visual cue that says "you picked
+     this Biom as Side A (or B)". Big and unambiguous. */
   .biom-card .role-tag {
     position: absolute;
-    top: 8px; right: 8px;
-    font-size: 10px;
-    padding: 3px 7px;
-    border-radius: 4px;
-    font-weight: 500;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    background: rgba(244,241,232,0.92);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    top: 10px; right: 10px;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    background: var(--ink);
+    color: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
   }
-  .biom-card.selected-donor .role-tag {
-    background: #b94a8c; color: white;
-  }
-  .biom-card.selected-recipient .role-tag {
-    background: #4a8cb9; color: white;
-  }
+  .biom-card.selected-donor     .role-tag { background: #b94a8c; }
+  .biom-card.selected-recipient .role-tag { background: #4a8cb9; }
+  body.mode-burn .biom-card.selected-donor .role-tag { background: #c45a3a; }
   .cooldown-tag {
     position: absolute;
     bottom: 56px; left: 8px;
@@ -600,8 +612,8 @@
   }
   .outcomes-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 10px;
   }
   .outcome-card {
     background: var(--paper);
@@ -628,6 +640,36 @@
     border-color: var(--ink);
     box-shadow: 0 0 0 4px rgba(28, 26, 22, 0.08);
   }
+  /* Commit-time animation on the chosen outcome card — replaces the
+     old pilus svg now that there are no arena slots. */
+  @keyframes outcome-commit {
+    0%   { transform: scale(1);    box-shadow: 0 0 0 4px rgba(28,26,22,0.08); }
+    50%  { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(28,26,22,0.16); }
+    100% { transform: scale(1);    box-shadow: 0 0 0 4px rgba(28,26,22,0.08); }
+  }
+  .outcome-card.committing,
+  .burn-preview-card.committing {
+    animation: outcome-commit 0.9s ease-in-out;
+  }
+  @keyframes outcome-success {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(74,124,74,0); }
+    50%      { box-shadow: 0 0 0 12px rgba(74,124,74,0.30); }
+  }
+  .outcome-card.flash-success,
+  .burn-preview-card.flash-success {
+    animation: outcome-success 1.2s ease-out;
+  }
+  @keyframes outcome-fail-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(2px); }
+  }
+  .outcome-card.flash-fail,
+  .burn-preview-card.flash-fail {
+    animation: outcome-fail-shake 0.5s ease-out;
+  }
   .outcome-frame {
     aspect-ratio: 1;
     background: var(--paper);
@@ -640,19 +682,20 @@
     pointer-events: none;
   }
   .outcome-meta {
-    padding: 10px 12px 12px;
+    padding: 7px 9px 9px;
     border-top: 1px solid var(--rule);
   }
   .outcome-name {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--ink);
-    margin-bottom: 2px;
+    margin-bottom: 1px;
+    line-height: 1.2;
   }
   .outcome-caption {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--ink-3);
-    line-height: 1.3;
+    line-height: 1.25;
   }
   .outcomes-empty {
     padding: 32px 24px;
@@ -1003,29 +1046,10 @@
       <span class="step-sub" id="stepSub">Tap any Biom in your collection above</span>
     </div>
 
-    <div class="arena">
-      <div class="slot donor" id="donorSlot">
-        <div class="slot-empty">
-          <span class="role">Donor</span>
-          <span class="hint">Pick a Biom above</span>
-        </div>
-      </div>
-
-      <div class="pilus-arena" id="pilusArena">
-        <svg class="pilus-svg" viewBox="0 0 100 60" preserveAspectRatio="none">
-          <path class="pilus-line" id="pilusLine" d="M 0 30 Q 50 30 100 30"/>
-          <circle class="plasmid-dot" id="plasmidDot" cx="0" cy="30" r="3.5"/>
-        </svg>
-      </div>
-
-      <div class="slot recipient" id="recipientSlot">
-        <div class="slot-empty">
-          <span class="role">Recipient</span>
-          <span class="hint">Pick another Biom</span>
-        </div>
-      </div>
-    </div>
-
+    <!-- Slots removed — selected Bioms are now highlighted directly in
+         the collection above (with A/B badges). One less layer of UI,
+         less iframe load, no duplication. The pilus animation moves
+         into the outcomes grid for commit time. -->
     <div class="outcomes" id="outcomesSection" hidden>
       <h3 class="outcomes-head">Pick an outcome</h3>
       <p class="outcomes-hint" id="outcomesHint">Every box below is a live preview of what the recipient becomes. Pick the one you like.</p>
@@ -1516,12 +1540,13 @@ function effectiveState(seed) {
 
   return {
     seed,
-    morphology: base.morphology,
-    cellCount: base.cellCount,
+    // Body-architecture traits: received-* overrides base if set
+    morphology: t.receivedMorphology || base.morphology,
+    cellCount: t.receivedCellCount || base.cellCount,
     palette,
     organelles,
-    lifecycle: base.lifecycle,
-    reserveGranule: base.reserveGranule,
+    lifecycle: t.receivedLifecycle || base.lifecycle,
+    reserveGranule: t.receivedReserve || base.reserveGranule,
     phageAttached, endosymbiont, biofilmHalo,
     depletedNow,
     receivedKeys: {
@@ -1568,7 +1593,13 @@ function previewUrlFor(seed, eff, opts = {}) {
   // would otherwise melt the user's laptop.
   if (opts.static) params.set('static', '1');
   const base = window.BiomEngine.generateState(seed);
+  // Visual traits — emit force* override only when effective state differs
+  // from the seed's base (smaller URLs, faster diffing).
   if (eff.palette !== base.palette) params.set('forceStain', eff.palette);
+  if (eff.morphology && eff.morphology !== base.morphology) params.set('forceMorph', eff.morphology);
+  if (eff.cellCount && eff.cellCount !== base.cellCount) params.set('forceCells', String(eff.cellCount));
+  if (eff.lifecycle && eff.lifecycle !== base.lifecycle) params.set('forceLifecycle', eff.lifecycle);
+  if (eff.reserveGranule && eff.reserveGranule !== base.reserveGranule) params.set('forceReserve', eff.reserveGranule);
   const baseOrg = [...base.organelles].sort().join(',');
   const effOrg  = [...eff.organelles].sort().join(',');
   if (baseOrg !== effOrg) params.set('forceOrganelles', [...eff.organelles].join(','));
@@ -1618,6 +1649,42 @@ function crossbreedOutcomes(seedA, seedB) {
   // side is still cooling down for that trait. Cards omitted = the option
   // simply doesn't appear in the gallery.
   const cooldownPool = new Set([...a.depletedNow, ...b.depletedNow]);
+
+  // Helper: emit a two-way share for a scalar trait (each direction
+  // is a separate card so the user picks WHICH value both end up with).
+  // Used for palette, morphology, lifecycle, reserve, cellCount.
+  function emitScalarShare(traitId, kind, label, aVal, bVal, formatValue) {
+    if (cooldownPool.has(traitId)) return;
+    if (aVal === bVal) return;
+    const fromAName = formatValue ? formatValue(aVal) : String(aVal);
+    const fromBName = formatValue ? formatValue(bVal) : String(bVal);
+    // A's value applied to B (B changes)
+    const bNext = { ...b, organelles: new Set(b.organelles) };
+    bNext[kind] = aVal;
+    out.push({
+      id: `${traitId}_a`,
+      kind, traitId,
+      label: `Share A's ${label}`,
+      caption: `B becomes ${fromAName}`,
+      changedSeed: seedB,
+      previewState: bNext,
+      sharedTraitId: traitId,
+      apply: { [`set_${kind}`]: aVal },
+    });
+    // B's value applied to A (A changes)
+    const aNext = { ...a, organelles: new Set(a.organelles) };
+    aNext[kind] = bVal;
+    out.push({
+      id: `${traitId}_b`,
+      kind, traitId,
+      label: `Share B's ${label}`,
+      caption: `A becomes ${fromBName}`,
+      changedSeed: seedA,
+      previewState: aNext,
+      sharedTraitId: traitId,
+      apply: { [`set_${kind}`]: bVal },
+    });
+  }
 
   // Palette: if different, generate one card per direction
   if (cooldownPool.has('palette')) {
@@ -1692,6 +1759,32 @@ function crossbreedOutcomes(seedA, seedB) {
     });
   }
 
+  // Body-architecture traits — the dramatic ones. Morphology completely
+  // changes the shape of the organism. Lifecycle changes its state.
+  // Reserve granule changes internal inclusions. CellCount changes how
+  // many cells make up the colony.
+  const MORPH_LABELS = {
+    coccus: 'cocci (round)', bacillus: 'bacillus (rod)',
+    vibrio: 'vibrio (comma)', spirillum: 'spirillum (spiral)',
+    filament: 'filament', cluster: 'cluster (grape)', diplo: 'diplo (pair)',
+    streptobacillus: 'streptobacillus (chain)', tetrad: 'tetrad (4-pack)',
+    sarcina: 'sarcina (cube)', mycelium: 'mycelium (branching)',
+  };
+  const LIFECYCLE_LABELS = {
+    vegetative: 'vegetative state',
+    binary_fission: 'binary fission',
+    sporulating: 'sporulating state',
+    heterocyst: 'heterocyst state',
+  };
+  const RESERVE_LABELS = {
+    none: 'no granule', phb: 'PHB granules', volutin: 'volutin granules',
+    magnetosomes: 'magnetosomes', sulfur: 'sulfur granules', crystalline: 'crystalline inclusions',
+  };
+  emitScalarShare('morphology', 'morphology', 'body shape', a.morphology, b.morphology, v => MORPH_LABELS[v] || v);
+  emitScalarShare('lifecycle', 'lifecycle', 'lifecycle', a.lifecycle, b.lifecycle, v => LIFECYCLE_LABELS[v] || v);
+  emitScalarShare('reserve', 'reserveGranule', 'reserve granule', a.reserveGranule, b.reserveGranule, v => RESERVE_LABELS[v] || v);
+  emitScalarShare('cellCount', 'cellCount', 'cell count', a.cellCount, b.cellCount, v => `${v} cell${v === 1 ? '' : 's'}`);
+
   return out;
 }
 
@@ -1760,15 +1853,22 @@ function addRandom(n) {
 // ============================================================
 const collectionGrid = document.getElementById('collectionGrid');
 const collectionEmpty = document.getElementById('collectionEmpty');
-const donorSlot = document.getElementById('donorSlot');
-const recipientSlot = document.getElementById('recipientSlot');
+// Arena slots removed — selection is shown directly on collection cards.
+// Keep these refs as null-safe placeholders so the legacy animation code
+// (which targeted .slot for flash + .pilus-arena for the pilus svg) can
+// no-op cleanly. The new commit-time visual is a glow on the outcome card.
+const donorSlot = null;
+const recipientSlot = null;
 // (traitPicker/traitOptions removed — outcomes gallery uses its own DOM refs)
 const conjugateBtn = document.getElementById('conjugateBtn');
 const statusLine = document.getElementById('statusLine');
 const logList = document.getElementById('logList');
 const logEmpty = document.getElementById('logEmpty');
-const pilusArena = document.getElementById('pilusArena');
-const plasmidDot = document.getElementById('plasmidDot');
+// Pilus svg removed alongside arena slots — commit animation now uses
+// the outcome card itself (glow + scale). Null placeholders so legacy
+// code can no-op safely.
+const pilusArena = null;
+const plasmidDot = null;
 
 function setStatus(msg, kind = '') {
   statusLine.textContent = msg || '';
@@ -1848,7 +1948,15 @@ function renderCollection() {
     for (let i = 0; i < Math.min(receivedCount, 3); i++) badges.push('<span class="mutation-badge"></span>');
     for (let i = 0; i < Math.min(depletedCount, 3); i++) badges.push('<span class="mutation-badge depleted"></span>');
 
-    const roleTag = isDonor ? 'Donor' : (isRecipient ? 'Recipient' : '');
+    // Big single-glyph badge per mode. Crossbreed = A/B (peers).
+    // Burn = 🔥 (sacrifice) / + (absorber).
+    const roleTag = (() => {
+      if (!isDonor && !isRecipient) return '';
+      if (arenaMode === 'burn') {
+        return isDonor ? '🔥' : '+';
+      }
+      return isDonor ? 'A' : 'B';
+    })();
     const traitCount = [...eff.organelles].length - 1; // exclude capsule from count
 
     return `
@@ -2088,7 +2196,6 @@ function findCrossbreedOutcome(seedA, seedB, id) {
 // One call to rule them all — keeps slot/collection/picker/banner/button
 // in sync without scattered re-render calls.
 function renderArenaAll() {
-  renderSlots();
   renderCollection();
   renderOutcomes();
   renderStepBanner();
@@ -2096,17 +2203,17 @@ function renderArenaAll() {
 }
 
 function renderSlots() {
-  const step = currentStep();
-  renderSlot(donorSlot, 'donor', donorSeed, step === 'donor');
-  renderSlot(recipientSlot, 'recipient', recipientSeed, step === 'recipient');
+  // Slots removed in the compact-layout redesign. Selection now lives on
+  // collection cards (with A/B badges and grow-on-select). This function
+  // is kept as a no-op so legacy call sites don't need to be hunted down.
 }
 
-// Track which iframe URLs are currently in the slots so we only rebuild
-// when needed — switching URL on every re-render would flicker badly.
-// Donor + recipient slots always show their CURRENT state — outcome
-// previews live in the outcomes gallery below, not in the slots.
+// Legacy renderSlot — unreachable now (renderSlots no longer calls it).
+// Left in place purely as reference for the slot rendering logic in case
+// we ever bring slots back. Not exported / not called.
 const _slotUrlCache = { donor: null, recipient: null };
 function renderSlot(el, role, seed, isTarget) {
+  if (!el) return;
   el.classList.toggle('target', isTarget && seed === null);
   const label = SLOT_LABELS[arenaMode][role];
   if (seed === null) {
@@ -2194,6 +2301,11 @@ function applyMutation(seed, apply) {
     ts.receivedAnomalies = ts.receivedAnomalies || [];
     if (!ts.receivedAnomalies.includes(apply.setAnomaly)) ts.receivedAnomalies.push(apply.setAnomaly);
   }
+  // Body-architecture mutations from emitScalarShare's apply payload.
+  if (apply.set_morphology)      ts.receivedMorphology = apply.set_morphology;
+  if (apply.set_lifecycle)       ts.receivedLifecycle  = apply.set_lifecycle;
+  if (apply.set_reserveGranule)  ts.receivedReserve    = apply.set_reserveGranule;
+  if (apply.set_cellCount)       ts.receivedCellCount  = apply.set_cellCount;
 }
 
 // CROSSBREED — both Bioms gain the shared trait, both go on cooldown.
@@ -2297,13 +2409,11 @@ async function runCommitAnimation() {
     console.warn('Lab: commit animation error', e);
     setStatus('Something went wrong. Reset and try again.', 'fail');
   } finally {
-    // Belt-and-braces: always release the animation lock so a thrown error
-    // doesn't permanently freeze the UI.
     isAnimating = false;
-    pilusArena.classList.remove('active', 'success', 'fail');
-    donorSlot.classList.remove('flash-success', 'flash-fail');
-    recipientSlot.classList.remove('flash-success', 'flash-fail');
-    plasmidDot.setAttribute('cx', 0);
+    // Clean up any per-card animation classes
+    outcomesGrid.querySelectorAll('.outcome-card').forEach(c => {
+      c.classList.remove('committing', 'flash-success', 'flash-fail');
+    });
     renderArenaAll();
   }
 }
@@ -2312,71 +2422,36 @@ async function _runCommitAnimationInner() {
   const a = donorSeed, b = recipientSeed;
   setStatus(mode === 'burn' ? 'Burning…' : 'Crossbreeding…');
 
-  pilusArena.classList.add('active');
-  pilusArena.classList.remove('success', 'fail');
+  // Find the active outcome card (the one user picked) and glow it
+  const activeCard = outcomesGrid.querySelector('.outcome-card.active') || outcomesGrid.querySelector('.burn-preview-card');
+  if (activeCard) activeCard.classList.add('committing');
 
-  // Animate dot traveling along the pilus (works for both modes —
-  // crossbreed = trait moves across, burn = burnt essence flows into absorber).
-  const totalMs = 1400;
-  const startTs = performance.now();
-  const animatePromise = new Promise(resolve => {
-    function step(t) {
-      const elapsed = t - startTs;
-      const p = Math.min(1, elapsed / totalMs);
-      plasmidDot.setAttribute('cx', p * 100);
-      plasmidDot.setAttribute('cy', 30 + Math.sin(p * Math.PI) * 8);
-      if (p < 1) requestAnimationFrame(step);
-      else resolve();
-    }
-    requestAnimationFrame(step);
-  });
-
+  // Run game logic in parallel with a short visual hold
+  const animatePromise = new Promise(r => setTimeout(r, 900));
   const resultPromise = performCommitDispatch();
   const [, result] = await Promise.all([animatePromise, resultPromise]);
 
   if (result.error) {
-    pilusArena.classList.add('fail');
+    if (activeCard) activeCard.classList.add('flash-fail');
     setStatus(result.error, 'fail');
   } else if (result.ok) {
-    pilusArena.classList.add('success');
-    donorSlot.classList.add('flash-success');
-    recipientSlot.classList.add('flash-success');
+    if (activeCard) activeCard.classList.add('flash-success');
     if (mode === 'burn') {
       setStatus(`Burn complete — #${a} consumed by #${b}.`, 'ok');
     } else {
-      setStatus(`Crossbred — #${a} and #${b} now share the trait.`, 'ok');
+      setStatus(`Crossbred — #${a} now becomes the hybrid.`, 'ok');
     }
   } else if (result.rejected) {
-    pilusArena.classList.add('fail');
-    recipientSlot.classList.add('flash-fail');
+    if (activeCard) activeCard.classList.add('flash-fail');
     setStatus(`Crossbreed rejected — try again or pick another outcome.`, 'miss');
-    // Bounce plasmid back
-    await new Promise(resolve => {
-      const startTs2 = performance.now();
-      function step(t) {
-        const elapsed = t - startTs2;
-        const p = Math.min(1, elapsed / 600);
-        plasmidDot.setAttribute('cx', 100 - p * 100);
-        plasmidDot.setAttribute('cy', 30);
-        if (p < 1) requestAnimationFrame(step);
-        else resolve();
-      }
-      requestAnimationFrame(step);
-    });
   }
 
-  // Refresh visuals while the result state holds
-  renderSlots();
   renderCollection();
   renderLog();
 
-  // Let the user see the result for ~1.5s before the finally cleanup
-  // kicks in and resets the arena.
+  // Hold the result for ~1.5s before cleanup
   await new Promise(r => setTimeout(r, 1500));
 
-  // After successful commit, reset arena (the finally block runs the
-  // re-render). For burn, the burnt seed is already out of ownedSeeds
-  // so the slot would be invalid anyway.
   if (result.ok) {
     donorSeed = null;
     recipientSeed = null;
@@ -2659,7 +2734,6 @@ setInterval(() => {
 // ============================================================
 applyMode();
 renderCollection();
-renderSlots();
 renderOutcomes();
 renderStepBanner();
 renderLog();
