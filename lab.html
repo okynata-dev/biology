@@ -647,6 +647,20 @@
     color: var(--ink-3);
     font-size: 14px;
   }
+  /* Single big preview shown in burn mode (no choice to make). */
+  .burn-preview-card {
+    background: var(--paper);
+    border: 2px solid #c45a3a;
+    border-radius: 14px;
+    overflow: hidden;
+    max-width: 360px;
+    box-shadow: 0 0 0 4px rgba(196, 90, 58, 0.10);
+  }
+  .burn-preview-card .outcome-frame { aspect-ratio: 1; background: var(--paper); position: relative; }
+  .burn-preview-card .outcome-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .burn-preview-card .outcome-meta { padding: 12px 14px 14px; border-top: 1px solid var(--rule); }
+  .burn-preview-card .outcome-name { font-size: 14px; font-weight: 500; color: var(--ink); margin-bottom: 4px; }
+  .burn-preview-card .outcome-caption { font-size: 13px; color: var(--ink-2); line-height: 1.4; }
 
   /* (trait-picker / change-preview CSS removed — replaced by outcomes gallery) */
 
@@ -792,6 +806,90 @@
     80% { transform: translateX(2px); }
   }
   .slot.flash-fail { animation: recipient-shake 0.5s ease-out; }
+
+  /* === ARENA MODE TABS — Crossbreed vs Burn === */
+  .arena-mode-tabs {
+    display: inline-flex;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 4px;
+    margin-bottom: 24px;
+    gap: 2px;
+  }
+  .arena-mode-tab {
+    background: transparent;
+    border: 0;
+    font: inherit;
+    cursor: pointer;
+    padding: 9px 22px;
+    border-radius: 999px;
+    color: var(--ink-3);
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .arena-mode-tab:not(.active):hover { color: var(--ink); }
+  .arena-mode-tab.active { background: var(--ink); color: var(--bg); }
+  .arena-mode-tab[data-mode="burn"].active { background: #c45a3a; }
+  .arena-mode-tab .tab-icon {
+    width: 14px; height: 14px;
+  }
+
+  /* Burn-mode slot styling — left slot is the sacrifice */
+  body.mode-burn .slot.donor.filled { border-color: #c45a3a; }
+  body.mode-burn .slot.donor .role-label { color: #c45a3a; }
+  body.mode-burn .slot.donor::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(196, 90, 58, 0.04);
+    pointer-events: none;
+    z-index: 1;
+  }
+  body.mode-burn .slot.donor.target {
+    animation: slot-pulse-burn 2s ease-in-out infinite;
+  }
+  @keyframes slot-pulse-burn {
+    0%, 100% { border-color: rgba(196, 90, 58, 0.35); }
+    50%      { border-color: #c45a3a; }
+  }
+  /* Big Burn button in burn mode */
+  body.mode-burn .btn-big.ready {
+    background: #c45a3a;
+    border-color: #c45a3a;
+    color: white;
+    animation-name: ready-breathe-burn;
+  }
+  @keyframes ready-breathe-burn {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(196, 90, 58, 0); }
+    50%      { box-shadow: 0 0 0 6px rgba(196, 90, 58, 0.20); }
+  }
+  body.mode-burn .btn-big.ready:hover { background: #a84a2e; border-color: #a84a2e; }
+
+  /* Confirm dialog for burn (lightweight inline, not a modal) */
+  .burn-confirm {
+    display: none;
+    margin-top: 18px;
+    padding: 16px 20px;
+    background: rgba(196, 90, 58, 0.06);
+    border: 1px solid rgba(196, 90, 58, 0.3);
+    border-radius: 10px;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .burn-confirm.visible { display: flex; }
+  .burn-confirm-text {
+    flex: 1;
+    min-width: 200px;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .burn-confirm-text strong { font-weight: 500; }
 </style>
 </head>
 <body>
@@ -822,7 +920,7 @@
       <div>
         <h1>The Lab.</h1>
       </div>
-      <p class="intro-tag">Splice traits between Bioms. The donor gives a trait. The recipient receives it. The donor regenerates over time.</p>
+      <p class="intro-tag">Crossbreed two Bioms to share a trait. Or burn one to feed all its traits into another. The collection is a living thing.</p>
     </div>
   </div>
 </section>
@@ -861,13 +959,31 @@
 
     <div style="margin-top: 64px;"></div>
 
+    <!-- Mode tabs — Crossbreed (gentle, mutual share) vs Burn (sacrifice
+         one to power up the other). Tabs sit above the step banner so
+         the user picks WHAT they want to do before being walked through
+         picking pairs. -->
+    <div class="arena-mode-tabs" role="tablist" aria-label="Lab action">
+      <button class="arena-mode-tab active" data-mode="crossbreed" type="button" role="tab" aria-selected="true">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 4v16M16 4v16M4 8h16M4 16h16"/>
+        </svg>
+        Crossbreed
+      </button>
+      <button class="arena-mode-tab" data-mode="burn" type="button" role="tab" aria-selected="false">
+        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2c1 3 4 6 4 10a4 4 0 1 1-8 0c0-3 2-5 4-10z"/>
+        </svg>
+        Burn
+      </button>
+    </div>
+
     <!-- Step banner — replaces the wall-of-text intro. ONE clear next-
-         action at a time, color-coded to the slot it relates to. The whole
-         lab flow becomes: step 1 → step 2 → step 3 → tap Conjugate. -->
+         action at a time, color-coded to the slot it relates to. -->
     <div class="step-banner" id="stepBanner" data-step="donor">
       <span class="step-dot"></span>
       <span class="step-number">1</span>
-      <span class="step-label" id="stepLabel">Pick a donor</span>
+      <span class="step-label" id="stepLabel">Pick a Biom</span>
       <span class="step-sub" id="stepSub">Tap any Biom in your collection above</span>
     </div>
 
@@ -901,9 +1017,18 @@
     </div>
 
     <div class="conjugate-row">
-      <button class="btn btn-big" id="conjugateBtn" type="button" disabled>Conjugate</button>
+      <button class="btn btn-big" id="conjugateBtn" type="button" disabled>Crossbreed</button>
       <button class="btn btn-ghost" id="resetBtn" type="button">Reset arena</button>
       <span class="status-line" id="statusLine"></span>
+    </div>
+
+    <!-- Burn confirmation inline panel — appears between button click and
+         actual burn in burn mode. Burning is destructive so it needs a
+         second tap to confirm. -->
+    <div class="burn-confirm" id="burnConfirm">
+      <span class="burn-confirm-text" id="burnConfirmText"></span>
+      <button class="btn" type="button" id="burnConfirmYes" style="background:#c45a3a; border-color:#c45a3a;">Yes, burn it</button>
+      <button class="btn btn-ghost" type="button" id="burnConfirmNo">Cancel</button>
     </div>
   </div>
 </section>
@@ -912,7 +1037,7 @@
   <div class="wrap">
     <h2>Activity</h2>
     <div class="log-list" id="logList">
-      <div class="log-empty" id="logEmpty">No conjugations yet. Try one above.</div>
+      <div class="log-empty" id="logEmpty">Nothing yet. Crossbreed or burn a pair above.</div>
     </div>
   </div>
 </section>
@@ -1050,10 +1175,20 @@ function pickInitialMode() {
 let LabState = Storage.load(pickInitialMode());
 
 // In-memory selection (not persisted)
-let donorSeed = null;
-let recipientSeed = null;
-let selectedTrait = null;
+//
+// Arena has TWO MODES:
+//   'crossbreed' — slotA and slotB are symmetric. Pick an outcome to
+//                  share between them. Both gain, both cooldown.
+//   'burn'       — slotA = Biom to burn (sacrificed permanently),
+//                  slotB = absorber (gains all of A's traits).
+//                  Variable names retain 'donor/recipient' for historical
+//                  reasons; the UI labels them per-mode.
+let arenaMode = 'crossbreed';
+let donorSeed = null;            // slotA: peer in crossbreed, sacrifice in burn
+let recipientSeed = null;        // slotB: peer in crossbreed, absorber in burn
+let selectedTrait = null;        // outcome id (different shape per mode)
 let isAnimating = false;
+let pendingBurnConfirm = false;  // burn waits for explicit confirmation
 
 // ============================================================
 // WALLET MODULE — window.ethereum integration + EIP-712 sign +
@@ -1334,35 +1469,29 @@ function effectiveState(seed) {
   const t = LabState.tokens[seed] || {};
   const now = Date.now();
 
-  // Determine which donated traits are still in cooldown
+  // Active cooldowns — used to BLOCK further sharing of a trait, not to
+  // visually remove anything. In the crossbreed/burn model, both parties
+  // GAIN; the cooldown is just a rate-limit on how often the same gene
+  // can be passed around. Visual state never loses traits.
   const depletedNow = new Set();
   for (const d of (t.donated || [])) {
     if (d.regeneratesAt > now) depletedNow.add(d.trait);
   }
 
-  // Organelles: start from base, add received, remove depleted.
-  // Defensive: only add to organelles set if the trait is actually an
-  // organelle (guards against corrupt state where an anomaly id sneaks
-  // into receivedOrganelles).
+  // Organelles: base + received. Cooldowns do NOT remove traits here —
+  // they're a separate rate-limit signal.
   const organelles = new Set(base.organelles);
   for (const o of (t.receivedOrganelles || [])) {
     if (TRANSFERABLE_BY_ID[o]?.kind === 'organelle') organelles.add(o);
   }
-  for (const o of depletedNow) {
-    if (TRANSFERABLE_BY_ID[o]?.kind === 'organelle') organelles.delete(o);
-  }
 
-  // Palette: received overrides base. Depleted palette doesn't change visual
-  // (you always have SOME color), it just blocks re-donating.
+  // Palette: received overrides base.
   const palette = t.receivedPalette || base.palette;
 
-  // Anomalies: base value, then "+ received" or "- depleted" overrides.
-  // Same defensive filter — only honor receivedAnomalies entries that
-  // are actually anomaly-kind traits.
+  // Anomalies: base OR received.
   function effectiveAnomaly(name) {
     const received = (t.receivedAnomalies || []).filter(a => TRANSFERABLE_BY_ID[a]?.kind === 'anomaly');
     if (received.includes(name)) return true;
-    if (depletedNow.has(name)) return false;
     return base[name];
   }
   const phageAttached = effectiveAnomaly('phageAttached');
@@ -1431,32 +1560,7 @@ function previewUrl(seed, opts = {}) {
   return previewUrlFor(seed, effectiveState(seed), opts);
 }
 
-// Compute what the RECIPIENT will look like AFTER a given trait is
-// transferred from the donor. Used for the live "preview" iframe.
-function recipientPreviewState(donorSeed, recipientSeed, trait) {
-  const recip = effectiveState(recipientSeed);
-  const donor = effectiveState(donorSeed);
-  const kind = TRANSFERABLE_BY_ID[trait]?.kind;
-  // Start from current effective state, layer the prospective change.
-  const next = {
-    palette: recip.palette,
-    organelles: new Set(recip.organelles),
-    phageAttached: recip.phageAttached,
-    endosymbiont: recip.endosymbiont,
-    biofilmHalo: recip.biofilmHalo,
-  };
-  if (kind === 'palette') {
-    next.palette = donor.palette;
-  } else if (kind === 'organelle') {
-    next.organelles.add(trait);
-  } else if (kind === 'anomaly') {
-    next[trait] = true;
-  }
-  return next;
-}
-
-// Human-readable description of the prospective change.
-// Used in the "what will happen" hint below the arena.
+// Human-readable palette labels (used in captions).
 const PALETTE_LABELS = {
   gramPositive: 'Gram-positive violet',
   gramNegative: 'Gram-negative pink',
@@ -1471,32 +1575,127 @@ const PALETTE_LABELS = {
   india_ink: 'India-ink silhouette',
   gram_variable: 'Gram-variable mix',
 };
-function describeChange(donorSeed, recipientSeed, trait) {
-  const tdef = TRANSFERABLE_BY_ID[trait];
-  if (!tdef) return { text: '', noop: false };
-  const recip = effectiveState(recipientSeed);
-  if (tdef.kind === 'palette') {
-    const donor = effectiveState(donorSeed);
-    const fromName = PALETTE_LABELS[recip.palette] || recip.palette;
-    const toName   = PALETTE_LABELS[donor.palette] || donor.palette;
-    if (recip.palette === donor.palette) {
-      return { text: `Recipient already has ${toName} — no visual change. Donor still goes on cooldown.`, noop: true };
-    }
-    return { text: `Recolor: ${fromName} → ${toName}.`, noop: false };
+
+// ============================================================
+// CROSSBREED OUTCOMES — what unique traits can be shared between two
+// Bioms. An outcome card represents ONE share: the partner that
+// doesn't have the trait gains it. Result: both end up with it.
+//
+// Rules:
+//   - Palette: if A and B have different palettes, generate TWO cards
+//     ("share A's stain" + "share B's stain") — user picks the colour
+//   - Organelle: if exactly one has it, generate ONE card (the other gains it)
+//   - Anomaly: same as organelle
+//   - If both already share it → no card (no-op)
+//   - If neither has it → no card (nothing to share)
+// ============================================================
+function crossbreedOutcomes(seedA, seedB) {
+  const a = effectiveState(seedA);
+  const b = effectiveState(seedB);
+  const out = [];
+  // Cooldowns block sharing the same trait between this pair while either
+  // side is still cooling down for that trait. Cards omitted = the option
+  // simply doesn't appear in the gallery.
+  const cooldownPool = new Set([...a.depletedNow, ...b.depletedNow]);
+
+  // Palette: if different, generate one card per direction
+  if (cooldownPool.has('palette')) {
+    // skip palette options entirely while on cooldown
+  } else if (a.palette !== b.palette) {
+    out.push({
+      id: `palette_a`,
+      kind: 'palette',
+      label: 'Share A\'s stain',
+      caption: `Both become ${PALETTE_LABELS[a.palette]}`,
+      // Which seed visually CHANGES (used for the preview iframe)
+      changedSeed: seedB,
+      previewState: { ...b, palette: a.palette, organelles: new Set(b.organelles) },
+      // Trait id that goes on cooldown for both
+      sharedTraitId: 'palette',
+      // Mutation we'll apply to BOTH on commit
+      apply: { palette: a.palette },
+    });
+    out.push({
+      id: `palette_b`,
+      kind: 'palette',
+      label: 'Share B\'s stain',
+      caption: `Both become ${PALETTE_LABELS[b.palette]}`,
+      changedSeed: seedA,
+      previewState: { ...a, palette: b.palette, organelles: new Set(a.organelles) },
+      sharedTraitId: 'palette',
+      apply: { palette: b.palette },
+    });
   }
-  if (tdef.kind === 'organelle') {
-    if (recip.organelles.has(trait)) {
-      return { text: `Recipient already has ${tdef.label.toLowerCase()} — no visual change. Donor still goes on cooldown.`, noop: true };
-    }
-    return { text: `Recipient will gain ${tdef.label.toLowerCase()}.`, noop: false };
+
+  // Organelles: trait one has and the other doesn't
+  for (const tdef of TRANSFERABLE.filter(t => t.kind === 'organelle')) {
+    if (cooldownPool.has(tdef.id)) continue;
+    const aHas = a.organelles.has(tdef.id);
+    const bHas = b.organelles.has(tdef.id);
+    if (aHas === bHas) continue;  // both or neither — no card
+    const gainer = aHas ? seedB : seedA;
+    const gainerEff = aHas ? b : a;
+    const next = { ...gainerEff, organelles: new Set(gainerEff.organelles) };
+    next.organelles.add(tdef.id);
+    out.push({
+      id: `org_${tdef.id}`,
+      kind: 'organelle',
+      label: `Share ${tdef.label}`,
+      caption: `${aHas ? 'B' : 'A'} gains ${tdef.label.toLowerCase()}`,
+      changedSeed: gainer,
+      previewState: next,
+      sharedTraitId: tdef.id,
+      apply: { addOrganelle: tdef.id },
+    });
   }
-  if (tdef.kind === 'anomaly') {
-    if (recip[trait]) {
-      return { text: `Recipient already has ${tdef.label.toLowerCase()} — no visual change. Donor still goes on cooldown.`, noop: true };
-    }
-    return { text: `Recipient will gain ${tdef.label.toLowerCase()} — ultra-rare anomaly.`, noop: false };
+
+  // Anomalies: same logic, different field
+  for (const tdef of TRANSFERABLE.filter(t => t.kind === 'anomaly')) {
+    if (cooldownPool.has(tdef.id)) continue;
+    const aHas = !!a[tdef.id];
+    const bHas = !!b[tdef.id];
+    if (aHas === bHas) continue;
+    const gainer = aHas ? seedB : seedA;
+    const gainerEff = aHas ? b : a;
+    const next = { ...gainerEff, organelles: new Set(gainerEff.organelles) };
+    next[tdef.id] = true;
+    out.push({
+      id: `anom_${tdef.id}`,
+      kind: 'anomaly',
+      label: `Share ${tdef.label}`,
+      caption: `${aHas ? 'B' : 'A'} gains ${tdef.label.toLowerCase()} (rare)`,
+      changedSeed: gainer,
+      previewState: next,
+      sharedTraitId: tdef.id,
+      apply: { setAnomaly: tdef.id },
+    });
   }
-  return { text: '', noop: false };
+
+  return out;
+}
+
+// ============================================================
+// BURN OUTCOME — single deterministic preview. Absorber gets every
+// organelle and anomaly the burnt Biom has. Palette is NOT inherited
+// (so users don't accidentally lose their preferred colour).
+// ============================================================
+function burnOutcome(burnSeed, absorbSeed) {
+  const burnEff = effectiveState(burnSeed);
+  const absEff  = effectiveState(absorbSeed);
+  const next = {
+    palette: absEff.palette,  // absorber keeps their own colour
+    organelles: new Set([...absEff.organelles, ...burnEff.organelles]),
+    phageAttached: absEff.phageAttached || burnEff.phageAttached,
+    endosymbiont:  absEff.endosymbiont  || burnEff.endosymbiont,
+    biofilmHalo:   absEff.biofilmHalo   || burnEff.biofilmHalo,
+  };
+  // Compute deltas for a human-readable summary
+  const gainedOrganelles = [...burnEff.organelles].filter(o => !absEff.organelles.has(o) && o !== 'capsule' && o !== 'nucleoid');
+  const gainedAnomalies = [];
+  if (burnEff.phageAttached && !absEff.phageAttached) gainedAnomalies.push('phage');
+  if (burnEff.endosymbiont  && !absEff.endosymbiont)  gainedAnomalies.push('endosymbiont');
+  if (burnEff.biofilmHalo   && !absEff.biofilmHalo)   gainedAnomalies.push('biofilm halo');
+  return { next, gainedOrganelles, gainedAnomalies };
 }
 
 // ============================================================
@@ -1667,25 +1866,47 @@ function renderCollection() {
 function currentStep() {
   if (donorSeed === null) return 'donor';
   if (recipientSeed === null) return 'recipient';
+  // Burn mode auto-selects (only one possible outcome: absorb everything),
+  // so picking the recipient is enough — go straight to 'ready'.
+  if (arenaMode === 'burn') return 'ready';
   if (selectedTrait === null) return 'trait';
   return 'ready';
 }
 
+// Step copy is mode-aware. The flow is the same skeleton (pick slot A,
+// pick slot B, pick outcome, tap commit button) but the WORDS change so
+// the user always knows whether they're doing something gentle or
+// something destructive.
 const STEP_COPY = {
-  donor:     { num: '1', label: 'Pick a donor',      sub: 'Tap any Biom in your collection above — that one gives the trait.' },
-  recipient: { num: '2', label: 'Pick a recipient',  sub: 'Tap another Biom — that one receives the trait.' },
-  trait:     { num: '3', label: 'Pick an outcome',   sub: 'Each preview below is a possible result. Pick the one you like.' },
-  ready:     { num: '4', label: 'Tap Conjugate',     sub: 'Hit the button — about 15% of transfers are rejected, that\'s the game.' },
+  crossbreed: {
+    donor:     { num: '1', label: 'Pick first Biom',  sub: 'Tap any Biom in your collection above.' },
+    recipient: { num: '2', label: 'Pick second Biom', sub: 'Tap another Biom — they\'ll share a trait between them.' },
+    trait:     { num: '3', label: 'Pick what to share', sub: 'Each preview is a possible result. Pick the one you like.' },
+    ready:     { num: '4', label: 'Tap Crossbreed',  sub: 'Both Bioms gain the trait. About 15% of crossbreeds are rejected.' },
+  },
+  burn: {
+    donor:     { num: '1', label: 'Pick a Biom to burn', sub: 'This one will be permanently destroyed — pick wisely.' },
+    recipient: { num: '2', label: 'Pick a Biom to absorb it', sub: 'It gains every organelle and anomaly from the burnt one.' },
+    trait:     { num: '3', label: 'Confirm the merge', sub: 'Review the preview below — this is what the absorber becomes.' },
+    ready:     { num: '3', label: 'Tap Burn & Absorb', sub: 'The burn is permanent. The absorber gets everything.' },
+  },
+};
+// Per-mode slot labels (donor/recipient role names).
+const SLOT_LABELS = {
+  crossbreed: { donor: 'Biom A', recipient: 'Biom B' },
+  burn:       { donor: 'Burn',   recipient: 'Absorber' },
 };
 
 function renderStepBanner() {
   const step = currentStep();
-  const c = STEP_COPY[step];
+  const c = STEP_COPY[arenaMode][step];
   const banner = document.getElementById('stepBanner');
   banner.dataset.step = step;
   document.getElementById('stepLabel').textContent = c.label;
   document.getElementById('stepSub').textContent = c.sub;
-  banner.querySelector('.step-number').textContent = c.num + '/4';
+  // Burn has 3 steps (no separate "trait" step — the merge preview IS step 3).
+  const totalSteps = arenaMode === 'burn' ? 3 : 4;
+  banner.querySelector('.step-number').textContent = c.num + '/' + totalSteps;
 }
 
 function onBiomClick(seed) {
@@ -1754,72 +1975,88 @@ function renderOutcomes() {
   }
   outcomesSection.hidden = false;
 
-  // Filter: only "actually meaningful" transfers
-  // - donor must currently have the trait + not on cooldown
-  // - recipient must NOT already have it (no-ops hidden — they're traps)
-  const all = transferableForDonor(donorSeed);
-  const recipUrlCurrent = previewUrl(recipientSeed, { nointeract: true });
-  const meaningful = all.filter(opt => {
-    if (!opt.transferable) return false;
-    const after = recipientPreviewState(donorSeed, recipientSeed, opt.id);
-    const previewUrlAfter = previewUrlFor(recipientSeed, after, { nointeract: true });
-    return previewUrlAfter !== recipUrlCurrent;
-  });
-
-  const pairKey = `${donorSeed}-${recipientSeed}`;
-
-  // Pair changed → rebuild iframes (this is the expensive case)
-  if (pairKey !== _outcomesPairKey) {
-    _outcomesPairKey = pairKey;
-    if (meaningful.length === 0) {
-      _outcomesEmpty = true;
-      outcomesHint.hidden = true;
-      const cooldownCount = all.filter(o => o.has && o.onCooldown).length;
-      outcomesGrid.innerHTML = `<div class="outcomes-empty">${
-        cooldownCount > 0
-          ? `Donor's transferable traits are still regenerating. Try another donor.`
-          : `Recipient already has everything this donor can offer. Try a different pair.`
-      }</div>`;
-      return;
-    }
-    _outcomesEmpty = false;
-    outcomesHint.hidden = false;
-    outcomesGrid.innerHTML = meaningful.map(opt => {
-      const after = recipientPreviewState(donorSeed, recipientSeed, opt.id);
-      const url = previewUrlFor(recipientSeed, after, { nointeract: true });
-      const { text } = describeChange(donorSeed, recipientSeed, opt.id);
-      // Short caption — strip the "Recipient will gain X" prefix to fit
-      const caption = text
-        .replace(/^Recipient will gain /, 'Gains ')
-        .replace(/ — ultra-rare anomaly\./, '')
-        .replace(/\.$/, '');
-      return `
-        <button type="button" class="outcome-card" data-trait="${opt.id}" aria-label="${opt.label}: ${text}">
-          <div class="outcome-frame">
-            <iframe src="${url}" loading="lazy" tabindex="-1"></iframe>
-          </div>
-          <div class="outcome-meta">
-            <div class="outcome-name">${opt.label}</div>
-            <div class="outcome-caption">${caption}</div>
-          </div>
-        </button>
-      `;
-    }).join('');
-    outcomesGrid.querySelectorAll('.outcome-card').forEach(card => {
-      card.addEventListener('click', () => {
-        if (isAnimating) return;
-        selectedTrait = card.dataset.trait;
-        renderArenaAll();
+  const pairKey = `${arenaMode}:${donorSeed}-${recipientSeed}`;
+  if (pairKey === _outcomesPairKey) {
+    // No rebuild needed — just refresh selection-active state
+    if (!_outcomesEmpty) {
+      outcomesGrid.querySelectorAll('.outcome-card').forEach(card => {
+        card.classList.toggle('active', card.dataset.trait === selectedTrait);
       });
-    });
+    }
+    return;
+  }
+  _outcomesPairKey = pairKey;
+
+  // --- BURN MODE: one big preview, no choice gallery ---
+  if (arenaMode === 'burn') {
+    document.querySelector('.outcomes-head').textContent = 'After the burn, Absorber becomes:';
+    outcomesHint.textContent = `${SLOT_LABELS.burn.donor} #${donorSeed} will be permanently destroyed. ${SLOT_LABELS.burn.recipient} #${recipientSeed} keeps its own stain and gains every organelle and anomaly from the burn.`;
+    outcomesHint.hidden = false;
+    const { next, gainedOrganelles, gainedAnomalies } = burnOutcome(donorSeed, recipientSeed);
+    const url = previewUrlFor(recipientSeed, next, { nointeract: true });
+    const gains = [];
+    if (gainedOrganelles.length) gains.push(gainedOrganelles.map(o => TRANSFERABLE_BY_ID[o]?.label || o).join(', '));
+    if (gainedAnomalies.length) gains.push(gainedAnomalies.join(', '));
+    const gainText = gains.length ? `Gains: ${gains.join(' · ')}.` : 'Nothing new — absorber already has everything the burn would offer. Try a different burn target.';
+    _outcomesEmpty = false;
+    outcomesGrid.innerHTML = `
+      <div class="burn-preview-card">
+        <div class="outcome-frame">
+          <iframe src="${url}" loading="eager" tabindex="-1"></iframe>
+        </div>
+        <div class="outcome-meta">
+          <div class="outcome-name">#${recipientSeed} after the burn</div>
+          <div class="outcome-caption">${gainText}</div>
+        </div>
+      </div>
+    `;
+    // Auto-select in burn mode so currentStep advances to 'ready'
+    selectedTrait = 'burn-merge';
+    return;
   }
 
-  // Update selection state without rebuilding iframes
-  if (!_outcomesEmpty) {
-    outcomesGrid.querySelectorAll('.outcome-card').forEach(card => {
-      card.classList.toggle('active', card.dataset.trait === selectedTrait);
-    });
+  // --- CROSSBREED MODE: gallery of share-options ---
+  document.querySelector('.outcomes-head').textContent = 'Pick what to share';
+  outcomesHint.textContent = 'Each preview shows what one Biom becomes after the crossbreed. The other stays as it is.';
+  outcomesHint.hidden = false;
+  const outcomes = crossbreedOutcomes(donorSeed, recipientSeed);
+  if (outcomes.length === 0) {
+    _outcomesEmpty = true;
+    outcomesHint.hidden = true;
+    outcomesGrid.innerHTML = `<div class="outcomes-empty">These two share every trait already — try a different pair.</div>`;
+    return;
   }
+  _outcomesEmpty = false;
+  outcomesGrid.innerHTML = outcomes.map(opt => {
+    const url = previewUrlFor(opt.changedSeed, opt.previewState, { nointeract: true });
+    return `
+      <button type="button" class="outcome-card" data-trait="${opt.id}" aria-label="${opt.label}: ${opt.caption}">
+        <div class="outcome-frame">
+          <iframe src="${url}" loading="lazy" tabindex="-1"></iframe>
+        </div>
+        <div class="outcome-meta">
+          <div class="outcome-name">${opt.label}</div>
+          <div class="outcome-caption">${opt.caption}</div>
+        </div>
+      </button>
+    `;
+  }).join('');
+  outcomesGrid.querySelectorAll('.outcome-card').forEach(card => {
+    card.addEventListener('click', () => {
+      if (isAnimating) return;
+      selectedTrait = card.dataset.trait;
+      renderArenaAll();
+    });
+  });
+  // Apply current selection state after rebuild
+  outcomesGrid.querySelectorAll('.outcome-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.trait === selectedTrait);
+  });
+}
+
+// Look up a crossbreed outcome object by id (used by the commit function).
+function findCrossbreedOutcome(seedA, seedB, id) {
+  return crossbreedOutcomes(seedA, seedB).find(o => o.id === id);
 }
 
 // One call to rule them all — keeps slot/collection/picker/banner/button
@@ -1845,24 +2082,28 @@ function renderSlots() {
 const _slotUrlCache = { donor: null, recipient: null };
 function renderSlot(el, role, seed, isTarget) {
   el.classList.toggle('target', isTarget && seed === null);
+  const label = SLOT_LABELS[arenaMode][role];
   if (seed === null) {
     _slotUrlCache[role] = null;
     el.classList.remove('filled');
     el.innerHTML = `
       <div class="slot-empty">
-        <span class="role">${role === 'donor' ? 'Donor' : 'Recipient'}</span>
+        <span class="role">${label}</span>
         <span class="hint">${isTarget ? '👆 your turn' : 'Waiting'}</span>
       </div>
     `;
     return;
   }
   const url = previewUrl(seed, { nointeract: true });
-  if (_slotUrlCache[role] !== url) {
-    _slotUrlCache[role] = url;
+  // Cache key includes the label so mode-switches force a re-render of
+  // the role tag without losing the iframe (URL itself doesn't change).
+  const cacheKey = `${url}|${label}`;
+  if (_slotUrlCache[role] !== cacheKey) {
+    _slotUrlCache[role] = cacheKey;
     el.classList.add('filled');
     el.innerHTML = `
-      <span class="role-label">${role === 'donor' ? 'Donor' : 'Recipient'} · #${seed}</span>
-      <button type="button" class="clear-btn" aria-label="Clear ${role}" data-clear="${role}">×</button>
+      <span class="role-label">${label} · #${seed}</span>
+      <button type="button" class="clear-btn" aria-label="Clear ${label}" data-clear="${role}">×</button>
       <iframe src="${url}" loading="eager" aria-label="Biom #${seed} live render"></iframe>
     `;
     el.querySelector('.clear-btn').addEventListener('click', (e) => {
@@ -1877,117 +2118,160 @@ function renderSlot(el, role, seed, isTarget) {
 // intuitive picker UX.
 
 function updateConjugateBtn() {
-  const ready = donorSeed !== null && recipientSeed !== null && selectedTrait !== null && !isAnimating;
+  // Crossbreed: needs both slots + an outcome picked from the gallery.
+  // Burn: just needs both slots (only one possible outcome).
+  const slotsReady = donorSeed !== null && recipientSeed !== null && !isAnimating;
+  const ready = arenaMode === 'burn'
+    ? slotsReady
+    : slotsReady && selectedTrait !== null;
   conjugateBtn.disabled = !ready;
   conjugateBtn.classList.toggle('ready', ready);
+  conjugateBtn.textContent = arenaMode === 'burn' ? 'Burn & Absorb' : 'Crossbreed';
 }
 
 // ============================================================
-// CONJUGATION — the actual game logic + animation
+// GAME LOGIC — crossbreed (symmetric share) + burn (sacrifice merge)
 // ============================================================
 function cooldownMs() {
   return LabState.mode === 'wallet' ? WALLET_COOLDOWN_MS : DEMO_COOLDOWN_MS;
 }
 
-function performConjugation(donor, recipient, traitId) {
-  const trait = TRANSFERABLE_BY_ID[traitId];
-  if (!trait) return { ok: false, reason: 'unknown_trait' };
+// Apply a mutation object (from an outcome's `apply`) to a single token's
+// state. Pure mutation helper — returns nothing, modifies LabState.tokens.
+function applyMutation(seed, apply) {
+  const ts = LabState.tokens[seed] || (LabState.tokens[seed] = {});
+  if (apply.palette) ts.receivedPalette = apply.palette;
+  if (apply.addOrganelle) {
+    ts.receivedOrganelles = ts.receivedOrganelles || [];
+    if (!ts.receivedOrganelles.includes(apply.addOrganelle)) ts.receivedOrganelles.push(apply.addOrganelle);
+  }
+  if (apply.setAnomaly) {
+    ts.receivedAnomalies = ts.receivedAnomalies || [];
+    if (!ts.receivedAnomalies.includes(apply.setAnomaly)) ts.receivedAnomalies.push(apply.setAnomaly);
+  }
+}
 
-  // Verify donor still has it (race-condition safe)
-  const ts = transferableForDonor(donor).find(t => t.id === traitId);
-  if (!ts || !ts.transferable) return { ok: false, reason: 'unavailable' };
+// CROSSBREED — both Bioms gain the shared trait, both go on cooldown.
+// 15% rejection: neither gains, both still on cooldown (the attempt
+// happened, the swap just didn't take).
+function performCrossbreed(seedA, seedB, outcomeId) {
+  const outcome = findCrossbreedOutcome(seedA, seedB, outcomeId);
+  if (!outcome) return { ok: false, error: 'Outcome no longer available.' };
 
-  // Roll for rejection
   const roll = Math.random();
   const rejected = roll < REJECTION_RATE;
   const ts2 = Date.now();
 
-  const logEntry = {
-    ts: ts2,
-    donor, recipient,
-    trait: traitId,
-    op: rejected ? 'rejected' : 'transfer',
-  };
-
-  // Always log; only mutate state on success
-  LabState.log.unshift(logEntry);
+  LabState.log.unshift({
+    ts: ts2, donor: seedA, recipient: seedB,
+    trait: outcome.sharedTraitId,
+    op: rejected ? 'rejected' : 'crossbreed',
+  });
   if (LabState.log.length > 100) LabState.log.length = 100;
 
   if (!rejected) {
-    // Mutate recipient: add the trait
-    const recState = LabState.tokens[recipient] || (LabState.tokens[recipient] = {});
-    if (trait.kind === 'palette') {
-      const donorEff = effectiveState(donor);
-      recState.receivedPalette = donorEff.palette;
-    } else if (trait.kind === 'organelle') {
-      recState.receivedOrganelles = recState.receivedOrganelles || [];
-      if (!recState.receivedOrganelles.includes(traitId)) recState.receivedOrganelles.push(traitId);
-    } else if (trait.kind === 'anomaly') {
-      recState.receivedAnomalies = recState.receivedAnomalies || [];
-      if (!recState.receivedAnomalies.includes(traitId)) recState.receivedAnomalies.push(traitId);
+    // Both gain the shared trait
+    applyMutation(seedA, outcome.apply);
+    applyMutation(seedB, outcome.apply);
+    // Both go on cooldown for that trait
+    const cd = cooldownMs();
+    for (const seed of [seedA, seedB]) {
+      const ts = LabState.tokens[seed] || (LabState.tokens[seed] = {});
+      ts.donated = ts.donated || [];
+      ts.donated.push({
+        trait: outcome.sharedTraitId,
+        to: seed === seedA ? seedB : seedA,
+        donatedAt: ts2,
+        regeneratesAt: ts2 + cd,
+      });
     }
-
-    // Donor: record depletion (cooldown). For palette, donor visually keeps
-    // the color but still goes on cooldown (game-balance).
-    const donState = LabState.tokens[donor] || (LabState.tokens[donor] = {});
-    donState.donated = donState.donated || [];
-    donState.donated.push({
-      trait: traitId,
-      to: recipient,
-      donatedAt: ts2,
-      regeneratesAt: ts2 + cooldownMs(),
-    });
   }
 
   Storage.save(LabState);
-  return { ok: !rejected, rejected, logEntry };
+  return { ok: !rejected, rejected };
 }
 
-// Mode-aware conjugation dispatcher. Demo = local logic. Wallet = sign +
-// POST to worker; on success, append a synthetic log entry locally and
-// re-pull the two touched tokens from the worker.
-async function performConjugationDispatch(donor, recipient, trait) {
-  if (LabState.mode === 'wallet') {
-    try {
-      const data = await Wallet.submitConjugate(donor, recipient, trait);
-      // Mirror the worker's log entry into local cache so the UI shows it
-      // immediately (the next /api/log fetch would also surface it, but we
-      // want zero round-trip lag here).
-      if (data.log) {
-        LabState.log.unshift({
-          ts: data.log.ts,
-          donor: data.log.donor,
-          recipient: data.log.recipient,
-          trait: data.log.trait,
-          op: data.log.op,
-        });
-        if (LabState.log.length > 100) LabState.log.length = 100;
-      }
-      // Refresh both tokens from worker so their depletions/mutations are accurate
-      await refreshTokens([donor, recipient]);
-      Storage.save(LabState);
-      return { ok: data.ok, rejected: data.rejected };
-    } catch (e) {
-      const msg = String(e?.message || e);
-      // User-rejected sign isn't an error worth shouting about
-      const userReject = /user rejected|user denied|action_rejected/i.test(msg);
-      return { ok: false, error: userReject ? 'Signature cancelled.' : msg };
-    }
+// BURN — absorber gains all of burnSeed's organelles + anomalies (palette
+// stays absorber's own). Burnt Biom marked destroyed and removed from
+// the collection. Never fails (sacrifice is irreversible).
+function performBurn(burnSeed, absorbSeed) {
+  const { next } = burnOutcome(burnSeed, absorbSeed);
+  const ts2 = Date.now();
+
+  // Apply the merged state to absorber. We compute the diff vs the
+  // absorber's current state and push each delta through applyMutation.
+  const absEff = effectiveState(absorbSeed);
+  for (const o of next.organelles) {
+    if (!absEff.organelles.has(o)) applyMutation(absorbSeed, { addOrganelle: o });
   }
-  // Demo mode — purely local
-  return performConjugation(donor, recipient, trait);
+  for (const a of ['phageAttached', 'endosymbiont', 'biofilmHalo']) {
+    if (next[a] && !absEff[a]) applyMutation(absorbSeed, { setAnomaly: a });
+  }
+  // Note: palette is NOT inherited (per game design — absorber keeps theirs)
+
+  // Mark burner as destroyed. We DON'T delete the token state because
+  // wallet-mode parity would later need an on-chain burn signal; here
+  // we just hide it from the collection.
+  const burnerState = LabState.tokens[burnSeed] || (LabState.tokens[burnSeed] = {});
+  burnerState.burnt = true;
+  burnerState.burntAt = ts2;
+  burnerState.absorbedBy = absorbSeed;
+
+  // Remove from owned list so it disappears from the collection
+  LabState.ownedSeeds = LabState.ownedSeeds.filter(s => s !== burnSeed);
+
+  LabState.log.unshift({
+    ts: ts2, donor: burnSeed, recipient: absorbSeed,
+    trait: 'merge',
+    op: 'burn',
+  });
+  if (LabState.log.length > 100) LabState.log.length = 100;
+
+  Storage.save(LabState);
+  return { ok: true };
 }
 
-async function runConjugationAnimation() {
+// Mode-aware commit dispatcher. Demo = local logic. Wallet = (still uses
+// the old signature flow; will need worker mirror for crossbreed/burn in
+// a follow-up commit). For now wallet mode just routes through the demo
+// path so the UI works while we ship the front-end refactor.
+async function performCommitDispatch() {
+  if (arenaMode === 'crossbreed') {
+    return performCrossbreed(donorSeed, recipientSeed, selectedTrait);
+  } else {
+    return performBurn(donorSeed, recipientSeed);
+  }
+}
+
+async function runCommitAnimation() {
   isAnimating = true;
   updateConjugateBtn();
-  const donor = donorSeed, recipient = recipientSeed, traitNow = selectedTrait;
-  setStatus(LabState.mode === 'wallet' ? 'Sign in your wallet…' : 'Conjugating…');
+  try {
+    await _runCommitAnimationInner();
+  } catch (e) {
+    console.warn('Lab: commit animation error', e);
+    setStatus('Something went wrong. Reset and try again.', 'fail');
+  } finally {
+    // Belt-and-braces: always release the animation lock so a thrown error
+    // doesn't permanently freeze the UI.
+    isAnimating = false;
+    pilusArena.classList.remove('active', 'success', 'fail');
+    donorSlot.classList.remove('flash-success', 'flash-fail');
+    recipientSlot.classList.remove('flash-success', 'flash-fail');
+    plasmidDot.setAttribute('cx', 0);
+    renderArenaAll();
+  }
+}
+async function _runCommitAnimationInner() {
+  const mode = arenaMode;
+  const a = donorSeed, b = recipientSeed;
+  setStatus(mode === 'burn' ? 'Burning…' : 'Crossbreeding…');
 
   pilusArena.classList.add('active');
   pilusArena.classList.remove('success', 'fail');
 
-  // Animate plasmid dot traveling along the pilus (0 → 100 on the svg viewBox).
+  // Animate dot traveling along the pilus (works for both modes —
+  // crossbreed = trait moves across, burn = burnt essence flows into absorber).
   const totalMs = 1400;
   const startTs = performance.now();
   const animatePromise = new Promise(resolve => {
@@ -2002,9 +2286,7 @@ async function runConjugationAnimation() {
     requestAnimationFrame(step);
   });
 
-  // Run the game logic IN PARALLEL with the animation so wallet sign +
-  // network round-trip overlap with the visual. We await both before resolving.
-  const resultPromise = performConjugationDispatch(donor, recipient, traitNow);
+  const resultPromise = performCommitDispatch();
   const [, result] = await Promise.all([animatePromise, resultPromise]);
 
   if (result.error) {
@@ -2014,11 +2296,15 @@ async function runConjugationAnimation() {
     pilusArena.classList.add('success');
     donorSlot.classList.add('flash-success');
     recipientSlot.classList.add('flash-success');
-    setStatus(`${TRANSFERABLE_BY_ID[traitNow].label} transferred to #${recipient}.`, 'ok');
+    if (mode === 'burn') {
+      setStatus(`Burn complete — #${a} consumed by #${b}.`, 'ok');
+    } else {
+      setStatus(`Crossbred — #${a} and #${b} now share the trait.`, 'ok');
+    }
   } else if (result.rejected) {
     pilusArena.classList.add('fail');
     recipientSlot.classList.add('flash-fail');
-    setStatus(`No transfer — recipient #${recipient} rejected. Try again or pick another trait.`, 'miss');
+    setStatus(`Crossbreed rejected — try again or pick another outcome.`, 'miss');
     // Bounce plasmid back
     await new Promise(resolve => {
       const startTs2 = performance.now();
@@ -2032,29 +2318,27 @@ async function runConjugationAnimation() {
       }
       requestAnimationFrame(step);
     });
-  } else {
-    setStatus(`${TRANSFERABLE_BY_ID[traitNow]?.label || traitNow} unavailable.`, 'fail');
   }
 
-  // Refresh visuals
+  // Refresh visuals while the result state holds
   renderSlots();
   renderCollection();
   renderLog();
 
-  // Hold the result state for ~1.5s, then settle the arena
+  // Let the user see the result for ~1.5s before the finally cleanup
+  // kicks in and resets the arena.
   await new Promise(r => setTimeout(r, 1500));
-  pilusArena.classList.remove('active', 'success', 'fail');
-  donorSlot.classList.remove('flash-success', 'flash-fail');
-  recipientSlot.classList.remove('flash-success', 'flash-fail');
-  plasmidDot.setAttribute('cx', 0);
 
-  // After successful transfer, clear the selected trait (it's now on cooldown)
-  if (result.ok) selectedTrait = null;
-  isAnimating = false;
-  // Full re-render: trait picker refreshes (selected may be cleared),
-  // change-preview hides, step banner moves back to "Pick a trait", slot
-  // exits preview mode and shows the now-committed state, button glow off.
-  renderArenaAll();
+  // After successful commit, reset arena (the finally block runs the
+  // re-render). For burn, the burnt seed is already out of ownedSeeds
+  // so the slot would be invalid anyway.
+  if (result.ok) {
+    donorSeed = null;
+    recipientSeed = null;
+    selectedTrait = null;
+    pendingBurnConfirm = false;
+    hideBurnConfirm();
+  }
 }
 
 // ============================================================
@@ -2236,14 +2520,75 @@ document.getElementById('seedInputAdd').addEventListener('keydown', (e) => {
 });
 document.getElementById('addRandomBtn').addEventListener('click', () => addRandom(4));
 document.getElementById('resetBtn').addEventListener('click', resetArena);
+// Primary commit button — crossbreed in crossbreed mode, burn in burn mode.
+// Burn is destructive, so it requires an explicit second tap via the
+// inline confirm panel before actually running.
 conjugateBtn.addEventListener('click', () => {
   if (isAnimating) return;
-  if (donorSeed === null || recipientSeed === null || selectedTrait === null) return;
+  if (donorSeed === null || recipientSeed === null) return;
   if (donorSeed === recipientSeed) {
-    setStatus('Donor and recipient must differ.', 'fail');
+    setStatus('Pick two different Bioms.', 'fail');
     return;
   }
-  runConjugationAnimation();
+  if (arenaMode === 'crossbreed') {
+    if (selectedTrait === null) return;
+    runCommitAnimation();
+    return;
+  }
+  // Burn mode — show confirmation first
+  if (!pendingBurnConfirm) {
+    pendingBurnConfirm = true;
+    showBurnConfirm();
+    return;
+  }
+});
+
+// Burn confirmation buttons
+const burnConfirmEl = document.getElementById('burnConfirm');
+const burnConfirmText = document.getElementById('burnConfirmText');
+document.getElementById('burnConfirmYes').addEventListener('click', () => {
+  if (isAnimating) return;
+  pendingBurnConfirm = false;
+  hideBurnConfirm();
+  runCommitAnimation();
+});
+document.getElementById('burnConfirmNo').addEventListener('click', () => {
+  pendingBurnConfirm = false;
+  hideBurnConfirm();
+});
+function showBurnConfirm() {
+  burnConfirmText.innerHTML = `Burn <strong>BIOM #${donorSeed}</strong> forever and merge into <strong>BIOM #${recipientSeed}</strong>?`;
+  burnConfirmEl.classList.add('visible');
+  burnConfirmEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function hideBurnConfirm() {
+  burnConfirmEl.classList.remove('visible');
+}
+
+// Mode tabs — clicking switches arenaMode, resets the arena state, and
+// re-runs all renders so the UI reflects the new mode.
+document.querySelectorAll('.arena-mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if (isAnimating) return;
+    const newMode = tab.dataset.mode;
+    if (newMode === arenaMode) return;
+    arenaMode = newMode;
+    selectedTrait = null;
+    pendingBurnConfirm = false;
+    hideBurnConfirm();
+    // Update tab visual + body class for mode-scoped CSS
+    document.querySelectorAll('.arena-mode-tab').forEach(t => {
+      const active = t.dataset.mode === newMode;
+      t.classList.toggle('active', active);
+      t.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.body.classList.toggle('mode-burn', newMode === 'burn');
+    // Update commit button label
+    conjugateBtn.textContent = newMode === 'burn' ? 'Burn & Absorb' : 'Crossbreed';
+    // Re-render slots (labels change), outcomes (different gallery), etc.
+    _outcomesPairKey = null;  // force gallery rebuild
+    renderArenaAll();
+  });
 });
 
 // Recompute cooldown labels every 10 s so the "regenerates in" timers
