@@ -17,23 +17,42 @@
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
 
 # Lab + landing + make + explore — no third-party framing allowed.
-# Listed individually so the per-path rule wins over the wildcard.
+# Cloudflare Pages serves both /lab and /lab.html — we list BOTH because
+# _headers rules match by exact path string (no .html-stripping logic).
+# Without the extensionless entries, the canonical URLs users visit
+# (/lab, /make, /explore, etc.) would slip through with only the wildcard
+# rules above.
 /
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
 /index.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
+/lab
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
 /lab.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/make
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
 /make.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
+/explore
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
 /explore.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
+/manifesto
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
 /manifesto.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/404
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
 /404.html
