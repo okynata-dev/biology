@@ -344,6 +344,141 @@
     border: 0; display: block;
     pointer-events: none;
   }
+  /* === INLINE THUMBNAIL — replaces the per-card iframe ===
+   * 30 iframes = 30 doc loads + 30 script contexts = the source of the
+   * "lab lags" problem. Inline rendering uses BiomEngine.renderSpecimen()
+   * straight into a div, sharing the lab's existing JS context. Each
+   * thumbnail then weighs ~30 DOM nodes instead of an entire HTML doc.
+   *
+   * Backdrop-filter is disabled at thumbnail size — the blur is
+   * imperceptible below ~150px but expensive on the compositor. */
+  .biom-thumb-inline {
+    width: 100%; height: 100%;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(160deg, #faf8f3 0%, #efebe2 100%);
+    pointer-events: none;
+  }
+  .biom-thumb-inline .scene {
+    position: absolute;
+    inset: 0;
+  }
+  .biom-thumb-inline .composition {
+    position: absolute;
+    inset: 0;
+  }
+  .biom-thumb-inline .panel {
+    position: absolute;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      inset 0 2px 4px rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 1px 3px rgba(0, 0, 0, 0.05),
+      0 4px 12px rgba(0, 0, 0, 0.06);
+    border: 0.5px solid rgba(255, 255, 255, 0.6);
+    overflow: hidden;
+  }
+  .biom-thumb-inline .panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background:
+      linear-gradient(135deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.18) 28%,
+        rgba(255, 255, 255, 0.42) 38%,
+        rgba(255, 255, 255, 0.15) 48%,
+        rgba(255, 255, 255, 0) 60%
+      );
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+  /* === GENERATION-TIER STRUCTURAL UPGRADES ===
+   * Visual richness ladder — each tier adds a layered effect that's
+   * visible from across the room. Phoenix specimens read as different
+   * silhouettes even at thumbnail scale; that's the point.
+   *
+   * Tier classes are applied to .biom-thumb-inline by _buildCardElement
+   * based on effective generation. They cascade — higher tiers inherit
+   * lower-tier effects via additive selectors. */
+
+  /* G1 Hybrid — subtle shimmer animated by CSS keyframe (1 layer). */
+  .biom-thumb-inline.tier-hybrid::after {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    background: linear-gradient(115deg,
+      transparent 35%,
+      rgba(255, 255, 255, 0.18) 50%,
+      transparent 65%);
+    animation: hybrid-shimmer 4.5s linear infinite;
+    pointer-events: none;
+    z-index: 4;
+  }
+  @keyframes hybrid-shimmer {
+    0%   { transform: translateX(-60%); }
+    100% { transform: translateX(60%); }
+  }
+
+  /* G3 Chimera — crystalline frame ring; jagged kind-of-hex edge */
+  .biom-thumb-inline.tier-chimera {
+    box-shadow:
+      inset 0 0 0 1px rgba(28,26,22,0.18),
+      inset 0 0 12px rgba(28,26,22,0.08);
+  }
+  .biom-thumb-inline.tier-chimera::before {
+    content: "";
+    position: absolute;
+    inset: 6%;
+    border: 1px solid rgba(28,26,22,0.30);
+    clip-path: polygon(
+      18% 0, 82% 0, 100% 30%, 100% 70%, 82% 100%,
+      18% 100%, 0 70%, 0 30%
+    );
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  /* G5 Phoenix — full halo + slow pulse + warm wash */
+  .biom-thumb-inline.tier-phoenix {
+    background:
+      radial-gradient(circle at 50% 50%,
+        #fff5e6 0%, #f4ead4 45%, #efebe2 100%);
+    animation: phoenix-pulse 3.8s ease-in-out infinite;
+  }
+  .biom-thumb-inline.tier-phoenix::before {
+    content: "";
+    position: absolute;
+    inset: -8%;
+    background: radial-gradient(circle at 50% 50%,
+      rgba(255, 200, 120, 0.45) 0%,
+      rgba(255, 200, 120, 0.20) 25%,
+      rgba(255, 200, 120, 0) 55%);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .biom-thumb-inline.tier-phoenix::after {
+    content: "";
+    position: absolute;
+    inset: -30%;
+    background: linear-gradient(115deg,
+      transparent 30%,
+      rgba(255, 230, 180, 0.42) 50%,
+      transparent 70%);
+    animation: phoenix-shimmer 5.5s linear infinite;
+    pointer-events: none;
+    z-index: 5;
+    mix-blend-mode: screen;
+  }
+  @keyframes phoenix-pulse {
+    0%, 100% { filter: brightness(1.00) saturate(1.05); }
+    50%      { filter: brightness(1.06) saturate(1.18); }
+  }
+  @keyframes phoenix-shimmer {
+    0%   { transform: translateX(-50%); }
+    100% { transform: translateX(50%); }
+  }
   .biom-info {
     padding: 10px 12px;
     display: flex;
@@ -1670,6 +1805,12 @@ const PALETTE_LABELS = {
   safranin: 'soft pink safranin',
   india_ink: 'India-ink silhouette',
   gram_variable: 'Gram-variable mix',
+  // Unlock palettes (burn-only — labelled UPPERCASE in copy to mark rarity)
+  radioactive:  'radioactive neon',
+  void:         'bioluminescent void',
+  plasma:       'plasma flare',
+  aurora_storm: 'aurora storm',
+  gold:         'metallic gold',
 };
 
 // ============================================================
@@ -1857,15 +1998,31 @@ function burnOutcome(burnSeed, absorbSeed) {
   const burnEff = effectiveState(burnSeed);
   const absEff  = effectiveState(absorbSeed);
 
-  // Combine palette ancestries (both already-mixed parents bring their
-  // full lineage). Dedupe + sort → deterministic synthetic key.
-  const combinedAncestry = [...new Set([
-    ...paletteAncestry(burnEff.palette),
-    ...paletteAncestry(absEff.palette),
-  ])].sort();
-  const mixedPalette = combinedAncestry.length <= 1
-    ? combinedAncestry[0] || absEff.palette
-    : combinedAncestry.join('+');
+  // Generation first — needed for the unlock check.
+  const burnGen = LabState.tokens[burnSeed]?.generation || 0;
+  const absGen  = LabState.tokens[absorbSeed]?.generation || 0;
+  const newGeneration = Math.max(burnGen, absGen) + 1;
+
+  // === Rare-palette unlock ===
+  // If the new generation crosses a tier threshold AND the deterministic
+  // roll qualifies, the multi-mix is replaced by a single rare palette.
+  // The token's ancestry is reset to just that palette so subsequent
+  // burns mix the rare colour with new acquisitions (chimera variety).
+  const unlocked = window.BiomEngine.pickUnlockPalette(burnSeed, absorbSeed, newGeneration);
+
+  let combinedAncestry, mixedPalette;
+  if (unlocked) {
+    combinedAncestry = [unlocked];
+    mixedPalette = unlocked;
+  } else {
+    combinedAncestry = [...new Set([
+      ...paletteAncestry(burnEff.palette),
+      ...paletteAncestry(absEff.palette),
+    ])].sort();
+    mixedPalette = combinedAncestry.length <= 1
+      ? combinedAncestry[0] || absEff.palette
+      : combinedAncestry.join('+');
+  }
   const samePalette = mixedPalette === absEff.palette;
 
   const next = {
@@ -1887,19 +2044,14 @@ function burnOutcome(burnSeed, absorbSeed) {
   if (burnEff.endosymbiont  && !absEff.endosymbiont)  gainedAnomalies.push('endosymbiont');
   if (burnEff.biofilmHalo   && !absEff.biofilmHalo)   gainedAnomalies.push('biofilm halo');
   const blendedPalette = !samePalette ? {
-    ancestry: combinedAncestry, mixedKey: mixedPalette,
+    ancestry: combinedAncestry, mixedKey: mixedPalette, unlocked,
   } : null;
   const cellCountBumped = burnEff.cellCount > absEff.cellCount
     ? { from: absEff.cellCount, to: burnEff.cellCount } : null;
 
-  // Generation: max of parents + 1. Tracks chain depth — a token that's
-  // absorbed 5 burns has gen 5 even if some absorbed were themselves high-gen.
-  const burnGen = LabState.tokens[burnSeed]?.generation || 0;
-  const absGen  = LabState.tokens[absorbSeed]?.generation || 0;
-  const newGeneration = Math.max(burnGen, absGen) + 1;
   const generationBump = { from: absGen, to: newGeneration };
 
-  return { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, generationBump, combinedAncestry };
+  return { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, generationBump, combinedAncestry, unlocked };
 }
 
 // ============================================================
@@ -1999,6 +2151,16 @@ function tierForGeneration(gen) {
   return            { name: 'Phoenix', cls: 'epic' };
 }
 
+// Thumbnail-frame class for the structural upgrades layered on top
+// of the specimen render (shimmer / crystal / halo). Genesis (G0) gets
+// no decoration — base form is the rarity baseline.
+function thumbTierClass(gen) {
+  if (gen <= 0) return '';
+  if (gen <= 2) return 'tier-hybrid';
+  if (gen <= 4) return 'tier-chimera';
+  return            'tier-phoenix';
+}
+
 // ============================================================
 // COLLECTION RENDER — incremental, stable DOM.
 //
@@ -2035,15 +2197,14 @@ function _cardStateHash(seed) {
 
 function _buildCardElement(seed) {
   const eff = effectiveState(seed);
-  const t = LabState.tokens[seed] || {};
   const traitCount = [...eff.organelles].length - 1;
   const tier = tierForGeneration(eff.generation);
+  const thumbCls = thumbTierClass(eff.generation);
 
-  // Always use static iframe — works regardless of whether the
-  // pre-rendered PNG exists on R2. Slightly more memory, but no
-  // blank tokens and no broken-thumbnail flicker.
-  const url = previewUrl(seed, { nointeract: true, static: true });
-
+  // Inline render via BiomEngine — replaces the per-card iframe (each
+  // iframe was a full preview.html document load, which is what made
+  // the lab thrash). Now every card shares the lab's JS context and
+  // contributes only ~30 DOM nodes for the specimen panels.
   const card = document.createElement('div');
   card.className = 'biom-card';
   card.dataset.seed = String(seed);
@@ -2053,7 +2214,9 @@ function _buildCardElement(seed) {
     `Biom #${seed}${eff.generation ? ` (Generation ${eff.generation})` : ''} — click to pick`);
   card.innerHTML = `
     <div class="biom-thumb">
-      <iframe class="biom-thumb-iframe" src="${url}" loading="lazy" tabindex="-1" aria-label="Biom #${seed}"></iframe>
+      <div class="biom-thumb-inline ${thumbCls}">
+        <div class="scene"><div class="composition"></div></div>
+      </div>
       ${tier ? `<span class="gen-badge ${tier.cls}" title="${tier.name} — Generation ${eff.generation}, survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}">${tier.name}</span>` : ''}
       <span class="role-tag" hidden></span>
       <span class="cooldown-tag" hidden></span>
@@ -2064,6 +2227,36 @@ function _buildCardElement(seed) {
       <span class="biom-traits">${traitCount} traits</span>
     </div>
   `;
+  // Render the specimen into the .composition slot with the effective
+  // (post-mutation) state. organelles is a Set in eff; renderSpecimen
+  // honours that. Wrapped in try/catch so a single bad render can't
+  // take out the whole grid.
+  try {
+    // Multi-parent palettes are encoded as 'a+b+c' until resolved into
+    // a synthetic key via mixPalettes. The engine's PALETTES table
+    // looks up by single key — so we resolve here.
+    let resolvedPalette = eff.palette;
+    if (typeof resolvedPalette === 'string' && resolvedPalette.includes('+')) {
+      const parts = resolvedPalette.split('+').filter(Boolean);
+      resolvedPalette = window.BiomEngine.mixPalettes(...parts);
+    }
+    const comp = card.querySelector('.composition');
+    window.BiomEngine.renderSpecimen(comp, seed, {
+      state: {
+        morphology: eff.morphology,
+        cellCount: eff.cellCount,
+        palette: resolvedPalette,
+        organelles: eff.organelles,
+        lifecycle: eff.lifecycle,
+        reserveGranule: eff.reserveGranule,
+        phageAttached: eff.phageAttached,
+        endosymbiont: eff.endosymbiont,
+        biofilmHalo: eff.biofilmHalo,
+      },
+    });
+  } catch (err) {
+    console.warn(`[lab] thumb render failed for #${seed}`, err);
+  }
   const activate = () => onBiomClick(seed);
   card.addEventListener('click', activate);
   card.addEventListener('keydown', (e) => {

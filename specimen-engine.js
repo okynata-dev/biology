@@ -101,7 +101,63 @@
       bodyDeep: 'rgba(200, 200, 210, 0.70)', organelle:'rgba(220, 220, 230, 0.70)',
       accent:   'rgba(180, 180, 200, 0.65)', accentB:  'rgba(140, 140, 160, 0.55)',
     },
+
+    // === BURN-UNLOCK PALETTES ===
+    // Not in PALETTE_WEIGHTS — cannot be rolled at mint. Only awarded
+    // when a burn pushes generation across a tier threshold. The point
+    // is to give a tangible visual prize for sustained burning, so the
+    // 5th burn isn't just "another muddy mix."
+
+    // G3+ unlock — toxic neon, suggests irradiation
+    radioactive: {
+      capsule:  'rgba(180, 240, 100, 0.30)', cellWall: 'rgba(120, 200,  60, 0.30)',
+      body:     'rgba(160, 240,  80, 0.65)', bodyDark: 'rgba( 90, 180,  40, 0.72)',
+      bodyDeep: 'rgba( 40, 110,  20, 0.80)', organelle:'rgba(220, 255, 160, 0.75)',
+      accent:   'rgba(255, 240, 100, 0.75)', accentB:  'rgba(200, 255, 120, 0.65)',
+    },
+
+    // G3+ unlock — bioluminescent void; almost black with deep cyan/violet
+    void: {
+      capsule:  'rgba( 30,  40,  60, 0.35)', cellWall: 'rgba( 18,  24,  40, 0.40)',
+      body:     'rgba( 12,  16,  30, 0.78)', bodyDark: 'rgba(  6,   8,  18, 0.85)',
+      bodyDeep: 'rgba(100, 140, 220, 0.65)', organelle:'rgba(140, 200, 255, 0.70)',
+      accent:   'rgba(180, 100, 255, 0.75)', accentB:  'rgba( 80, 200, 255, 0.70)',
+    },
+
+    // G5+ unlock — plasma; magenta + cyan with gradient body cycle
+    plasma: {
+      capsule:  'rgba(220, 140, 220, 0.30)', cellWall: 'rgba(180, 100, 220, 0.30)',
+      body:     ['rgba(255, 80, 180, 0.78)', 'rgba(140, 80, 255, 0.72)', 'rgba( 80, 200, 255, 0.74)'],
+      bodyDark: 'rgba(140,  40, 180, 0.75)', bodyDeep: 'rgba( 80,  20, 140, 0.82)',
+      organelle:'rgba(255, 200, 240, 0.70)',
+      accent:   'rgba(255, 240, 120, 0.75)', accentB:  'rgba(100, 255, 220, 0.70)',
+      _bodyMode: 'mixCycle',
+    },
+
+    // G5+ unlock — aurora storm; brighter, chaotic version of iridescent
+    aurora_storm: {
+      capsule:  'rgba(140, 220, 220, 0.32)', cellWall: 'rgba(100, 180, 200, 0.32)',
+      body:     ['rgba(120, 255, 200, 0.78)', 'rgba(180, 140, 255, 0.72)', 'rgba(255, 160, 220, 0.70)', 'rgba(120, 220, 255, 0.74)'],
+      bodyDark: 'rgba( 60, 120, 200, 0.74)', bodyDeep: 'rgba( 20,  40, 120, 0.82)',
+      organelle:'rgba(220, 255, 250, 0.72)',
+      accent:   'rgba(255, 220, 100, 0.75)', accentB:  'rgba(255, 100, 200, 0.70)',
+      _bodyMode: 'mixCycle',
+    },
+
+    // G7+ unlock — the prize. Metallic gold with bronze depth.
+    gold: {
+      capsule:  'rgba(255, 230, 150, 0.32)', cellWall: 'rgba(220, 180,  80, 0.32)',
+      body:     'rgba(245, 200,  90, 0.80)', bodyDark: 'rgba(190, 130,  40, 0.82)',
+      bodyDeep: 'rgba(110,  70,  10, 0.88)', organelle:'rgba(255, 240, 180, 0.80)',
+      accent:   'rgba(255, 250, 220, 0.85)', accentB:  'rgba(220, 160,  60, 0.75)',
+    },
   };
+
+  // Palettes that can be UNLOCKED but never minted. The burn flow looks
+  // these up by name when deciding whether a rare unlock is in play.
+  const UNLOCK_PALETTES = new Set([
+    'radioactive', 'void', 'plasma', 'aurora_storm', 'gold',
+  ]);
 
   // ============================================================
   // TRAIT WEIGHTS
@@ -706,7 +762,12 @@
   function renderSpecimen(targetEl, seed, options) {
     const opts = options || {};
     const isFitMode = opts.isFitMode !== false;
-    const state = generateState(seed);
+    // Caller can pass a pre-computed state (e.g. lab.html effectiveState() with
+    // mutations applied) to skip URL params + iframe round-trip. The base
+    // state still gets generated for any fields the override omits
+    // (accentCount in particular).
+    const base = generateState(seed);
+    const state = opts.state ? Object.assign(base, opts.state) : base;
     const cells = generateMorphology(state.morphology, state.cellCount, state);
     cells.forEach((c, i) => c.cellIndex = i);
     const rng = mulberry32(seed);
@@ -985,14 +1046,50 @@
   // ============================================================
   // EXPORT
   // ============================================================
+  // ============================================================
+  // BURN-UNLOCK PALETTE SELECTOR
+  // Deterministic — same (burnSeed, absorbSeed, newGen) always yields
+  // the same outcome. No RNG that changes per page load.
+  //
+  // Returns: a palette key string from UNLOCK_PALETTES, or null if
+  // this burn doesn't qualify for a rare unlock (and the regular
+  // multi-mix should be used).
+  //
+  // Ladder:
+  //   G3 → 35% radioactive, 25% void, else null
+  //   G5 → 40% plasma, 35% aurora_storm, else null
+  //   G7+ → always gold (the prize)
+  // ============================================================
+  function pickUnlockPalette(burnSeed, absorbSeed, newGeneration) {
+    if (newGeneration < 3) return null;
+    if (newGeneration >= 7) return 'gold';
+    // Deterministic 0–99 from the burn pair. Multiplied prime gives
+    // good spread even when seeds are close (e.g. adjacent in collection).
+    const h = ((burnSeed * 2654435761) ^ (absorbSeed * 40503)) >>> 0;
+    const roll = h % 100;
+    if (newGeneration >= 5) {
+      if (roll < 40) return 'plasma';
+      if (roll < 75) return 'aurora_storm';
+      return null;
+    }
+    if (newGeneration >= 3) {
+      if (roll < 35) return 'radioactive';
+      if (roll < 60) return 'void';
+      return null;
+    }
+    return null;
+  }
+
   window.BiomEngine = {
     renderSpecimen,
     renderSpecimenToCanvas,
     generateState,
     pickName,
     mixPalettes,
+    pickUnlockPalette,
     PALETTES,
     PALETTE_WEIGHTS,
+    UNLOCK_PALETTES,
     MORPHOLOGY_WEIGHTS,
     RESERVE_WEIGHTS,
     LIFECYCLE_WEIGHTS,
