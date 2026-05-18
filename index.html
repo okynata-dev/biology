@@ -62,6 +62,28 @@
   a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
   a:hover { text-decoration-color: var(--ink); }
 
+  /* === SCROLL PROGRESS BAR ===
+     Slim 2px line at the very top of the viewport that fills
+     left-to-right as the page is scrolled. Apple-grade in that
+     it's quiet (matches paper-ink colors), sits ABOVE the nav so
+     it's always visible, and gets out of the way. The transform
+     is updated via rAF on scroll — no layout thrash. */
+  .scroll-progress {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: rgba(28, 26, 22, 0.06);
+    z-index: 100;
+    pointer-events: none;
+  }
+  .scroll-progress-fill {
+    height: 100%;
+    background: var(--ink);
+    transform-origin: left center;
+    transform: scaleX(0);
+    will-change: transform;
+  }
+
   /* === NAV (canonical — must match make.html, explore.html, 404.html) === */
   nav {
     position: sticky;
@@ -583,6 +605,10 @@
 </head>
 <body>
 
+<div class="scroll-progress" aria-hidden="true">
+  <div class="scroll-progress-fill" id="scrollProgressFill"></div>
+</div>
+
 <nav>
   <a class="brand" href="/" aria-label="Bioms — home">
     <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
@@ -822,23 +848,54 @@ if (catalogGrid) {
       tag.textContent = `#${String(seed).padStart(4, '0')}`;
       a.appendChild(tag);
     } else {
-      // Pre-reveal: inline-render via BiomEngine — shared engine
-      // context, ~30 DOM nodes per cell. Was 12 live iframes; that
-      // was making the page chug. The seed is captured in this
-      // closure (no data-seed attribute) so it doesn't leak into
-      // the view-source DOM pre-reveal.
-      const r = document.createElement('div');
-      r.className = 'cell-render';
-      r.innerHTML = '<div class="scene"><div class="composition"></div></div>';
-      a.appendChild(r);
+      // Pre-reveal: render each specimen to a canvas ONCE, snapshot
+      // to a PNG data URL, hand off to an <img>. After the initial
+      // render the cell is just a static image — no DOM panels to
+      // repaint on every scroll, no engine work on resize. Costs
+      // ~5-10ms per cell on page load, frees the compositor forever.
+      // Smaller canvas (320px) keeps each data URL ~100KB; 12 cells
+      // = ~1.2MB which the browser holds without strain.
+      const img = document.createElement('img');
+      img.alt = 'Biom specimen';
+      img.decoding = 'async';
+      a.appendChild(img);
       if (window.BiomEngine) {
-        try { window.BiomEngine.renderSpecimen(r.querySelector('.composition'), seed); }
-        catch (e) { /* swallow */ }
+        try {
+          const SIZE = 320;
+          const c = document.createElement('canvas');
+          c.width = SIZE; c.height = SIZE;
+          window.BiomEngine.renderSpecimenToCanvas(c, seed, {
+            specSize: SIZE, tx: 0, ty: 0,
+            scale: 1, rotation: 0, flipX: 1, flipY: 1,
+          });
+          img.src = c.toDataURL('image/png');
+        } catch (e) { /* swallow — cell stays empty */ }
       }
     }
     catalogGrid.appendChild(a);
   }
 }
+
+// === SCROLL PROGRESS ===
+// rAF-coalesced scroll handler — one frame per actual scroll event,
+// no thrash. Transform on the fill avoids layout/paint; the
+// compositor handles it on the GPU.
+(function setupScrollProgress() {
+  const fill = document.getElementById('scrollProgressFill');
+  if (!fill) return;
+  let ticking = false;
+  function update() {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = max > 0 ? Math.min(1, window.scrollY / max) : 0;
+    fill.style.transform = `scaleX(${pct})`;
+    ticking = false;
+  }
+  window.addEventListener('scroll', () => {
+    if (!ticking) { requestAnimationFrame(update); ticking = true; }
+  }, { passive: true });
+  window.addEventListener('resize', update, { passive: true });
+  update();
+})();
 
 </script>
 
