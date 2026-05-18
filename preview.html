@@ -267,6 +267,12 @@
   </div>
 </div>
 
+<!-- Shared engine — loaded only for the save-as-PNG context menu.
+     preview.html has its own inline renderer for the live DOM; the
+     engine here is used solely to produce a clean canvas snapshot
+     when the user right-clicks the specimen. -->
+<script src="specimen-engine.js"></script>
+
 <script>
 // ============================================================
 // PALETTES — 5 stain systems
@@ -1736,6 +1742,47 @@ if (_hasOverrides) buildScene();
 // Stamp the real seed into the a11y label so screen-readers get the token id.
 const _pfp = document.getElementById('pfpCard');
 if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom specimen');
+
+// ============================================================
+// Right-click → "Save as PNG" menu. Works on the bare preview page
+// AND when preview.html is embedded as an iframe (the contextmenu
+// fires on the iframe's document, so the handler must live here).
+// We re-resolve URL force* params through BiomEngine.mixPalettes so
+// the saved PNG matches what's on screen — including the multi-
+// parent gradient palettes that the lab produces.
+// ============================================================
+(function setupSaveAsPng() {
+  if (!_pfp || !window.BiomEngine || typeof window.BiomEngine.enableSaveAsPng !== 'function') return;
+  // Read overrides from the URL so the snapshot matches the visible
+  // render (forceStain for blended palettes, forceCells, etc.).
+  const url = new URLSearchParams(window.location.search);
+  function buildSnapshotState() {
+    const out = {};
+    const fs = url.get('forceStain');
+    if (fs) {
+      if (fs.includes('+')) {
+        const parts = fs.split('+').filter(Boolean);
+        out.palette = window.BiomEngine.mixPalettes(...parts);
+      } else {
+        out.palette = fs;
+      }
+    }
+    const fm = url.get('forceMorph');     if (fm) out.morphology = fm;
+    const fc = url.get('forceCells');     if (fc) out.cellCount  = parseInt(fc, 10);
+    const fl = url.get('forceLifecycle'); if (fl) out.lifecycle = fl;
+    const fr = url.get('forceReserve');   if (fr) out.reserveGranule = fr;
+    const fo = url.get('forceOrganelles');
+    if (fo) out.organelles = new Set(fo.split(',').filter(Boolean));
+    if (url.has('forcePhage'))   out.phageAttached = url.get('forcePhage') === '1';
+    if (url.has('forceEndo'))    out.endosymbiont  = url.get('forceEndo') === '1';
+    if (url.has('forceBiofilm')) out.biofilmHalo   = url.get('forceBiofilm') === '1';
+    return Object.keys(out).length ? out : null;
+  }
+  window.BiomEngine.enableSaveAsPng(_pfp, () => ({
+    seed: state.seed,
+    state: buildSnapshotState(),
+  }));
+})();
 </script>
 
 </body>

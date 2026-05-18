@@ -861,8 +861,11 @@
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, W, H);
 
-    // Build the specimen data
-    const state = generateState(seed);
+    // Build the specimen data. Caller can pass opts.state to render a
+    // mutated state (e.g. the Lab's effectiveState with post-burn
+    // palette + organelles) instead of the seed's base traits.
+    const base = generateState(seed);
+    const state = opts.state ? Object.assign(base, opts.state) : base;
     const cells = generateMorphology(state.morphology, state.cellCount, state);
     cells.forEach((c, i) => c.cellIndex = i);
     const rng = mulberry32(seed);
@@ -1108,6 +1111,153 @@
     return null;
   }
 
+  // ============================================================
+  // SAVE-AS-PNG CONTEXT MENU
+  //
+  // Because Biom cards are inline-rendered DOM (not <img> elements),
+  // the browser's native "Save Image As…" doesn't appear on right-
+  // click. This helper wires a custom mini context menu to any
+  // element that displays a Biom: right-click (or two-finger click
+  // on Macbook trackpad, or long-press on touch) opens the menu
+  // with a single "Save as PNG" item that renders the specimen to
+  // a 1500×1500 canvas and triggers a download.
+  //
+  // Usage:
+  //   BiomEngine.enableSaveAsPng(element, () => ({ seed, state }))
+  //
+  // The callback returns the seed + an optional state override
+  // (so Lab cards can capture their MUTATED state, while landing
+  // catalog cells just pass the seed). Returning falsy disables.
+  // ============================================================
+  let _ctxMenuEl = null;
+  let _ctxMenuCleanup = null;
+
+  function _closeCtxMenu() {
+    if (_ctxMenuEl) {
+      _ctxMenuEl.remove();
+      _ctxMenuEl = null;
+    }
+    if (_ctxMenuCleanup) {
+      _ctxMenuCleanup();
+      _ctxMenuCleanup = null;
+    }
+  }
+
+  function _renderCtxMenu(x, y, items) {
+    _closeCtxMenu();
+    const menu = document.createElement('div');
+    menu.className = 'biom-ctx-menu';
+    menu.style.cssText = [
+      'position: fixed',
+      `left: ${x}px`,
+      `top: ${y}px`,
+      'z-index: 10000',
+      'background: #f4f1e8',
+      'color: #1c1a16',
+      'border: 1px solid rgba(28, 26, 22, 0.18)',
+      'border-radius: 8px',
+      'box-shadow: 0 12px 28px rgba(0,0,0,0.16), 0 4px 8px rgba(0,0,0,0.08)',
+      'padding: 4px',
+      'font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif',
+      'font-size: 13px',
+      'min-width: 160px',
+      'user-select: none',
+      '-webkit-user-select: none',
+    ].join('; ');
+    for (const item of items) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = item.label;
+      b.style.cssText = [
+        'display: block',
+        'width: 100%',
+        'padding: 8px 12px',
+        'background: transparent',
+        'border: 0',
+        'border-radius: 6px',
+        'color: inherit',
+        'font-family: inherit',
+        'font-size: inherit',
+        'text-align: left',
+        'cursor: pointer',
+      ].join('; ');
+      b.addEventListener('mouseenter', () => { b.style.background = 'rgba(28,26,22,0.06)'; });
+      b.addEventListener('mouseleave', () => { b.style.background = 'transparent'; });
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _closeCtxMenu();
+        item.action();
+      });
+      menu.appendChild(b);
+    }
+    document.body.appendChild(menu);
+    _ctxMenuEl = menu;
+    // Position-correct if it would overflow the viewport edges.
+    const r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth - 8) menu.style.left = (window.innerWidth - r.width - 8) + 'px';
+    if (r.bottom > window.innerHeight - 8) menu.style.top = (window.innerHeight - r.height - 8) + 'px';
+    // Auto-dismiss on outside click / Escape / scroll.
+    const onDown = (e) => { if (!menu.contains(e.target)) _closeCtxMenu(); };
+    const onKey = (e) => { if (e.key === 'Escape') _closeCtxMenu(); };
+    const onScroll = () => _closeCtxMenu();
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    _ctxMenuCleanup = () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }
+
+  function _downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 0);
+  }
+
+  function _saveBiomAsPng(seed, stateOverride) {
+    const size = 1500;
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    renderSpecimenToCanvas(c, seed, {
+      specSize: size,
+      tx: 0, ty: 0,
+      scale: 1,
+      rotation: 0,
+      flipX: 1, flipY: 1,
+      state: stateOverride || undefined,
+    });
+    c.toBlob((blob) => {
+      if (!blob) return;
+      // Filename uses the public label (pickName pre-reveal,
+      // name+seed post-reveal). Reads like a thing, not an ID.
+      const safe = label(seed).replace(/[^A-Za-z0-9_-]/g, '_');
+      _downloadBlob(blob, `bioms-${safe}.png`);
+    }, 'image/png');
+  }
+
+  function enableSaveAsPng(targetEl, getInfo) {
+    if (!targetEl || typeof getInfo !== 'function') return;
+    targetEl.addEventListener('contextmenu', (e) => {
+      const info = getInfo();
+      if (!info || info.seed == null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      _renderCtxMenu(e.clientX, e.clientY, [
+        { label: 'Save as PNG', action: () => _saveBiomAsPng(info.seed, info.state) },
+      ]);
+    });
+  }
+
   window.BiomEngine = {
     renderSpecimen,
     renderSpecimenToCanvas,
@@ -1117,6 +1267,7 @@
     REVEAL,
     mixPalettes,
     pickUnlockPalette,
+    enableSaveAsPng,
     PALETTES,
     PALETTE_WEIGHTS,
     UNLOCK_PALETTES,

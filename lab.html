@@ -2776,6 +2776,34 @@ function _buildCardElement(seed) {
   card.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
   });
+  // Right-click / two-finger / long-press → "Save as PNG" menu. The
+  // callback returns the CURRENT effective state so a mutated Biom
+  // saves with its mutations (palette blend, added organelles, etc.).
+  window.BiomEngine.enableSaveAsPng(card, () => {
+    const eff = effectiveState(seed);
+    // Resolve multi-parent palette strings to a synthetic key before
+    // handing state to the canvas renderer — same trick we use for
+    // the live thumbnail render.
+    let palette = eff.palette;
+    if (typeof palette === 'string' && palette.includes('+')) {
+      const parts = palette.split('+').filter(Boolean);
+      palette = window.BiomEngine.mixPalettes(...parts);
+    }
+    return {
+      seed,
+      state: {
+        morphology: eff.morphology,
+        cellCount: eff.cellCount,
+        palette,
+        organelles: eff.organelles,
+        lifecycle: eff.lifecycle,
+        reserveGranule: eff.reserveGranule,
+        phageAttached: eff.phageAttached,
+        endosymbiont: eff.endosymbiont,
+        biofilmHalo: eff.biofilmHalo,
+      },
+    };
+  });
   return card;
 }
 
