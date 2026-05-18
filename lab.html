@@ -159,26 +159,26 @@
     gap: 20px;
     flex-wrap: wrap;
   }
+  /* Ghost toggle — no heavy pill background; weight + underline on
+     active signal the choice. Lighter, sits inside the brand palette. */
   .mode-switch {
     display: inline-flex;
-    background: var(--bg);
-    border: 1px solid var(--rule);
-    border-radius: 999px;
-    padding: 4px;
-    gap: 2px;
+    gap: 22px;
   }
   .mode-btn {
     background: transparent; border: 0;
     font: inherit; cursor: pointer;
-    padding: 8px 18px;
-    border-radius: 999px;
+    padding: 6px 0;
     color: var(--ink-3);
     font-size: 14px; font-weight: 500;
-    transition: background 0.15s, color 0.15s;
+    transition: color 0.15s;
+    position: relative;
   }
-  .mode-btn.active {
-    background: var(--ink);
-    color: var(--bg);
+  .mode-btn.active { color: var(--ink); font-weight: 600; }
+  .mode-btn.active::after {
+    content: ''; position: absolute;
+    bottom: -2px; left: 0; right: 0;
+    height: 2px; background: var(--ink); border-radius: 2px;
   }
   .mode-btn:not(.active):hover { color: var(--ink); }
   .mode-note {
@@ -320,9 +320,12 @@
     transform: translateY(-3px);
     box-shadow: 0 16px 32px rgba(0,0,0,0.10);
   }
-  .biom-card.selected-donor     { border-color: #b94a8c; }
-  .biom-card.selected-recipient { border-color: #4a8cb9; }
-  body.mode-burn .biom-card.selected-donor { border-color: #c45a3a; }
+  /* Grayscale selection — both slots share the same ink colour; the
+     A / B badge does the work of telling them apart. Burn mode swaps
+     the sacrifice slot's tone to a warm rust to signal destruction. */
+  .biom-card.selected-donor,
+  .biom-card.selected-recipient { border-color: var(--ink); }
+  body.mode-burn .biom-card.selected-donor { border-color: #9a4a2e; }
   .biom-card.in-use { opacity: 0.4; pointer-events: none; }
   .biom-thumb {
     aspect-ratio: 1;
@@ -333,6 +336,13 @@
   .biom-thumb img {
     width: 100%; height: 100%;
     object-fit: cover; display: block;
+  }
+  /* Live iframe thumbnail for tokens with mutations — pointer events off
+     so the click goes through to the parent .biom-card button. */
+  .biom-thumb-iframe {
+    width: 100%; height: 100%;
+    border: 0; display: block;
+    pointer-events: none;
   }
   .biom-info {
     padding: 10px 12px;
@@ -352,28 +362,28 @@
     color: var(--ink-3);
     text-align: right;
   }
-  /* Large A/B badge in the corner — replaces the old tiny "DONOR/RECIPIENT"
-     tag. With no arena slots, this is the visual cue that says "you picked
-     this Biom as Side A (or B)". Big and unambiguous. */
+  /* Role tag — compact pill that scales from one letter (A/B in crossbreed)
+     to a short word (Burn/Keep in burn mode). Auto-widths via inline-flex. */
   .biom-card .role-tag {
     position: absolute;
     top: 10px; right: 10px;
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    font-size: 16px;
+    min-width: 32px; height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0;
+    letter-spacing: 0.04em;
     text-transform: none;
     background: var(--ink);
     color: var(--bg);
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     box-shadow: 0 2px 6px rgba(0,0,0,0.18);
   }
-  .biom-card.selected-donor     .role-tag { background: #b94a8c; }
-  .biom-card.selected-recipient .role-tag { background: #4a8cb9; }
-  body.mode-burn .biom-card.selected-donor .role-tag { background: #c45a3a; }
+  .biom-card.selected-donor     .role-tag,
+  .biom-card.selected-recipient .role-tag { background: var(--ink); }
+  body.mode-burn .biom-card.selected-donor .role-tag { background: #9a4a2e; }
 
   /* Generation badge — small chip in top-left for tokens that have
      survived at least one burn. Visual rarity ladder: higher-gen
@@ -391,9 +401,10 @@
     color: var(--bg);
     box-shadow: 0 2px 4px rgba(0,0,0,0.15);
   }
-  /* High-generation tier — visual prestige */
-  .biom-card .gen-badge.high { background: #b89a3a; color: #fff; }
-  .biom-card .gen-badge.epic { background: #8a3aa8; color: #fff; }
+  /* Higher tiers earn slightly different fills, still in the brand
+     monochrome — prestige through restraint, not rainbow. */
+  .biom-card .gen-badge.high { background: var(--paper); color: var(--ink); border: 1px solid var(--ink); }
+  .biom-card .gen-badge.epic { background: var(--ink); color: var(--paper); box-shadow: 0 0 0 2px var(--ink-3), 0 2px 6px rgba(0,0,0,0.18); }
   .cooldown-tag {
     position: absolute;
     bottom: 56px; left: 8px;
@@ -423,19 +434,17 @@
     margin-bottom: 28px;
     transition: border-color 0.2s, background 0.2s;
   }
-  .step-banner[data-step="donor"]     { border-color: #b94a8c; background: rgba(185, 74, 140, 0.05); }
-  .step-banner[data-step="recipient"] { border-color: #4a8cb9; background: rgba(74, 140, 185, 0.05); }
-  .step-banner[data-step="trait"]     { border-color: var(--ink-2); background: var(--paper); }
-  .step-banner[data-step="ready"]     { border-color: var(--ok); background: rgba(74, 124, 74, 0.06); }
+  /* Single visual state for all steps — colour was carrying three
+     overlapping meanings (slot identity, step progress, mode). Now
+     progress is communicated by the number alone; colour belongs to
+     other UI signals. */
+  .step-banner[data-step="ready"] { border-color: var(--ink); }
   .step-banner .step-dot {
-    width: 10px; height: 10px; border-radius: 50%;
+    width: 8px; height: 8px; border-radius: 50%;
     background: var(--ink-3);
     flex-shrink: 0;
   }
-  .step-banner[data-step="donor"]     .step-dot { background: #b94a8c; }
-  .step-banner[data-step="recipient"] .step-dot { background: #4a8cb9; }
-  .step-banner[data-step="trait"]     .step-dot { background: var(--ink); }
-  .step-banner[data-step="ready"]     .step-dot { background: var(--ok); }
+  .step-banner[data-step="ready"] .step-dot { background: var(--ink); }
   .step-banner .step-number {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 12px;
@@ -729,11 +738,11 @@
   /* Single big preview shown in burn mode (no choice to make). */
   .burn-preview-card {
     background: var(--paper);
-    border: 2px solid #c45a3a;
+    border: 2px solid var(--ink);
     border-radius: 14px;
     overflow: hidden;
     max-width: 360px;
-    box-shadow: 0 0 0 4px rgba(196, 90, 58, 0.10);
+    box-shadow: 0 0 0 4px rgba(28, 26, 22, 0.06);
   }
   .burn-preview-card .outcome-frame { aspect-ratio: 1; background: var(--paper); position: relative; }
   .burn-preview-card .outcome-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
@@ -912,8 +921,15 @@
     gap: 8px;
   }
   .arena-mode-tab:not(.active):hover { color: var(--ink); }
-  .arena-mode-tab.active { background: var(--ink); color: var(--bg); }
-  .arena-mode-tab[data-mode="burn"].active { background: #c45a3a; }
+  /* Ghost-toggle — text bolds on active, underline supplies the cue.
+     Burn keeps a subtle warm tint to signal destructive action without
+     a heavy solid pill. */
+  .arena-mode-tab.active { color: var(--ink); font-weight: 600; }
+  .arena-mode-tab.active::after {
+    content: ''; display: block; height: 2px; background: currentColor;
+    margin-top: 2px; border-radius: 2px;
+  }
+  .arena-mode-tab[data-mode="burn"].active { color: #9a4a2e; }
   .arena-mode-tab .tab-icon {
     width: 14px; height: 14px;
   }
@@ -982,9 +998,7 @@
     <span>Bioms</span>
   </a>
   <div class="nav-links">
-    <a href="/explore">Traits</a>
     <a href="/lab" class="active" aria-current="page">Lab</a>
-    <a href="/make">Banners</a>
     <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
       <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
@@ -999,7 +1013,7 @@
       <div>
         <h1>The Lab.</h1>
       </div>
-      <p class="intro-tag">Crossbreed two Bioms to share a trait. Or burn one to feed all its traits into another. The collection is a living thing.</p>
+      <p class="intro-tag">Mix two Bioms to share a trait. Or burn one to feed it into another. Survivors evolve.</p>
     </div>
   </div>
 </section>
@@ -1010,7 +1024,7 @@
       <button class="mode-btn active" id="modeDemoBtn" role="tab" aria-selected="true">Demo</button>
       <button class="mode-btn" id="modeWalletBtn" role="tab" aria-selected="false">My wallet</button>
     </div>
-    <span class="mode-note" id="modeNote">Demo: practice with any Bioms by seed. Cooldowns are shortened to 60 seconds so you can feel the mechanic. State saves to this browser.</span>
+    <span class="mode-note" id="modeNote">Practice with any seed. State stays in this browser.</span>
     <div class="wallet-block" id="walletBlock">
       <span class="wallet-status" id="walletStatus">Not connected.</span>
       <button class="wallet-btn" id="walletConnectBtn" type="button">Connect wallet</button>
@@ -1103,7 +1117,13 @@
 </section>
 
 <footer>
-  <div>© 2026 Bioms</div>
+  <div class="footer-meta">
+    <span>© 2026 Bioms</span>
+    <span class="sep">·</span>
+    <a href="/explore">Traits</a>
+    <span class="sep">·</span>
+    <a href="/make">Banners</a>
+  </div>
   <div class="footer-meta">
     <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
     <span class="sep">·</span>
@@ -1965,6 +1985,20 @@ function fmtRemaining(ms) {
   return `${d}d`;
 }
 
+// Generation → tier name + class. Replaces 'G1/G2/G3' with poetry:
+//   G0   → Genesis (no badge — pure original)
+//   G1-2 → Hybrid
+//   G3-4 → Chimera (high tier — gold)
+//   G5+  → Phoenix (epic tier — purple)
+// Tiers compress the linear gen number into 4 identity categories
+// that mean something to a buyer.
+function tierForGeneration(gen) {
+  if (gen <= 0) return null;
+  if (gen <= 2) return { name: 'Hybrid',  cls: '' };
+  if (gen <= 4) return { name: 'Chimera', cls: 'high' };
+  return            { name: 'Phoenix', cls: 'epic' };
+}
+
 function renderCollection() {
   // Demo-only actions hidden in wallet mode (collection is read-only from chain)
   const demoActions = document.getElementById('demoActions');
@@ -2018,31 +2052,43 @@ function renderCollection() {
     for (let i = 0; i < Math.min(receivedCount, 3); i++) badges.push('<span class="mutation-badge"></span>');
     for (let i = 0; i < Math.min(depletedCount, 3); i++) badges.push('<span class="mutation-badge depleted"></span>');
 
-    // Big single-glyph badge per mode. Crossbreed = A/B (peers).
-    // Burn = 🔥 (sacrifice) / + (absorber).
+    // Single-letter role tag — consistent monoline glyph across modes,
+    // no emoji (they break the design system on every platform).
+    //   Crossbreed: A | B (peers)
+    //   Burn:       B | A — the rust-tinted slot is the sacrifice
     const roleTag = (() => {
       if (!isDonor && !isRecipient) return '';
       if (arenaMode === 'burn') {
-        return isDonor ? '🔥' : '+';
+        return isDonor ? 'Burn' : 'Keep';
       }
       return isDonor ? 'A' : 'B';
     })();
     const traitCount = [...eff.organelles].length - 1; // exclude capsule from count
 
-    // Generation badge — tier-coloured based on burn-survived count
+    // Tier badge — Hybrid / Chimera / Phoenix instead of bare G-numbers.
+    // No badge for Genesis (G0 = pure original = let the art speak).
     let genBadge = '';
-    if (eff.generation > 0) {
-      const tier = eff.generation >= 5 ? 'epic' : (eff.generation >= 3 ? 'high' : '');
-      genBadge = `<span class="gen-badge ${tier}" title="Generation ${eff.generation} — survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}">G${eff.generation}</span>`;
+    const tier = tierForGeneration(eff.generation);
+    if (tier) {
+      genBadge = `<span class="gen-badge ${tier.cls}" title="${tier.name} — Generation ${eff.generation}, survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}">${tier.name}</span>`;
     }
 
+    // HONEST ART — for tokens with any received mutation OR a non-zero
+    // generation, the pre-rendered PNG is stale. Render a static iframe
+    // of the actual effective state instead. PNG (cheap) for pristine
+    // tokens, iframe (a bit heavier but still static=1) for hybrids.
+    const hasMutations = !!(t.receivedPalette || t.receivedOrganelles?.length || t.receivedAnomalies?.length
+      || t.receivedMorphology || t.receivedLifecycle || t.receivedReserve || t.receivedCellCount
+      || (eff.generation > 0));
+    const thumbHtml = hasMutations
+      ? `<iframe class="biom-thumb-iframe" src="${previewUrl(seed, { nointeract: true, static: true })}" loading="lazy" tabindex="-1" aria-label="Biom #${seed} current state"></iframe>`
+      : `<img src="${masterUrl(seed)}" alt="Biom #${seed}" loading="lazy" decoding="async" onerror="this.style.background='var(--paper)'; this.style.opacity='0.3';">`;
     return `
       <div class="biom-card ${isDonor ? 'selected-donor' : ''} ${isRecipient ? 'selected-recipient' : ''}"
            data-seed="${seed}" tabindex="0" role="button"
            aria-label="Biom #${seed}${eff.generation ? ` (Generation ${eff.generation})` : ''} — click to assign to donor or recipient slot">
         <div class="biom-thumb">
-          <img src="${masterUrl(seed)}" alt="Biom #${seed}" loading="lazy" decoding="async"
-               onerror="this.style.background='var(--paper)'; this.style.opacity='0.3';">
+          ${thumbHtml}
           ${genBadge}
           ${roleTag ? `<span class="role-tag">${roleTag}</span>` : ''}
           ${nextCooldown ? `<span class="cooldown-tag">${TRANSFERABLE_BY_ID[nextCooldown.trait]?.label || nextCooldown.trait} · ${fmtRemaining(nextCooldown.regeneratesAt - now)}</span>` : ''}
@@ -2201,23 +2247,24 @@ function renderOutcomes() {
     outcomesHint.hidden = false;
     const { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, generationBump, combinedAncestry } = burnOutcome(donorSeed, recipientSeed);
     const url = previewUrlFor(recipientSeed, next, { nointeract: true });
-    const parts = [];
+    // Caption rewritten as flowing prose, one bold cue (the tier change)
+    // so the eye knows where to land. Apple-style: don't shout everything.
+    const lines = [];
     if (blendedPalette) {
       const names = blendedPalette.ancestry.map(p => PALETTE_LABELS[p] || p);
-      parts.push(`<strong>Stain ancestry:</strong> ${names.join(' × ')}`);
+      lines.push(`Stain blends ${names.join(' × ')}.`);
     }
-    if (gainedOrganelles.length) {
-      parts.push(`<strong>Adds:</strong> ${gainedOrganelles.map(o => TRANSFERABLE_BY_ID[o]?.label || o).join(', ')}`);
-    }
-    if (gainedAnomalies.length) {
-      parts.push(`<strong>Ultra-rare:</strong> ${gainedAnomalies.join(', ')}`);
-    }
-    if (cellCountBumped) {
-      parts.push(`<strong>Cells:</strong> ${cellCountBumped.from} → ${cellCountBumped.to}`);
-    }
-    // Generation bump — always shown (every burn raises gen by ≥1)
-    parts.push(`<strong>Generation:</strong> G${generationBump.from} → G${generationBump.to}`);
-    const gainText = parts.length ? parts.join(' · ') + '.' : 'These two are too similar — try a different burn target.';
+    const additions = [];
+    if (gainedOrganelles.length) additions.push(...gainedOrganelles.map(o => (TRANSFERABLE_BY_ID[o]?.label || o).toLowerCase()));
+    if (gainedAnomalies.length) additions.push(...gainedAnomalies);
+    if (additions.length) lines.push(`Gains ${additions.join(', ')}.`);
+    if (cellCountBumped) lines.push(`Grows from ${cellCountBumped.from} to ${cellCountBumped.to} cells.`);
+    const fromTier = tierForGeneration(generationBump.from);
+    const toTier   = tierForGeneration(generationBump.to);
+    const fromName = fromTier ? fromTier.name : 'Genesis';
+    const toName   = toTier   ? toTier.name   : 'Genesis';
+    lines.push(`Becomes <strong>${toName}</strong>.`);
+    const gainText = lines.length ? lines.join(' ') : 'These two are too similar — try a different burn target.';
     _outcomesEmpty = false;
     outcomesGrid.innerHTML = `
       <div class="burn-preview-card">
@@ -2588,7 +2635,10 @@ function renderLog() {
   const STATUS = {
     transfer:   { label: 'Transferred', ok: true,  detail: (e) => TRANSFERABLE_BY_ID[e.trait]?.label || e.trait },
     crossbreed: { label: 'Crossbred',   ok: true,  detail: (e) => `shared ${TRANSFERABLE_BY_ID[e.trait]?.label || e.trait}` },
-    burn:       { label: 'Burnt',       ok: true,  detail: (e) => `merge → G${e.generation || '?'}` },
+    burn:       { label: 'Burnt',       ok: true,  detail: (e) => {
+      const t = tierForGeneration(e.generation || 0);
+      return t ? `merge → ${t.name}` : 'merge';
+    } },
     rejected:   { label: 'Rejected',    ok: false, detail: (e) => TRANSFERABLE_BY_ID[e.trait]?.label || e.trait },
   };
   const html = LabState.log.slice(0, 20).map(entry => {
@@ -2682,7 +2732,7 @@ async function setMode(newMode) {
     modeWalletBtn.classList.remove('active');
     modeDemoBtn.setAttribute('aria-selected', 'true');
     modeWalletBtn.setAttribute('aria-selected', 'false');
-    modeNote.textContent = 'Demo: practice with any Bioms by seed. Cooldowns are shortened to 60 seconds so you can feel the mechanic. State saves to this browser.';
+    modeNote.textContent = 'Practice with any seed. State stays in this browser.';
     renderCollection();
     renderWalletUI();
   } else {
@@ -2715,7 +2765,7 @@ function applyMode() {
     modeWalletBtn.classList.remove('active');
     modeDemoBtn.setAttribute('aria-selected', 'true');
     modeWalletBtn.setAttribute('aria-selected', 'false');
-    modeNote.textContent = 'Demo: practice with any Bioms by seed. Cooldowns are shortened to 60 seconds so you can feel the mechanic. State saves to this browser.';
+    modeNote.textContent = 'Practice with any seed. State stays in this browser.';
   }
   renderWalletUI();
 }
