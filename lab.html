@@ -1120,6 +1120,297 @@
     color: var(--ink);
   }
   .burn-confirm-text strong { font-weight: 500; }
+
+  /* ============================================================
+     BURN RITUAL — fullscreen ceremony for the irreversible act.
+     Dim everything else, scale the two Bioms up to a respectful
+     size, require a 3-second press-and-hold to commit. The CSS
+     drives the entire feel here — JS just flips three classes:
+     `visible`, `holding`, `committed`.
+
+     Visual language:
+       Background:  warm ink #15110d, not pure black — feels less
+                    digital, more "darkroom"
+       Foreground:  cream #f4ead4 (the paper-card color inverted),
+                    used for text + specimen surfaces
+       Accent:      ember #c8826a — single warm color for the
+                    progress fill and the bloom after commit
+     ============================================================ */
+  .burn-ritual {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(21, 17, 13, 0);
+    backdrop-filter: blur(0);
+    -webkit-backdrop-filter: blur(0);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      background 600ms cubic-bezier(0.4, 0, 0.2, 1),
+      backdrop-filter 600ms cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 600ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .burn-ritual.visible {
+    opacity: 1;
+    background: rgba(21, 17, 13, 0.94);
+    backdrop-filter: blur(24px) saturate(1.2);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    pointer-events: auto;
+  }
+  .ritual-stage {
+    max-width: 720px;
+    width: 90vw;
+    padding: 0 32px;
+    color: #f4ead4;
+    text-align: center;
+    transform: translateY(20px);
+    opacity: 0;
+    transition:
+      transform 700ms cubic-bezier(0.2, 0.8, 0.3, 1) 120ms,
+      opacity 700ms cubic-bezier(0.4, 0, 0.2, 1) 120ms;
+  }
+  .burn-ritual.visible .ritual-stage {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .ritual-title {
+    font-size: clamp(20px, 2.4vw, 28px);
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    margin-bottom: clamp(40px, 6vh, 64px);
+    color: rgba(244, 234, 212, 0.72);
+    transition: opacity 500ms ease;
+  }
+  .burn-ritual.committed .ritual-title { opacity: 0; }
+  .ritual-pair {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: clamp(20px, 4vw, 48px);
+    margin-bottom: clamp(48px, 8vh, 80px);
+    transition: margin 600ms ease;
+  }
+  .ritual-specimen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    /* min-width: 0 lets the grid column actually constrain the name
+       width below — without it the long monospace genus strings push
+       the grid wider than the viewport on mobile. */
+    min-width: 0;
+  }
+  .ritual-render {
+    width: clamp(140px, 22vw, 220px);
+    aspect-ratio: 1;
+    position: relative;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
+    overflow: hidden;
+    transition: transform 500ms cubic-bezier(0.2, 0.8, 0.3, 1),
+                box-shadow 800ms ease;
+  }
+  .ritual-render .scene { position: absolute; inset: 0; }
+  .ritual-render .composition { position: absolute; inset: 0; }
+  /* Specimen panels rendered inside the ritual frame — adapt the
+     thumbnail styles to the dark backdrop (more subtle highlights,
+     no noise overlay since the panels are already small). */
+  .ritual-render .panel {
+    position: absolute;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      inset 0 2px 4px rgba(255, 255, 255, 0.25),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.20),
+      0 1px 2px rgba(0, 0, 0, 0.35);
+    border: 0.5px solid rgba(255, 255, 255, 0.30);
+    overflow: hidden;
+  }
+  .ritual-name {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    color: rgba(244, 234, 212, 0.62);
+    transition:
+      letter-spacing 3000ms cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 3000ms cubic-bezier(0.4, 0, 0.2, 1);
+    /* Names are deterministic from seed and can run up to 16 chars
+       (POLYSPORADICTYON). On narrow viewports they'd push the grid
+       wider than the viewport. Force-wrap to two lines instead. */
+    text-align: center;
+    line-height: 1.4;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .ritual-arrow {
+    font-size: 22px;
+    color: rgba(244, 234, 212, 0.32);
+    transition: opacity 400ms ease;
+  }
+  .burn-ritual.committed .ritual-arrow { opacity: 0; }
+  .burn-ritual.committed .ritual-specimen.burner { display: none; }
+  .burn-ritual.committed .ritual-pair {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    margin-bottom: 32px;
+  }
+
+  /* During the hold: burner dissolves slowly, name spreads apart. */
+  .burn-ritual.holding .ritual-specimen.burner .ritual-render {
+    animation: ritual-dissolve 3000ms ease-out forwards;
+  }
+  .burn-ritual.holding .ritual-specimen.burner .ritual-name {
+    letter-spacing: 0.6em;
+    opacity: 0;
+  }
+  @keyframes ritual-dissolve {
+    0%   { opacity: 1; filter: blur(0) brightness(1);   transform: scale(1)    translateY(0); }
+    50%  { opacity: 0.6; filter: blur(3px) brightness(1.3); transform: scale(0.94) translateY(-6px); }
+    100% { opacity: 0; filter: blur(12px) brightness(1.5); transform: scale(0.84) translateY(-22px); }
+  }
+  /* After commit: survivor blooms briefly to mark the new state. */
+  .burn-ritual.committed .ritual-specimen.absorber .ritual-render {
+    animation: ritual-bloom 900ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  }
+  @keyframes ritual-bloom {
+    0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 130, 106, 0); }
+    50%  { transform: scale(1.04); box-shadow: 0 0 64px 14px rgba(200, 130, 106, 0.32); }
+    100% { transform: scale(1);    box-shadow: 0 0 24px 4px rgba(200, 130, 106, 0); }
+  }
+
+  /* Commit pill — long horizontal button with a fill that grows
+     left-to-right during the hold. CSS transitions handle the
+     timing; JS only toggles the .holding class. */
+  .ritual-commit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .ritual-hold {
+    position: relative;
+    width: clamp(220px, 32vw, 280px);
+    height: 56px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #f4ead4;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    font-family: inherit;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    overflow: hidden;
+    transition: background 200ms ease, border-color 200ms ease;
+  }
+  .ritual-hold:hover {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.30);
+  }
+  .ritual-hold .fill {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, #c8826a 0%, #b86a4f 100%);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0ms linear;
+    will-change: transform;
+  }
+  .ritual-hold.holding .fill {
+    transform: scaleX(1);
+    transition: transform 3000ms linear;
+  }
+  .ritual-hold .fill-label {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+  }
+  .ritual-cancel {
+    background: transparent;
+    border: 0;
+    color: rgba(244, 234, 212, 0.5);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 6px 14px;
+    border-radius: 6px;
+    transition: color 200ms ease;
+  }
+  .ritual-cancel:hover { color: rgba(244, 234, 212, 0.9); }
+  .burn-ritual.committed .ritual-commit { display: none; }
+
+  /* Result panel — only visible after commit. Fades in below the
+     survivor. */
+  .ritual-result {
+    margin-top: 40px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition:
+      opacity 700ms cubic-bezier(0.4, 0, 0.2, 1) 200ms,
+      transform 700ms cubic-bezier(0.2, 0.8, 0.3, 1) 200ms;
+  }
+  .burn-ritual:not(.committed) .ritual-result { display: none; }
+  .burn-ritual.committed .ritual-result {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .ritual-result-name {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    color: #f4ead4;
+    margin-bottom: 14px;
+  }
+  .ritual-result-lineage {
+    font-size: 14px;
+    line-height: 1.55;
+    color: rgba(244, 234, 212, 0.72);
+    margin: 0 auto 28px;
+    max-width: 480px;
+  }
+  .ritual-result-tier {
+    display: inline-block;
+    padding: 5px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.10);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: #f4ead4;
+    margin-bottom: 28px;
+  }
+  .ritual-continue {
+    background: transparent;
+    border: 1px solid rgba(244, 234, 212, 0.4);
+    color: #f4ead4;
+    padding: 10px 28px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 14px;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: background 200ms ease, border-color 200ms ease;
+  }
+  .ritual-continue:hover {
+    background: rgba(244, 234, 212, 0.10);
+    border-color: rgba(244, 234, 212, 0.6);
+  }
+
+  @media (max-width: 600px) {
+    .ritual-pair { grid-template-columns: 1fr auto 1fr; gap: 14px; }
+    .ritual-render { width: 32vw; }
+    .ritual-title { margin-bottom: 32px; font-size: 17px; }
+    .ritual-commit { gap: 12px; }
+    .ritual-result { margin-top: 28px; }
+  }
 </style>
 </head>
 <body>
@@ -1267,6 +1558,42 @@
     <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">by @timsouw</a>
   </div>
 </footer>
+
+<!-- ============================================================
+     BURN RITUAL MODAL — must be in the DOM before the inline script
+     below runs, since the script grabs refs via getElementById().
+     Lives in the footer area (position: fixed, so visual order is
+     irrelevant; logical-order needs to be pre-script).
+     ============================================================ -->
+<div class="burn-ritual" id="burnRitual" role="dialog" aria-modal="true" aria-labelledby="ritualTitle" hidden>
+  <div class="ritual-stage">
+    <div class="ritual-title" id="ritualTitle">This cannot be undone.</div>
+    <div class="ritual-pair">
+      <div class="ritual-specimen burner">
+        <div class="ritual-render" id="ritualBurnerRender"></div>
+        <div class="ritual-name" id="ritualBurnerName"></div>
+      </div>
+      <div class="ritual-arrow" aria-hidden="true">→</div>
+      <div class="ritual-specimen absorber">
+        <div class="ritual-render" id="ritualAbsorberRender"></div>
+        <div class="ritual-name" id="ritualAbsorberName"></div>
+      </div>
+    </div>
+    <div class="ritual-commit">
+      <button type="button" class="ritual-hold" id="ritualHold" aria-label="Press and hold for 3 seconds to commit the burn">
+        <span class="fill" aria-hidden="true"></span>
+        <span class="fill-label">Press and hold to burn</span>
+      </button>
+      <button type="button" class="ritual-cancel" id="ritualCancel">Cancel</button>
+    </div>
+    <div class="ritual-result">
+      <div class="ritual-result-name" id="ritualResultName"></div>
+      <div class="ritual-result-lineage" id="ritualResultLineage"></div>
+      <div class="ritual-result-tier" id="ritualResultTier"></div>
+      <button type="button" class="ritual-continue" id="ritualContinue">Continue</button>
+    </div>
+  </div>
+</div>
 
 <script src="specimen-engine.js"></script>
 <script>
@@ -3226,8 +3553,9 @@ document.getElementById('seedInputAdd').addEventListener('keydown', (e) => {
 document.getElementById('addRandomBtn').addEventListener('click', () => addRandom(4));
 document.getElementById('resetBtn').addEventListener('click', resetArena);
 // Primary commit button — crossbreed in crossbreed mode, burn in burn mode.
-// Burn is destructive, so it requires an explicit second tap via the
-// inline confirm panel before actually running.
+// Burn is destructive — open the fullscreen ritual modal instead of
+// running the burn inline. The ritual requires a 3-second press-and-
+// hold to commit, which is the new proof-of-intent.
 conjugateBtn.addEventListener('click', () => {
   if (isAnimating) return;
   if (donorSeed === null || recipientSeed === null) return;
@@ -3240,12 +3568,11 @@ conjugateBtn.addEventListener('click', () => {
     runCommitAnimation();
     return;
   }
-  // Burn mode — show confirmation first
-  if (!pendingBurnConfirm) {
-    pendingBurnConfirm = true;
-    showBurnConfirm();
-    return;
-  }
+  // Burn mode — open the ritual. Hide the legacy inline panel just in
+  // case it was stuck visible from a previous flow.
+  hideBurnConfirm();
+  pendingBurnConfirm = false;
+  openBurnRitual(donorSeed, recipientSeed);
 });
 
 // Burn confirmation buttons
@@ -3343,6 +3670,149 @@ if (LabState.mode === 'demo' && LabState.ownedSeeds.length === 0 && !localStorag
   addRandom(4);
   localStorage.setItem(DEMO_STORAGE_KEY + '-seeded', '1');
 }
+
+// ============================================================
+// BURN RITUAL — the irreversible moment, dignified.
+//
+// Replaces the small inline "Are you sure?" confirm panel with a
+// fullscreen ceremony: dim the rest of the lab, show the two Bioms
+// involved at proper scale, require a 3-second press-and-hold to
+// commit, and reveal the survivor + its lineage afterward.
+//
+// Why this instead of a one-click button: burning is the only act
+// in the project that cannot be undone. A flicker of a modal isn't
+// enough proof-of-intent. A 3-second hold is. The mid-press dissolve
+// also lets the user FEEL what they're about to do — name spreading
+// apart, specimen blurring out — and bail before commit if it
+// suddenly feels wrong.
+// ============================================================
+const burnRitual          = document.getElementById('burnRitual');
+const ritualTitle         = document.getElementById('ritualTitle');
+const ritualBurnerRender  = document.getElementById('ritualBurnerRender');
+const ritualBurnerName    = document.getElementById('ritualBurnerName');
+const ritualAbsorberRender= document.getElementById('ritualAbsorberRender');
+const ritualAbsorberName  = document.getElementById('ritualAbsorberName');
+const ritualHold          = document.getElementById('ritualHold');
+const ritualCancel        = document.getElementById('ritualCancel');
+const ritualResultName    = document.getElementById('ritualResultName');
+const ritualResultLineage = document.getElementById('ritualResultLineage');
+const ritualResultTier    = document.getElementById('ritualResultTier');
+const ritualContinue      = document.getElementById('ritualContinue');
+
+const BURN_HOLD_MS = 3000;
+let _ritual = { burnSeed: null, absorbSeed: null, holdTimer: null, committed: false, active: false };
+
+function _renderRitualSpecimen(targetEl, seed, stateOverride) {
+  targetEl.innerHTML = '<div class="scene"><div class="composition"></div></div>';
+  const comp = targetEl.querySelector('.composition');
+  const eff = stateOverride || effectiveState(seed);
+  let resolvedPalette = eff.palette;
+  if (typeof resolvedPalette === 'string' && resolvedPalette.includes('+')) {
+    const parts = resolvedPalette.split('+').filter(Boolean);
+    resolvedPalette = window.BiomEngine.mixPalettes(...parts);
+  }
+  try {
+    window.BiomEngine.renderSpecimen(comp, seed, {
+      state: {
+        morphology: eff.morphology,
+        cellCount: eff.cellCount,
+        palette: resolvedPalette,
+        organelles: eff.organelles,
+        lifecycle: eff.lifecycle,
+        reserveGranule: eff.reserveGranule,
+        phageAttached: eff.phageAttached,
+        endosymbiont: eff.endosymbiont,
+        biofilmHalo: eff.biofilmHalo,
+      },
+    });
+  } catch (e) { /* render failure shouldn't take down the ritual */ }
+}
+
+function openBurnRitual(burnSeed, absorbSeed) {
+  if (_ritual.active) return;
+  _ritual = { burnSeed, absorbSeed, holdTimer: null, committed: false, active: true };
+  burnRitual.classList.remove('visible', 'holding', 'committed');
+  _renderRitualSpecimen(ritualBurnerRender, burnSeed);
+  _renderRitualSpecimen(ritualAbsorberRender, absorbSeed);
+  ritualBurnerName.textContent = window.BiomEngine.label(burnSeed);
+  ritualAbsorberName.textContent = window.BiomEngine.label(absorbSeed);
+  ritualTitle.textContent = 'This cannot be undone.';
+  ritualHold.classList.remove('holding');
+  burnRitual.hidden = false;
+  // Force a layout pass so the fade-in transition fires
+  void burnRitual.offsetHeight;
+  burnRitual.classList.add('visible');
+  document.addEventListener('keydown', _ritualKeyHandler);
+  // Lock body scroll
+  document.body.style.overflow = 'hidden';
+}
+
+function closeBurnRitual() {
+  if (!_ritual.active) return;
+  if (_ritual.holdTimer) { clearTimeout(_ritual.holdTimer); _ritual.holdTimer = null; }
+  burnRitual.classList.remove('visible');
+  document.removeEventListener('keydown', _ritualKeyHandler);
+  document.body.style.overflow = '';
+  // Wait for fade-out to finish before hiding completely
+  setTimeout(() => {
+    if (_ritual.active === false) {
+      burnRitual.hidden = true;
+      burnRitual.classList.remove('holding', 'committed');
+    }
+  }, 600);
+  _ritual.active = false;
+}
+
+function _ritualKeyHandler(e) {
+  if (e.key === 'Escape') closeBurnRitual();
+}
+
+function _ritualStartHold(ev) {
+  if (ev) ev.preventDefault();
+  if (_ritual.committed || _ritual.holdTimer || !_ritual.active) return;
+  burnRitual.classList.add('holding');
+  ritualHold.classList.add('holding');
+  _ritual.holdTimer = setTimeout(_ritualCommit, BURN_HOLD_MS);
+}
+function _ritualCancelHold() {
+  if (_ritual.committed) return;
+  if (_ritual.holdTimer) { clearTimeout(_ritual.holdTimer); _ritual.holdTimer = null; }
+  burnRitual.classList.remove('holding');
+  ritualHold.classList.remove('holding');
+}
+
+function _ritualCommit() {
+  if (_ritual.committed) return;
+  _ritual.committed = true;
+  const { burnSeed, absorbSeed } = _ritual;
+  // Run the actual burn — performBurn mutates LabState and clears the burner
+  performBurn(burnSeed, absorbSeed);
+  // The survivor's new effective state
+  const newEff = effectiveState(absorbSeed);
+  _renderRitualSpecimen(ritualAbsorberRender, absorbSeed, newEff);
+  ritualResultName.textContent = window.BiomEngine.label(absorbSeed);
+  const ancestors = newEff.ancestors || [];
+  if (ancestors.length === 0) {
+    ritualResultLineage.textContent = '';
+  } else {
+    const names = ancestors.map(a => window.BiomEngine.label(a.seed));
+    ritualResultLineage.textContent = 'Carries the memory of ' + names.join(', ') + '.';
+  }
+  const tier = tierForRank(newEff.rank);
+  ritualResultTier.textContent = (tier ? tier.name : 'Genesis') + ' · Rank ' + newEff.rank;
+  burnRitual.classList.add('committed');
+  burnRitual.classList.remove('holding');
+  // Sync the lab state behind the ritual (selection cleared, collection re-rendered).
+  resetArena();
+}
+
+// Pointer event handlers — covers mouse, touch, pen in one path.
+ritualHold.addEventListener('pointerdown', _ritualStartHold);
+ritualHold.addEventListener('pointerup', _ritualCancelHold);
+ritualHold.addEventListener('pointerleave', _ritualCancelHold);
+ritualHold.addEventListener('pointercancel', _ritualCancelHold);
+ritualCancel.addEventListener('click', closeBurnRitual);
+ritualContinue.addEventListener('click', closeBurnRitual);
 </script>
 
 </body>
