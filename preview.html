@@ -505,7 +505,23 @@ function mixPalettes(idA, idB) {
   const keys = new Set([...Object.keys(pa), ...Object.keys(pb)]);
   for (const k of keys) {
     const va = pa[k], vb = pb[k];
-    if (va === '__GRAM_VARIABLE__' || vb === '__GRAM_VARIABLE__') {
+    // Special cases (mirror of specimen-engine.js):
+    //   body  → two-stop gradient [A.body, B.body] — engine resolves to CSS linear-gradient
+    //   accent / accentB → kept distinct (one per parent) so the hybrid
+    //                       visibly carries marks from both originals
+    if (k === 'body') {
+      const aBody = Array.isArray(va) ? va[0] : va;
+      const bBody = Array.isArray(vb) ? vb[0] : vb;
+      if (aBody && bBody && aBody !== '__GRAM_VARIABLE__' && bBody !== '__GRAM_VARIABLE__') {
+        mixed[k] = [aBody, bBody];
+      } else {
+        mixed[k] = aBody || bBody;
+      }
+    } else if (k === 'accent') {
+      mixed[k] = va || vb;
+    } else if (k === 'accentB') {
+      mixed[k] = vb || va;
+    } else if (va === '__GRAM_VARIABLE__' || vb === '__GRAM_VARIABLE__') {
       mixed[k] = (va === '__GRAM_VARIABLE__' ? vb : va) || va;
     } else if (va && vb) {
       mixed[k] = _blendRgba(va, vb);

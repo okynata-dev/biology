@@ -165,8 +165,24 @@
     const keys = new Set([...Object.keys(pa), ...Object.keys(pb)]);
     for (const k of keys) {
       const va = pa[k], vb = pb[k];
-      if (va === '__GRAM_VARIABLE__' || vb === '__GRAM_VARIABLE__') {
-        // Gram-variable has a sentinel — fall back to whichever real value exists
+      // Special cases: body becomes a true two-stop gradient (resolveColor
+      // already renders array body as CSS linear-gradient), and each parent's
+      // accent stays distinct so the hybrid visibly carries marks from both.
+      if (k === 'body') {
+        const aBody = Array.isArray(va) ? va[0] : va;
+        const bBody = Array.isArray(vb) ? vb[0] : vb;
+        if (aBody && bBody && aBody !== '__GRAM_VARIABLE__' && bBody !== '__GRAM_VARIABLE__') {
+          mixed[k] = [aBody, bBody]; // engine → linear-gradient(angle, A 0%, B 100%)
+        } else {
+          mixed[k] = aBody || bBody;
+        }
+      } else if (k === 'accent') {
+        // Parent A's accent — stays as-is (its identifying mark)
+        mixed[k] = va || vb;
+      } else if (k === 'accentB') {
+        // Parent B's accent — stays as-is (its identifying mark)
+        mixed[k] = vb || va;
+      } else if (va === '__GRAM_VARIABLE__' || vb === '__GRAM_VARIABLE__') {
         mixed[k] = (va === '__GRAM_VARIABLE__' ? vb : va) || va;
       } else if (va && vb) {
         mixed[k] = _blendRgba(va, vb);
