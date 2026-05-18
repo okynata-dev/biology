@@ -650,10 +650,50 @@ const packBtn        = document.getElementById('packBtn');
 // scrubs seeds and transforms. Export uses the pre-rendered PNG when it's
 // loaded (HQ path), or falls back to the local canvas renderer.
 
-let specimenImg = null;          // HTMLImageElement once loaded
+let specimenImg = null;          // HTMLImageElement OR canvas once loaded
 let specimenImgSeed = null;      // seed it was loaded for
 let specimenImgError = null;     // last load error, if any
 let specimenImgPromise = null;   // in-flight load Promise so render can await it
+
+// ============================================================
+// BG STRIPPING — the master PNG was screenshotted from preview.html,
+// which paints a cream paper-card background (linear-gradient(160deg,
+// #faf8f3, #efebe2) + noise overlay). When that PNG is composited onto
+// a 3:1 banner, the cream square shows where the PNG sits and pure
+// white shows on the canvas edges — the user notices and asks "why
+// isn't the background fully white?"
+//
+// Fix: run a one-time per-seed pass that marks cream-like pixels as
+// transparent. Cream is uniformly warm (R >= G >= B) and bright (all
+// channels >= 215). Specimen highlights are either neutral (R≈G≈B)
+// or have a stronger non-warm tint, so they survive the filter.
+//
+// Returns an HTMLCanvasElement with the bg knocked out, or the
+// original img if the operation fails (CORS / getImageData blocked).
+// ============================================================
+function stripCardBackground(img) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth || img.width;
+    c.height = img.naturalHeight || img.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const id = ctx.getImageData(0, 0, c.width, c.height);
+    const px = id.data;
+    for (let i = 0; i < px.length; i += 4) {
+      const r = px[i], g = px[i + 1], b = px[i + 2];
+      // Cream: bright + warm-biased (R >= G >= B, small spread)
+      if (r >= 215 && g >= 210 && b >= 205 && r >= g && g >= b && (r - b) <= 28 && (r - b) >= 0) {
+        px[i + 3] = 0;
+      }
+    }
+    ctx.putImageData(id, 0, 0);
+    return c;
+  } catch (e) {
+    console.warn('[make] bg strip failed (likely CORS) — using raw PNG:', e);
+    return img;
+  }
+}
 
 function preloadSpecimen(seed) {
   specimenImg = null;
@@ -664,7 +704,9 @@ function preloadSpecimen(seed) {
     img.crossOrigin = 'anonymous';  // needed for canvas.drawImage → toBlob
     img.onload = () => {
       if (specimenImgSeed !== seed) { resolve(false); return; }
-      specimenImg = img;
+      // Strip the cream card background so banner exports sit on
+      // pure white, not on a square of cream surrounded by white.
+      specimenImg = stripCardBackground(img);
       updateExportStatus();
       resolve(true);
     };
