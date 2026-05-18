@@ -1789,27 +1789,52 @@ function crossbreedOutcomes(seedA, seedB) {
 }
 
 // ============================================================
-// BURN OUTCOME — single deterministic preview. Absorber gets every
-// organelle and anomaly the burnt Biom has. Palette is NOT inherited
-// (so users don't accidentally lose their preferred colour).
+// BURN OUTCOME — the result becomes "twice as cool":
+//   palette     — if they differ, blend into a gradient (mix of both colours).
+//                 if same, keep it.
+//   organelles  — UNION of both. Everything is added.
+//   anomalies   — UNION of both. Phage + endo + biofilm if either has it.
+//   cellCount   — MAX of both. Bigger colony.
+//   morphology  — absorber's (can't merge two body shapes physically).
+//   lifecycle   — absorber's (a single state at a time).
+//   reserve     — absorber's (one inclusion at a time).
 // ============================================================
 function burnOutcome(burnSeed, absorbSeed) {
   const burnEff = effectiveState(burnSeed);
   const absEff  = effectiveState(absorbSeed);
+
+  // Palette blend — only mix when different. We sort the pair so the
+  // encoded id is deterministic ('a+b' vs 'b+a' would produce different
+  // synthetic palette keys otherwise).
+  const samePalette = burnEff.palette === absEff.palette;
+  const sortedPair  = [burnEff.palette, absEff.palette].sort();
+  const mixedPalette = samePalette ? absEff.palette : `${sortedPair[0]}+${sortedPair[1]}`;
+
   const next = {
-    palette: absEff.palette,  // absorber keeps their own colour
+    palette: mixedPalette,
     organelles: new Set([...absEff.organelles, ...burnEff.organelles]),
     phageAttached: absEff.phageAttached || burnEff.phageAttached,
     endosymbiont:  absEff.endosymbiont  || burnEff.endosymbiont,
     biofilmHalo:   absEff.biofilmHalo   || burnEff.biofilmHalo,
+    morphology:    absEff.morphology,
+    lifecycle:     absEff.lifecycle,
+    reserveGranule: absEff.reserveGranule,
+    cellCount:     Math.max(absEff.cellCount, burnEff.cellCount),
   };
-  // Compute deltas for a human-readable summary
+
+  // Deltas for a human-readable summary on the burn-preview card
   const gainedOrganelles = [...burnEff.organelles].filter(o => !absEff.organelles.has(o) && o !== 'capsule' && o !== 'nucleoid');
   const gainedAnomalies = [];
   if (burnEff.phageAttached && !absEff.phageAttached) gainedAnomalies.push('phage');
   if (burnEff.endosymbiont  && !absEff.endosymbiont)  gainedAnomalies.push('endosymbiont');
   if (burnEff.biofilmHalo   && !absEff.biofilmHalo)   gainedAnomalies.push('biofilm halo');
-  return { next, gainedOrganelles, gainedAnomalies };
+  const blendedPalette = !samePalette ? {
+    fromAbs: absEff.palette, fromBurn: burnEff.palette, mixedKey: mixedPalette,
+  } : null;
+  const cellCountBumped = burnEff.cellCount > absEff.cellCount
+    ? { from: absEff.cellCount, to: burnEff.cellCount } : null;
+
+  return { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped };
 }
 
 // ============================================================
@@ -2118,15 +2143,27 @@ function renderOutcomes() {
 
   // --- BURN MODE: one big preview, no choice gallery ---
   if (arenaMode === 'burn') {
-    document.querySelector('.outcomes-head').textContent = 'After the burn, Absorber becomes:';
-    outcomesHint.textContent = `${SLOT_LABELS.burn.donor} #${donorSeed} will be permanently destroyed. ${SLOT_LABELS.burn.recipient} #${recipientSeed} keeps its own stain and gains every organelle and anomaly from the burn.`;
+    document.querySelector('.outcomes-head').textContent = 'After the burn:';
+    outcomesHint.textContent = `#${donorSeed} burns. #${recipientSeed} absorbs every trait — stains blend into a gradient, organelles and anomalies stack, the colony grows. Twice as cool.`;
     outcomesHint.hidden = false;
-    const { next, gainedOrganelles, gainedAnomalies } = burnOutcome(donorSeed, recipientSeed);
+    const { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped } = burnOutcome(donorSeed, recipientSeed);
     const url = previewUrlFor(recipientSeed, next, { nointeract: true });
-    const gains = [];
-    if (gainedOrganelles.length) gains.push(gainedOrganelles.map(o => TRANSFERABLE_BY_ID[o]?.label || o).join(', '));
-    if (gainedAnomalies.length) gains.push(gainedAnomalies.join(', '));
-    const gainText = gains.length ? `Gains: ${gains.join(' · ')}.` : 'Nothing new — absorber already has everything the burn would offer. Try a different burn target.';
+    const parts = [];
+    if (blendedPalette) {
+      const fromName = PALETTE_LABELS[blendedPalette.fromAbs] || blendedPalette.fromAbs;
+      const toName   = PALETTE_LABELS[blendedPalette.fromBurn] || blendedPalette.fromBurn;
+      parts.push(`<strong>Stain blends:</strong> ${fromName} × ${toName}`);
+    }
+    if (gainedOrganelles.length) {
+      parts.push(`<strong>Adds:</strong> ${gainedOrganelles.map(o => TRANSFERABLE_BY_ID[o]?.label || o).join(', ')}`);
+    }
+    if (gainedAnomalies.length) {
+      parts.push(`<strong>Ultra-rare:</strong> ${gainedAnomalies.join(', ')}`);
+    }
+    if (cellCountBumped) {
+      parts.push(`<strong>Cells:</strong> ${cellCountBumped.from} → ${cellCountBumped.to}`);
+    }
+    const gainText = parts.length ? parts.join(' · ') + '.' : 'These two are too similar — try a different burn target.';
     _outcomesEmpty = false;
     outcomesGrid.innerHTML = `
       <div class="burn-preview-card">
@@ -2134,12 +2171,11 @@ function renderOutcomes() {
           <iframe src="${url}" loading="eager" tabindex="-1"></iframe>
         </div>
         <div class="outcome-meta">
-          <div class="outcome-name">#${recipientSeed} after the burn</div>
+          <div class="outcome-name">#${recipientSeed} after absorbing #${donorSeed}</div>
           <div class="outcome-caption">${gainText}</div>
         </div>
       </div>
     `;
-    // Auto-select in burn mode so currentStep advances to 'ready'
     selectedTrait = 'burn-merge';
     return;
   }
@@ -2364,7 +2400,14 @@ function performBurn(burnSeed, absorbSeed) {
   for (const a of ['phageAttached', 'endosymbiont', 'biofilmHalo']) {
     if (next[a] && !absEff[a]) applyMutation(absorbSeed, { setAnomaly: a });
   }
-  // Note: palette is NOT inherited (per game design — absorber keeps theirs)
+  // Palette — if it differs from absorber's current, apply the blend
+  if (next.palette !== absEff.palette) {
+    applyMutation(absorbSeed, { palette: next.palette });
+  }
+  // CellCount — if burn raised it, apply max
+  if (next.cellCount !== absEff.cellCount) {
+    applyMutation(absorbSeed, { set_cellCount: next.cellCount });
+  }
 
   // Mark burner as destroyed. We DON'T delete the token state because
   // wallet-mode parity would later need an on-chain burn signal; here

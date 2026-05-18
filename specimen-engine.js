@@ -131,6 +131,53 @@
     return weights[weights.length - 1][0];
   }
 
+  // ============================================================
+  // PALETTE MIXING — blend two stains channel-by-channel.
+  // Result is registered into PALETTES under a synthetic key
+  // `_mix_${a}_${b}` (sorted) so the rest of the engine can look it
+  // up by name like any other palette. Used by the Lab's burn flow:
+  // two absorbed organisms produce a gradient-blend of their stains.
+  // ============================================================
+  function _parseRgba(s) {
+    if (Array.isArray(s)) s = s[0]; // aurora's body is gradient stops — use first
+    if (typeof s !== 'string') return null;
+    const m = s.match(/rgba?\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)(?:,\s*([\d.]+))?\)/);
+    if (!m) return null;
+    return { r: +m[1], g: +m[2], b: +m[3], a: m[4] !== undefined ? +m[4] : 1 };
+  }
+  function _blendRgba(sa, sb) {
+    const pa = _parseRgba(sa), pb = _parseRgba(sb);
+    if (!pa) return sb;
+    if (!pb) return sa;
+    const r = Math.round((pa.r + pb.r) / 2);
+    const g = Math.round((pa.g + pb.g) / 2);
+    const b = Math.round((pa.b + pb.b) / 2);
+    const a = ((pa.a + pb.a) / 2).toFixed(2);
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  function mixPalettes(idA, idB) {
+    if (idA === idB) return idA;
+    const pa = PALETTES[idA], pb = PALETTES[idB];
+    if (!pa || !pb) return idA || idB;
+    const key = `_mix_${[idA, idB].sort().join('_')}`;
+    if (PALETTES[key]) return key;
+    const mixed = {};
+    const keys = new Set([...Object.keys(pa), ...Object.keys(pb)]);
+    for (const k of keys) {
+      const va = pa[k], vb = pb[k];
+      if (va === '__GRAM_VARIABLE__' || vb === '__GRAM_VARIABLE__') {
+        // Gram-variable has a sentinel — fall back to whichever real value exists
+        mixed[k] = (va === '__GRAM_VARIABLE__' ? vb : va) || va;
+      } else if (va && vb) {
+        mixed[k] = _blendRgba(va, vb);
+      } else {
+        mixed[k] = va || vb;
+      }
+    }
+    PALETTES[key] = mixed;
+    return key;
+  }
+
   const NAME_PREFIX = [
     'Halo','Aure','Lumi','Spiro','Vibrio','Coccu','Micro','Crypto',
     'Polyspora','Sympha','Glia','Plasmo','Endo','Strepto',
@@ -881,6 +928,7 @@
     renderSpecimenToCanvas,
     generateState,
     pickName,
+    mixPalettes,
     PALETTES,
     PALETTE_WEIGHTS,
     MORPHOLOGY_WEIGHTS,

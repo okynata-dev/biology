@@ -473,6 +473,50 @@ function pickWeightedPalette(rng) {
   return PALETTE_WEIGHTS[PALETTE_WEIGHTS.length - 1][0];
 }
 
+// === PALETTE MIXING — mirror of specimen-engine.js mixPalettes().
+// Used by the Lab burn flow: combine two stains into a synthetic
+// blended palette. The result is registered into PALETTES under a
+// deterministic synthetic key (`_mix_a_b`, sorted) so the rest of
+// the renderer treats it like any other palette.
+function _parseRgba(s) {
+  if (Array.isArray(s)) s = s[0];
+  if (typeof s !== 'string') return null;
+  const m = s.match(/rgba?\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)(?:,\s*([\d.]+))?\)/);
+  if (!m) return null;
+  return { r: +m[1], g: +m[2], b: +m[3], a: m[4] !== undefined ? +m[4] : 1 };
+}
+function _blendRgba(sa, sb) {
+  const pa = _parseRgba(sa), pb = _parseRgba(sb);
+  if (!pa) return sb;
+  if (!pb) return sa;
+  const r = Math.round((pa.r + pb.r) / 2);
+  const g = Math.round((pa.g + pb.g) / 2);
+  const b = Math.round((pa.b + pb.b) / 2);
+  const a = ((pa.a + pb.a) / 2).toFixed(2);
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+function mixPalettes(idA, idB) {
+  if (idA === idB) return idA;
+  const pa = PALETTES[idA], pb = PALETTES[idB];
+  if (!pa || !pb) return idA || idB;
+  const key = `_mix_${[idA, idB].sort().join('_')}`;
+  if (PALETTES[key]) return key;
+  const mixed = {};
+  const keys = new Set([...Object.keys(pa), ...Object.keys(pb)]);
+  for (const k of keys) {
+    const va = pa[k], vb = pb[k];
+    if (va === '__GRAM_VARIABLE__' || vb === '__GRAM_VARIABLE__') {
+      mixed[k] = (va === '__GRAM_VARIABLE__' ? vb : va) || va;
+    } else if (va && vb) {
+      mixed[k] = _blendRgba(va, vb);
+    } else {
+      mixed[k] = va || vb;
+    }
+  }
+  PALETTES[key] = mixed;
+  return key;
+}
+
 // Weighted morphology distribution — 11 morphologies. Sum = 100.
 // Classic 7 share 80%; new 4 share 20% with sarcina/mycelium being rare.
 const MORPHOLOGY_WEIGHTS = [
@@ -1513,7 +1557,17 @@ function applyOverridesFromURL() {
   const fm = params.get('forceMorph');
   if (fm) state.morphology = fm;
   const fs = params.get('forceStain');
-  if (fs) state.palette = fs;
+  if (fs) {
+    // Burn-flow palette blend: `forceStain=A+B` → synthesize a mixed
+    // palette by averaging A and B's colours channel-by-channel, register
+    // it into PALETTES, then point state.palette at the synthetic key.
+    if (fs.includes('+')) {
+      const [a, b] = fs.split('+');
+      state.palette = mixPalettes(a, b);
+    } else {
+      state.palette = fs;
+    }
+  }
   const flc = params.get('forceLifecycle');
   if (flc) state.lifecycle = flc;
   const fr = params.get('forceReserve');
