@@ -1178,6 +1178,86 @@
   .burn-confirm-text strong { font-weight: 500; }
 
   /* ============================================================
+     DRAG INTERACTIONS — desktop power-user shortcut
+     Drag one card onto another to pair them and trigger the
+     active mode's action (burn ritual / crossbreed outcomes).
+     Touch users keep tap-tap selection — the touch gesture for
+     drag would conflict with grid scrolling on mobile.
+
+     States:
+       body.dragging-biom         — global cursor + scroll lock
+       .biom-card.drag-source     — origin card (faded, in place)
+       .biom-card.drag-target     — card the ghost is currently over
+       .drag-ghost                — fixed-position clone following pointer
+     ============================================================ */
+  body.dragging-biom {
+    cursor: grabbing;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body.dragging-biom .biom-card {
+    transition: transform 200ms ease, opacity 200ms ease, box-shadow 200ms ease;
+  }
+  .biom-card.drag-source {
+    opacity: 0.32;
+    transform: scale(0.96);
+    pointer-events: none;
+  }
+  .biom-card.drag-target {
+    transform: translateY(-3px) scale(1.03);
+  }
+  /* Mode-aware drop highlight — ember for burn, ink for crossbreed.
+     Subtle ring, not loud — matches the rest of the palette. */
+  body.mode-crossbreed .biom-card.drag-target {
+    box-shadow: 0 0 0 2px var(--ink), 0 16px 32px rgba(0,0,0,0.08);
+  }
+  body.mode-burn .biom-card.drag-target {
+    box-shadow: 0 0 0 2px #c8826a, 0 0 28px rgba(200, 130, 106, 0.32), 0 12px 24px rgba(0,0,0,0.08);
+  }
+  /* The dragged ghost — clone of the card following the pointer.
+     Slightly lifted (shadow + scale) and tilted just barely. */
+  .drag-ghost {
+    position: fixed;
+    pointer-events: none;
+    z-index: 999;
+    width: var(--ghost-w, 180px);
+    transform-origin: center;
+    transform: scale(0.92) rotate(-1.5deg);
+    box-shadow: 0 24px 48px rgba(0,0,0,0.20), 0 8px 16px rgba(0,0,0,0.12);
+    border-radius: 12px;
+    overflow: hidden;
+    opacity: 0.92;
+    will-change: transform, left, top;
+    transition: transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  body.dragging-biom.has-drop-target .drag-ghost {
+    transform: scale(0.85) rotate(0);
+  }
+  /* Hint chip — appears briefly the first time the user enters drag.
+     Helps people discover the gesture without nagging anyone twice. */
+  .drag-hint {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: var(--bg);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    z-index: 998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 300ms ease;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.20);
+  }
+  .drag-hint.visible { opacity: 0.94; }
+  @media (hover: none) and (pointer: coarse) {
+    /* Touch devices — drag is disabled; hide the hint just in case. */
+    .drag-hint { display: none; }
+  }
+
+  /* ============================================================
      BURN RITUAL — fullscreen ceremony for the irreversible act.
      Dim everything else, scale the two Bioms up to a respectful
      size, require a 3-second press-and-hold to commit. The CSS
@@ -3929,6 +4009,168 @@ ritualHold.addEventListener('pointerleave', _ritualCancelHold);
 ritualHold.addEventListener('pointercancel', _ritualCancelHold);
 ritualCancel.addEventListener('click', closeBurnRitual);
 ritualContinue.addEventListener('click', closeBurnRitual);
+
+// ============================================================
+// DRAG INTERACTIONS — desktop power shortcut.
+// Mouse/pen only — touch keeps tap-tap selection so the gesture
+// doesn't fight grid scrolling. Pointerdown ARMS a drag; we wait
+// for >6px movement before committing to the drag (smaller moves
+// fall through to the existing click handler).
+// ============================================================
+const DRAG_THRESHOLD_PX = 6;
+const DRAG_HINT_KEY = 'bioms-drag-hint-seen';
+let _drag = { armed: null, active: null, hint: null };
+
+function _ensureHint() {
+  if (_drag.hint) return _drag.hint;
+  if (localStorage.getItem(DRAG_HINT_KEY)) return null;  // already shown once
+  const el = document.createElement('div');
+  el.className = 'drag-hint';
+  el.textContent = 'Drop onto another Biom to pair';
+  document.body.appendChild(el);
+  _drag.hint = el;
+  return el;
+}
+
+function _onDragArm(e) {
+  // Mouse + pen only — touch users keep the tap flow.
+  if (e.pointerType === 'touch') return;
+  if (e.button !== undefined && e.button !== 0) return;
+  if (isAnimating || _ritual.active) return;
+  const card = e.target.closest('.biom-card');
+  if (!card) return;
+  // Don't drag cards that are already in-use / depleted.
+  if (card.classList.contains('in-use')) return;
+  const seed = parseInt(card.dataset.seed, 10);
+  if (!Number.isFinite(seed)) return;
+  _drag.armed = { card, seed, startX: e.clientX, startY: e.clientY, pointerId: e.pointerId };
+}
+
+function _onDragMove(e) {
+  if (_drag.active) {
+    _moveGhost(e.clientX, e.clientY);
+    _refreshDropTarget(e.clientX, e.clientY);
+    // Auto-scroll if near viewport edges
+    const vH = window.innerHeight;
+    if (e.clientY < 80) window.scrollBy(0, -8);
+    else if (e.clientY > vH - 80) window.scrollBy(0, 8);
+    return;
+  }
+  if (!_drag.armed) return;
+  const dx = e.clientX - _drag.armed.startX;
+  const dy = e.clientY - _drag.armed.startY;
+  if (Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
+    _beginDrag(e);
+  }
+}
+
+function _beginDrag(e) {
+  const { card, seed } = _drag.armed;
+  _drag.armed = null;
+  const rect = card.getBoundingClientRect();
+  const ghost = card.cloneNode(true);
+  // Drop any classes that would otherwise re-trigger render/selection effects.
+  ghost.classList.remove('selected-donor', 'selected-recipient');
+  ghost.classList.add('drag-ghost');
+  ghost.style.setProperty('--ghost-w', rect.width + 'px');
+  ghost.style.left = rect.left + 'px';
+  ghost.style.top = rect.top + 'px';
+  // Remove any embedded iframes/scripts the clone might carry — only the
+  // pre-rendered .composition is needed for the ghost (no live re-render).
+  ghost.querySelectorAll('iframe, script').forEach(n => n.remove());
+  document.body.appendChild(ghost);
+  card.classList.add('drag-source');
+  document.body.classList.add('dragging-biom');
+  _drag.active = { card, seed, ghost, offsetX: e.clientX - rect.left, offsetY: e.clientY - rect.top, target: null };
+  _moveGhost(e.clientX, e.clientY);
+  // First-time hint
+  const hint = _ensureHint();
+  if (hint) {
+    hint.classList.add('visible');
+    setTimeout(() => hint.classList.remove('visible'), 2400);
+    localStorage.setItem(DRAG_HINT_KEY, '1');
+  }
+}
+
+function _moveGhost(x, y) {
+  if (!_drag.active) return;
+  const g = _drag.active.ghost;
+  g.style.left = (x - _drag.active.offsetX) + 'px';
+  g.style.top  = (y - _drag.active.offsetY) + 'px';
+}
+
+function _refreshDropTarget(x, y) {
+  if (!_drag.active) return;
+  // The ghost has pointer-events:none so elementFromPoint sees through it.
+  const el = document.elementFromPoint(x, y);
+  const card = el ? el.closest('.biom-card') : null;
+  const current = _drag.active.target;
+  const valid = card && card !== _drag.active.card && !card.classList.contains('in-use') ? card : null;
+  if (current !== valid) {
+    if (current) current.classList.remove('drag-target');
+    if (valid)   valid.classList.add('drag-target');
+    _drag.active.target = valid;
+    document.body.classList.toggle('has-drop-target', !!valid);
+  }
+}
+
+function _onDragRelease(e) {
+  if (_drag.armed) {
+    _drag.armed = null;
+    return;  // never crossed threshold — fall through to the card's click handler
+  }
+  if (!_drag.active) return;
+  const target = _drag.active.target;
+  const sourceSeed = _drag.active.seed;
+  _endDrag();
+  if (target) {
+    const targetSeed = parseInt(target.dataset.seed, 10);
+    if (Number.isFinite(targetSeed) && targetSeed !== sourceSeed) {
+      _commitDrop(sourceSeed, targetSeed);
+    }
+  }
+}
+
+function _endDrag() {
+  if (!_drag.active) return;
+  const { card, ghost, target } = _drag.active;
+  card.classList.remove('drag-source');
+  if (target) target.classList.remove('drag-target');
+  ghost.remove();
+  document.body.classList.remove('dragging-biom', 'has-drop-target');
+  _drag.active = null;
+  // After a real drag, the trailing click event would otherwise fire the
+  // card's onBiomClick — suppress it once.
+  _drag.suppressNextClick = true;
+}
+
+function _commitDrop(sourceSeed, targetSeed) {
+  // Drop semantics depend on mode.
+  //   burn       → drop = "I'm sacrificing source INTO target". Open ritual.
+  //   crossbreed → drop = "pair these two". Select both + jump to outcomes.
+  donorSeed = sourceSeed;
+  recipientSeed = targetSeed;
+  selectedTrait = null;
+  renderArenaAll();
+  if (arenaMode === 'burn') {
+    openBurnRitual(sourceSeed, targetSeed);
+  } else if (typeof outcomesSection !== 'undefined' && outcomesSection) {
+    setTimeout(() => outcomesSection.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+  }
+}
+
+collectionGrid.addEventListener('pointerdown', _onDragArm);
+window.addEventListener('pointermove', _onDragMove);
+window.addEventListener('pointerup', _onDragRelease);
+window.addEventListener('pointercancel', () => { _drag.armed = null; _endDrag(); });
+// Suppress the synthetic click that follows a drag-release on the source card.
+collectionGrid.addEventListener('click', (e) => {
+  if (_drag.suppressNextClick) {
+    e.stopPropagation();
+    e.preventDefault();
+    _drag.suppressNextClick = false;
+  }
+}, true);  // capture phase so we run before the card's own click handler
 </script>
 
 </body>
