@@ -1999,6 +1999,135 @@ function tierForGeneration(gen) {
   return            { name: 'Phoenix', cls: 'epic' };
 }
 
+// ============================================================
+// COLLECTION RENDER — incremental, stable DOM.
+//
+// Previous version did `innerHTML = ...` on every renderCollection()
+// call, which fires on every selection click. That destroyed and
+// recreated every <img>/<iframe>, causing a brief blank state per
+// thumbnail and a 404 re-fetch for seeds whose PNG isn't on R2.
+// Result: tokens "disappear" when you click around.
+//
+// Now: cards are built ONCE per seed and cached in cardElements.
+// Subsequent renders only flip CSS classes and update small dynamic
+// bits (role tag, cooldown chip). The thumbnail iframe/img stays
+// mounted — no flicker, no re-fetch.
+// ============================================================
+const cardElements = new Map(); // seed → DOM element
+let cardStateHash = new Map();  // seed → cache key (rebuild if changes)
+
+function _cardStateHash(seed) {
+  const eff = effectiveState(seed);
+  // Anything that affects what's painted INSIDE the thumbnail.
+  // Selection state and cooldown text are handled by incremental
+  // update; they're not part of this hash.
+  return [
+    arenaMode,
+    eff.palette,
+    [...eff.organelles].sort().join(','),
+    eff.morphology, eff.cellCount, eff.lifecycle, eff.reserveGranule,
+    eff.phageAttached ? 1 : 0,
+    eff.endosymbiont  ? 1 : 0,
+    eff.biofilmHalo   ? 1 : 0,
+    eff.generation,
+  ].join('|');
+}
+
+function _buildCardElement(seed) {
+  const eff = effectiveState(seed);
+  const t = LabState.tokens[seed] || {};
+  const traitCount = [...eff.organelles].length - 1;
+  const tier = tierForGeneration(eff.generation);
+
+  // Always use static iframe — works regardless of whether the
+  // pre-rendered PNG exists on R2. Slightly more memory, but no
+  // blank tokens and no broken-thumbnail flicker.
+  const url = previewUrl(seed, { nointeract: true, static: true });
+
+  const card = document.createElement('div');
+  card.className = 'biom-card';
+  card.dataset.seed = String(seed);
+  card.tabIndex = 0;
+  card.setAttribute('role', 'button');
+  card.setAttribute('aria-label',
+    `Biom #${seed}${eff.generation ? ` (Generation ${eff.generation})` : ''} — click to pick`);
+  card.innerHTML = `
+    <div class="biom-thumb">
+      <iframe class="biom-thumb-iframe" src="${url}" loading="lazy" tabindex="-1" aria-label="Biom #${seed}"></iframe>
+      ${tier ? `<span class="gen-badge ${tier.cls}" title="${tier.name} — Generation ${eff.generation}, survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}">${tier.name}</span>` : ''}
+      <span class="role-tag" hidden></span>
+      <span class="cooldown-tag" hidden></span>
+      <div class="mutation-badges" hidden></div>
+    </div>
+    <div class="biom-info">
+      <span class="biom-name">BIOM #${seed}</span>
+      <span class="biom-traits">${traitCount} traits</span>
+    </div>
+  `;
+  const activate = () => onBiomClick(seed);
+  card.addEventListener('click', activate);
+  card.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
+  });
+  return card;
+}
+
+// Update only the parts of a card that change cheaply: selection class,
+// role tag content, cooldown chip text, mutation badges.
+function _updateCardDynamic(card, seed, now) {
+  const eff = effectiveState(seed);
+  const t = LabState.tokens[seed] || {};
+  const isDonor = seed === donorSeed;
+  const isRecipient = seed === recipientSeed;
+
+  card.classList.toggle('selected-donor', isDonor);
+  card.classList.toggle('selected-recipient', isRecipient);
+
+  // Role tag
+  const roleEl = card.querySelector('.role-tag');
+  const roleText = !isDonor && !isRecipient ? ''
+    : arenaMode === 'burn' ? (isDonor ? 'Burn' : 'Keep')
+    : (isDonor ? 'A' : 'B');
+  if (roleText) {
+    roleEl.textContent = roleText;
+    roleEl.hidden = false;
+  } else {
+    roleEl.hidden = true;
+  }
+
+  // Cooldown chip (soonest-regenerating)
+  const cdEl = card.querySelector('.cooldown-tag');
+  let nextCooldown = null;
+  for (const d of (t.donated || [])) {
+    if (d.regeneratesAt > now && (!nextCooldown || d.regeneratesAt < nextCooldown.regeneratesAt)) {
+      nextCooldown = d;
+    }
+  }
+  if (nextCooldown) {
+    cdEl.textContent = `${TRANSFERABLE_BY_ID[nextCooldown.trait]?.label || nextCooldown.trait} · ${fmtRemaining(nextCooldown.regeneratesAt - now)}`;
+    cdEl.hidden = false;
+  } else {
+    cdEl.hidden = true;
+  }
+
+  // Mutation badges (visual hint that this Biom carries acquired traits)
+  const badgesEl = card.querySelector('.mutation-badges');
+  const receivedCount =
+    (t.receivedPalette ? 1 : 0) +
+    (t.receivedOrganelles || []).length +
+    (t.receivedAnomalies || []).length;
+  const depletedCount = eff.depletedNow.size;
+  if (receivedCount > 0 || depletedCount > 0) {
+    let html = '';
+    for (let i = 0; i < Math.min(receivedCount, 3); i++) html += '<span class="mutation-badge"></span>';
+    for (let i = 0; i < Math.min(depletedCount, 3); i++) html += '<span class="mutation-badge depleted"></span>';
+    badgesEl.innerHTML = html;
+    badgesEl.hidden = false;
+  } else {
+    badgesEl.hidden = true;
+  }
+}
+
 function renderCollection() {
   // Demo-only actions hidden in wallet mode (collection is read-only from chain)
   const demoActions = document.getElementById('demoActions');
@@ -2007,7 +2136,9 @@ function renderCollection() {
   if (LabState.ownedSeeds.length === 0) {
     collectionGrid.style.display = 'none';
     collectionEmpty.style.display = 'block';
-    // Mode-specific empty text
+    collectionGrid.innerHTML = '';
+    cardElements.clear();
+    cardStateHash.clear();
     if (LabState.mode === 'wallet') {
       if (!Wallet.address) {
         collectionEmpty.textContent = 'Connect your wallet to see your Bioms.';
@@ -2016,7 +2147,7 @@ function renderCollection() {
       } else if (Wallet.config && !Wallet.config.contractDeployed) {
         collectionEmpty.textContent = 'Mint contract is not deployed yet — your Bioms will appear here automatically after the drop.';
       } else {
-        collectionEmpty.textContent = `No Bioms found in ${shortAddr(Wallet.address)}. Try Demo mode to practice the mechanic.`;
+        collectionEmpty.textContent = `No Bioms found in ${shortAddr(Wallet.address)}. Try Demo mode.`;
       }
     } else {
       collectionEmpty.textContent = 'Your collection is empty. Add a Biom by seed (0–2999) or pull four random ones to start.';
@@ -2027,90 +2158,44 @@ function renderCollection() {
   collectionEmpty.style.display = 'none';
 
   const now = Date.now();
-  collectionGrid.innerHTML = LabState.ownedSeeds.map(seed => {
-    const eff = effectiveState(seed);
-    const t = LabState.tokens[seed] || {};
-    const isDonor = seed === donorSeed;
-    const isRecipient = seed === recipientSeed;
-    const isInUse = (isDonor || isRecipient);
+  const wantedSeeds = new Set(LabState.ownedSeeds);
 
-    // Cooldown info — show soonest-regenerating
-    let nextCooldown = null;
-    for (const d of (t.donated || [])) {
-      if (d.regeneratesAt > now && (!nextCooldown || d.regeneratesAt < nextCooldown.regeneratesAt)) {
-        nextCooldown = d;
-      }
+  // 1. Drop removed cards (burnt or otherwise gone)
+  for (const [seed, card] of cardElements) {
+    if (!wantedSeeds.has(seed)) {
+      card.remove();
+      cardElements.delete(seed);
+      cardStateHash.delete(seed);
     }
+  }
 
-    // Mutation badges (visual hint that this Biom has acquired traits)
-    const receivedCount =
-      (t.receivedPalette ? 1 : 0) +
-      (t.receivedOrganelles || []).length +
-      (t.receivedAnomalies || []).length;
-    const depletedCount = eff.depletedNow.size;
-    const badges = [];
-    for (let i = 0; i < Math.min(receivedCount, 3); i++) badges.push('<span class="mutation-badge"></span>');
-    for (let i = 0; i < Math.min(depletedCount, 3); i++) badges.push('<span class="mutation-badge depleted"></span>');
-
-    // Single-letter role tag — consistent monoline glyph across modes,
-    // no emoji (they break the design system on every platform).
-    //   Crossbreed: A | B (peers)
-    //   Burn:       B | A — the rust-tinted slot is the sacrifice
-    const roleTag = (() => {
-      if (!isDonor && !isRecipient) return '';
-      if (arenaMode === 'burn') {
-        return isDonor ? 'Burn' : 'Keep';
-      }
-      return isDonor ? 'A' : 'B';
-    })();
-    const traitCount = [...eff.organelles].length - 1; // exclude capsule from count
-
-    // Tier badge — Hybrid / Chimera / Phoenix instead of bare G-numbers.
-    // No badge for Genesis (G0 = pure original = let the art speak).
-    let genBadge = '';
-    const tier = tierForGeneration(eff.generation);
-    if (tier) {
-      genBadge = `<span class="gen-badge ${tier.cls}" title="${tier.name} — Generation ${eff.generation}, survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}">${tier.name}</span>`;
+  // 2. Build / rebuild / reorder cards in ownedSeeds order
+  let prevSibling = null;
+  for (const seed of LabState.ownedSeeds) {
+    const hash = _cardStateHash(seed);
+    let card = cardElements.get(seed);
+    const needsRebuild = !card || cardStateHash.get(seed) !== hash;
+    if (needsRebuild) {
+      // Rebuild this card's static content (thumbnail iframe URL changed,
+      // or first build). Selection state is layered on top via update().
+      if (card) card.remove();
+      card = _buildCardElement(seed);
+      cardElements.set(seed, card);
+      cardStateHash.set(seed, hash);
     }
+    // Ensure correct position in the grid (insertBefore is a no-op
+    // if the card is already in place, so this stays cheap).
+    const target = prevSibling ? prevSibling.nextSibling : collectionGrid.firstChild;
+    if (card !== target) {
+      collectionGrid.insertBefore(card, target);
+    }
+    prevSibling = card;
+  }
 
-    // HONEST ART — for tokens with any received mutation OR a non-zero
-    // generation, the pre-rendered PNG is stale. Render a static iframe
-    // of the actual effective state instead. PNG (cheap) for pristine
-    // tokens, iframe (a bit heavier but still static=1) for hybrids.
-    const hasMutations = !!(t.receivedPalette || t.receivedOrganelles?.length || t.receivedAnomalies?.length
-      || t.receivedMorphology || t.receivedLifecycle || t.receivedReserve || t.receivedCellCount
-      || (eff.generation > 0));
-    const thumbHtml = hasMutations
-      ? `<iframe class="biom-thumb-iframe" src="${previewUrl(seed, { nointeract: true, static: true })}" loading="lazy" tabindex="-1" aria-label="Biom #${seed} current state"></iframe>`
-      : `<img src="${masterUrl(seed)}" alt="Biom #${seed}" loading="lazy" decoding="async" onerror="this.style.background='var(--paper)'; this.style.opacity='0.3';">`;
-    return `
-      <div class="biom-card ${isDonor ? 'selected-donor' : ''} ${isRecipient ? 'selected-recipient' : ''}"
-           data-seed="${seed}" tabindex="0" role="button"
-           aria-label="Biom #${seed}${eff.generation ? ` (Generation ${eff.generation})` : ''} — click to assign to donor or recipient slot">
-        <div class="biom-thumb">
-          ${thumbHtml}
-          ${genBadge}
-          ${roleTag ? `<span class="role-tag">${roleTag}</span>` : ''}
-          ${nextCooldown ? `<span class="cooldown-tag">${TRANSFERABLE_BY_ID[nextCooldown.trait]?.label || nextCooldown.trait} · ${fmtRemaining(nextCooldown.regeneratesAt - now)}</span>` : ''}
-          ${badges.length ? `<div class="mutation-badges">${badges.join('')}</div>` : ''}
-        </div>
-        <div class="biom-info">
-          <span class="biom-name">BIOM #${seed}</span>
-          <span class="biom-traits">${traitCount} traits</span>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  // Hook click + keyboard
-  collectionGrid.querySelectorAll('.biom-card').forEach(card => {
-    const seed = parseInt(card.dataset.seed, 10);
-    const activate = () => onBiomClick(seed);
-    card.addEventListener('click', activate);
-    card.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
-    });
-  });
+  // 3. Update the dynamic bits on every card (selection, cooldown, badges)
+  for (const [seed, card] of cardElements) {
+    _updateCardDynamic(card, seed, now);
+  }
 }
 
 // Derive the current step from arena state. Single source of truth for
