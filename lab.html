@@ -940,44 +940,100 @@
      problem (network failure, signature cancelled, etc.). */
   .status-line.miss { color: var(--ink-2); }
 
-  /* === LOG === */
+  /* === ACTIVITY TIMELINE ===
+     Reads as a chronicle, not an admin log. Each event is its own
+     paragraph of three lines:
+       — time, monospace, faded (the timestamp)
+       — sentence, sans, normal (what happened, named subjects)
+       — result, monospace, muted (the rank/tier outcome, if any)
+
+     A thin vertical line runs down the left margin connecting all
+     entries, with a small dot at each event level. The newest
+     event has a soft entry animation (slide up + fade) so the user
+     sees something just happened. */
   .log-list {
     border-top: 1px solid var(--rule);
+    padding-top: 32px;
+    position: relative;
+  }
+  /* The connecting spine — single hairline that the dots sit on. */
+  .log-list:has(.log-event)::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 44px;
+    bottom: 16px;
+    width: 1px;
+    background: var(--rule);
   }
   .log-empty {
-    padding: 32px 0;
+    padding: 24px 0 40px;
     color: var(--ink-3);
     font-size: 14px;
+    font-style: italic;
   }
-  .log-row {
-    display: grid;
-    grid-template-columns: 100px 1fr 100px;
-    gap: 16px;
-    padding: 14px 0;
-    border-bottom: 1px solid var(--rule);
-    align-items: center;
-    font-size: 14px;
+  .log-event {
+    position: relative;
+    padding: 0 0 28px 36px;
   }
-  .log-time {
+  .log-event:last-child { padding-bottom: 8px; }
+  .log-event::before {
+    /* The dot on the spine. */
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 7px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ink-3);
+    border: 1px solid var(--bg);
+    box-shadow: 0 0 0 1px var(--ink-3);
+  }
+  /* Burn events get an ember dot — they're the moments worth
+     marking in the chronicle. */
+  .log-event.op-burn::before {
+    background: #c8826a;
+    box-shadow: 0 0 0 1px #c8826a, 0 0 8px 2px rgba(200, 130, 106, 0.30);
+  }
+  .log-event.op-rejected::before { opacity: 0.4; }
+  .log-event .log-time {
+    display: block;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
     color: var(--ink-3);
-    font-size: 12px;
+    margin-bottom: 6px;
   }
-  .log-desc { color: var(--ink); }
-  .log-desc strong {
-    font-weight: 500;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  .log-event .log-sentence {
+    font-size: 15px;
+    line-height: 1.45;
     color: var(--ink);
   }
-  .log-status {
-    text-align: right;
-    font-size: 12px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+  .log-event .log-sentence strong {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-weight: 500;
+    font-size: 0.92em;
+    letter-spacing: 0.02em;
   }
-  .log-status.ok { color: var(--ok); }
-  .log-status.fail { color: var(--ink-3); }
+  .log-event .log-coda {
+    margin-top: 4px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+    text-transform: uppercase;
+  }
+  /* Newest event — slide up + fade in once. Only the most recent
+     row gets the .log-event-new class so older entries don't keep
+     re-playing the animation on every render. */
+  .log-event-new {
+    animation: log-arrive 700ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  @keyframes log-arrive {
+    0%   { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
 
   /* === MUTATION BADGES on biom cards === */
   .mutation-badges {
@@ -1537,7 +1593,7 @@
   <div class="wrap">
     <h2>Activity</h2>
     <div class="log-list" id="logList">
-      <div class="log-empty" id="logEmpty">Nothing yet. Crossbreed or burn a pair above.</div>
+      <div class="log-empty" id="logEmpty">Nothing has happened yet. The Lab is patient.</div>
     </div>
   </div>
 </section>
@@ -3283,67 +3339,127 @@ async function _runCommitAnimationInner() {
 }
 
 // ============================================================
-// ACTIVITY LOG
+// ACTIVITY CHRONICLE
+//
+// Renders LabState.log as a vertical timeline where each event is
+// a small paragraph — time, named sentence, optional rank/tier
+// coda. Not an admin log; a chronicle. Restrained.
+//
+// Each event is built via DOM construction (not innerHTML) so
+// worker-supplied fields never become HTML strings, even on
+// future log entries that might include unsanitised text.
 // ============================================================
 function fmtTime(ts) {
   const d = new Date(ts);
+  // Relative-time for events within the last hour, absolute otherwise.
+  // "3m ago" reads more like a chronicle than "Jul 14, 03:42".
+  const ageMs = Date.now() - ts;
+  if (ageMs < 60_000) return 'just now';
+  if (ageMs < 3_600_000) return Math.floor(ageMs / 60_000) + 'm ago';
+  if (ageMs < 86_400_000) return Math.floor(ageMs / 3_600_000) + 'h ago';
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
+
+// Compose the prose sentence for one log entry. Returns
+// { nodes: DocumentFragment, coda: string | null }.
+function _logSentence(entry) {
+  const frag = document.createDocumentFragment();
+  const make = (text, tag) => {
+    const n = document.createElement(tag || 'span');
+    n.textContent = text;
+    return n;
+  };
+  const donorName = window.BiomEngine.label(entry.donor);
+  const recipName = window.BiomEngine.label(entry.recipient);
+  const traitLabel = TRANSFERABLE_BY_ID[entry.trait]?.label || entry.trait || '';
+
+  switch (entry.op) {
+    case 'burn': {
+      // "AUROCAULA absorbed HALOPHILA."
+      frag.appendChild(make(recipName, 'strong'));
+      frag.appendChild(document.createTextNode(' absorbed '));
+      frag.appendChild(make(donorName, 'strong'));
+      frag.appendChild(document.createTextNode('.'));
+      const rank = entry.rank || ((entry.generation || 0) + 1);
+      const tier = tierForRank(rank);
+      const coda = (tier ? `Now ${tier.name}` : 'Genesis') + ` · rank ${rank}`;
+      return { frag, coda };
+    }
+    case 'crossbreed': {
+      // "POLYSPORADICTYON shared eyespot with SYMPHAGENA."
+      frag.appendChild(make(donorName, 'strong'));
+      frag.appendChild(document.createTextNode(' shared ' + traitLabel.toLowerCase() + ' with '));
+      frag.appendChild(make(recipName, 'strong'));
+      frag.appendChild(document.createTextNode('.'));
+      return { frag, coda: null };
+    }
+    case 'transfer': {
+      // Legacy donate-direction wording, kept for any old logs.
+      frag.appendChild(make(donorName, 'strong'));
+      frag.appendChild(document.createTextNode(' gave ' + traitLabel.toLowerCase() + ' to '));
+      frag.appendChild(make(recipName, 'strong'));
+      frag.appendChild(document.createTextNode('.'));
+      return { frag, coda: null };
+    }
+    case 'rejected': {
+      // "MICROCOCCUS tried to give nucleoid to ENDOPHILIA — refused."
+      frag.appendChild(make(donorName, 'strong'));
+      frag.appendChild(document.createTextNode(' tried to share ' + traitLabel.toLowerCase() + ' with '));
+      frag.appendChild(make(recipName, 'strong'));
+      frag.appendChild(document.createTextNode(' — refused.'));
+      return { frag, coda: null };
+    }
+    default: {
+      frag.appendChild(make(donorName, 'strong'));
+      frag.appendChild(document.createTextNode(' → '));
+      frag.appendChild(make(recipName, 'strong'));
+      return { frag, coda: entry.op };
+    }
+  }
+}
+
+let _logNewestTs = 0;
 function renderLog() {
   if (LabState.log.length === 0) {
     logEmpty.style.display = 'block';
-    Array.from(logList.querySelectorAll('.log-row')).forEach(el => el.remove());
+    Array.from(logList.querySelectorAll('.log-event')).forEach(el => el.remove());
     return;
   }
   logEmpty.style.display = 'none';
-  // Op-aware status pill so burns / crossbreeds / transfers all read correctly.
-  // Each op gets a verb + ok/fail flag for colouring.
-  const STATUS = {
-    transfer:   { label: 'Transferred', ok: true,  detail: (e) => TRANSFERABLE_BY_ID[e.trait]?.label || e.trait },
-    crossbreed: { label: 'Crossbred',   ok: true,  detail: (e) => `shared ${TRANSFERABLE_BY_ID[e.trait]?.label || e.trait}` },
-    burn:       { label: 'Burnt',       ok: true,  detail: (e) => {
-      const t = tierForGeneration(e.generation || 0);
-      return t ? `merge → ${t.name}` : 'merge';
-    } },
-    rejected:   { label: 'Rejected',    ok: false, detail: (e) => TRANSFERABLE_BY_ID[e.trait]?.label || e.trait },
-  };
-  // Build via DOM (not innerHTML interpolation) so worker-supplied
-  // fields can't ever inject HTML. Defense-in-depth — today the worker
-  // restricts `trait` to a known whitelist, but any future field added
-  // to a log entry without escaping would otherwise XSS this list.
-  Array.from(logList.querySelectorAll('.log-row')).forEach(el => el.remove());
-  const frag = document.createDocumentFragment();
-  for (const entry of LabState.log.slice(0, 20)) {
-    const s = STATUS[entry.op] || { label: entry.op, ok: false, detail: () => entry.trait || '' };
-    const row = document.createElement('div');
-    row.className = 'log-row';
 
+  // Track whichever event was the freshest before this render so we
+  // can mark NEW arrivals with the entry animation — older rows
+  // re-rendering on every cycle shouldn't keep re-playing it.
+  const prevNewest = _logNewestTs;
+  const currentNewest = LabState.log[0].ts;
+  _logNewestTs = currentNewest;
+
+  Array.from(logList.querySelectorAll('.log-event')).forEach(el => el.remove());
+  const frag = document.createDocumentFragment();
+  for (const entry of LabState.log.slice(0, 25)) {
+    const ev = document.createElement('div');
+    ev.className = 'log-event op-' + (entry.op || 'transfer');
+    if (entry.ts === currentNewest && entry.ts > prevNewest) {
+      ev.classList.add('log-event-new');
+    }
     const t = document.createElement('span');
     t.className = 'log-time';
     t.textContent = fmtTime(entry.ts);
-    row.appendChild(t);
+    ev.appendChild(t);
 
-    const desc = document.createElement('span');
-    desc.className = 'log-desc';
-    const donor = document.createElement('strong');
-    donor.textContent = window.BiomEngine.label(entry.donor);
-    desc.appendChild(donor);
-    desc.appendChild(document.createTextNode(' → '));
-    const recip = document.createElement('strong');
-    recip.textContent = window.BiomEngine.label(entry.recipient);
-    desc.appendChild(recip);
-    const detail = document.createElement('span');
-    detail.style.color = 'var(--ink-3)';
-    detail.textContent = ' — ' + s.detail(entry);
-    desc.appendChild(detail);
-    row.appendChild(desc);
+    const s = document.createElement('div');
+    s.className = 'log-sentence';
+    const { frag: sentence, coda } = _logSentence(entry);
+    s.appendChild(sentence);
+    ev.appendChild(s);
 
-    const status = document.createElement('span');
-    status.className = 'log-status ' + (s.ok ? 'ok' : 'fail');
-    status.textContent = s.label;
-    row.appendChild(status);
-
-    frag.appendChild(row);
+    if (coda) {
+      const c = document.createElement('div');
+      c.className = 'log-coda';
+      c.textContent = coda;
+      ev.appendChild(c);
+    }
+    frag.appendChild(ev);
   }
   logList.appendChild(frag);
 }
