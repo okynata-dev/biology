@@ -374,6 +374,26 @@
   .biom-card.selected-donor     .role-tag { background: #b94a8c; }
   .biom-card.selected-recipient .role-tag { background: #4a8cb9; }
   body.mode-burn .biom-card.selected-donor .role-tag { background: #c45a3a; }
+
+  /* Generation badge — small chip in top-left for tokens that have
+     survived at least one burn. Visual rarity ladder: higher-gen
+     tokens stand out, originals (G0 = no badge) become collector items. */
+  .biom-card .gen-badge {
+    position: absolute;
+    top: 10px; left: 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--bg);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  }
+  /* High-generation tier — visual prestige */
+  .biom-card .gen-badge.high { background: #b89a3a; color: #fff; }
+  .biom-card .gen-badge.epic { background: #8a3aa8; color: #fff; }
   .cooldown-tag {
     position: absolute;
     bottom: 56px; left: 8px;
@@ -1549,6 +1569,10 @@ function effectiveState(seed) {
     reserveGranule: t.receivedReserve || base.reserveGranule,
     phageAttached, endosymbiont, biofilmHalo,
     depletedNow,
+    // Burn lineage — surfaces in collection card badge + metadata
+    generation: t.generation || 0,
+    burnsAbsorbed: t.burnsAbsorbed || 0,
+    paletteAncestry: t.paletteAncestry || [base.palette],
     receivedKeys: {
       palette: !!t.receivedPalette,
       organelles: new Set(t.receivedOrganelles || []),
@@ -1788,27 +1812,41 @@ function crossbreedOutcomes(seedA, seedB) {
   return out;
 }
 
+// Decompose a palette id (which may be 'a+b+c' from a previous burn)
+// into a deduped sorted ancestry list of base palette ids.
+function paletteAncestry(palette) {
+  if (!palette) return [];
+  return [...new Set(palette.split('+').filter(Boolean))].sort();
+}
+
 // ============================================================
 // BURN OUTCOME — the result becomes "twice as cool":
-//   palette     — if they differ, blend into a gradient (mix of both colours).
-//                 if same, keep it.
+//   palette     — UNION of both parents' ancestries (dedup + sort), then
+//                 encoded as 'a+b+c+...'. preview.html resolves to a
+//                 chimera palette where cells cycle through N pure
+//                 parent colours + (N-1) gradient bridges.
 //   organelles  — UNION of both. Everything is added.
 //   anomalies   — UNION of both. Phage + endo + biofilm if either has it.
 //   cellCount   — MAX of both. Bigger colony.
 //   morphology  — absorber's (can't merge two body shapes physically).
 //   lifecycle   — absorber's (a single state at a time).
 //   reserve     — absorber's (one inclusion at a time).
+//   generation  — max(burner.gen, absorber.gen) + 1. Chain depth metric.
 // ============================================================
 function burnOutcome(burnSeed, absorbSeed) {
   const burnEff = effectiveState(burnSeed);
   const absEff  = effectiveState(absorbSeed);
 
-  // Palette blend — only mix when different. We sort the pair so the
-  // encoded id is deterministic ('a+b' vs 'b+a' would produce different
-  // synthetic palette keys otherwise).
-  const samePalette = burnEff.palette === absEff.palette;
-  const sortedPair  = [burnEff.palette, absEff.palette].sort();
-  const mixedPalette = samePalette ? absEff.palette : `${sortedPair[0]}+${sortedPair[1]}`;
+  // Combine palette ancestries (both already-mixed parents bring their
+  // full lineage). Dedupe + sort → deterministic synthetic key.
+  const combinedAncestry = [...new Set([
+    ...paletteAncestry(burnEff.palette),
+    ...paletteAncestry(absEff.palette),
+  ])].sort();
+  const mixedPalette = combinedAncestry.length <= 1
+    ? combinedAncestry[0] || absEff.palette
+    : combinedAncestry.join('+');
+  const samePalette = mixedPalette === absEff.palette;
 
   const next = {
     palette: mixedPalette,
@@ -1829,12 +1867,19 @@ function burnOutcome(burnSeed, absorbSeed) {
   if (burnEff.endosymbiont  && !absEff.endosymbiont)  gainedAnomalies.push('endosymbiont');
   if (burnEff.biofilmHalo   && !absEff.biofilmHalo)   gainedAnomalies.push('biofilm halo');
   const blendedPalette = !samePalette ? {
-    fromAbs: absEff.palette, fromBurn: burnEff.palette, mixedKey: mixedPalette,
+    ancestry: combinedAncestry, mixedKey: mixedPalette,
   } : null;
   const cellCountBumped = burnEff.cellCount > absEff.cellCount
     ? { from: absEff.cellCount, to: burnEff.cellCount } : null;
 
-  return { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped };
+  // Generation: max of parents + 1. Tracks chain depth — a token that's
+  // absorbed 5 burns has gen 5 even if some absorbed were themselves high-gen.
+  const burnGen = LabState.tokens[burnSeed]?.generation || 0;
+  const absGen  = LabState.tokens[absorbSeed]?.generation || 0;
+  const newGeneration = Math.max(burnGen, absGen) + 1;
+  const generationBump = { from: absGen, to: newGeneration };
+
+  return { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, generationBump, combinedAncestry };
 }
 
 // ============================================================
@@ -1984,13 +2029,21 @@ function renderCollection() {
     })();
     const traitCount = [...eff.organelles].length - 1; // exclude capsule from count
 
+    // Generation badge — tier-coloured based on burn-survived count
+    let genBadge = '';
+    if (eff.generation > 0) {
+      const tier = eff.generation >= 5 ? 'epic' : (eff.generation >= 3 ? 'high' : '');
+      genBadge = `<span class="gen-badge ${tier}" title="Generation ${eff.generation} — survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}">G${eff.generation}</span>`;
+    }
+
     return `
       <div class="biom-card ${isDonor ? 'selected-donor' : ''} ${isRecipient ? 'selected-recipient' : ''}"
            data-seed="${seed}" tabindex="0" role="button"
-           aria-label="Biom #${seed} — click to assign to donor or recipient slot">
+           aria-label="Biom #${seed}${eff.generation ? ` (Generation ${eff.generation})` : ''} — click to assign to donor or recipient slot">
         <div class="biom-thumb">
           <img src="${masterUrl(seed)}" alt="Biom #${seed}" loading="lazy" decoding="async"
                onerror="this.style.background='var(--paper)'; this.style.opacity='0.3';">
+          ${genBadge}
           ${roleTag ? `<span class="role-tag">${roleTag}</span>` : ''}
           ${nextCooldown ? `<span class="cooldown-tag">${TRANSFERABLE_BY_ID[nextCooldown.trait]?.label || nextCooldown.trait} · ${fmtRemaining(nextCooldown.regeneratesAt - now)}</span>` : ''}
           ${badges.length ? `<div class="mutation-badges">${badges.join('')}</div>` : ''}
@@ -2146,13 +2199,12 @@ function renderOutcomes() {
     document.querySelector('.outcomes-head').textContent = 'After the burn:';
     outcomesHint.textContent = `#${donorSeed} burns. #${recipientSeed} absorbs every trait — stains blend into a gradient, organelles and anomalies stack, the colony grows. Twice as cool.`;
     outcomesHint.hidden = false;
-    const { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped } = burnOutcome(donorSeed, recipientSeed);
+    const { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, generationBump, combinedAncestry } = burnOutcome(donorSeed, recipientSeed);
     const url = previewUrlFor(recipientSeed, next, { nointeract: true });
     const parts = [];
     if (blendedPalette) {
-      const fromName = PALETTE_LABELS[blendedPalette.fromAbs] || blendedPalette.fromAbs;
-      const toName   = PALETTE_LABELS[blendedPalette.fromBurn] || blendedPalette.fromBurn;
-      parts.push(`<strong>Stain blends:</strong> ${fromName} × ${toName}`);
+      const names = blendedPalette.ancestry.map(p => PALETTE_LABELS[p] || p);
+      parts.push(`<strong>Stain ancestry:</strong> ${names.join(' × ')}`);
     }
     if (gainedOrganelles.length) {
       parts.push(`<strong>Adds:</strong> ${gainedOrganelles.map(o => TRANSFERABLE_BY_ID[o]?.label || o).join(', ')}`);
@@ -2163,6 +2215,8 @@ function renderOutcomes() {
     if (cellCountBumped) {
       parts.push(`<strong>Cells:</strong> ${cellCountBumped.from} → ${cellCountBumped.to}`);
     }
+    // Generation bump — always shown (every burn raises gen by ≥1)
+    parts.push(`<strong>Generation:</strong> G${generationBump.from} → G${generationBump.to}`);
     const gainText = parts.length ? parts.join(' · ') + '.' : 'These two are too similar — try a different burn target.';
     _outcomesEmpty = false;
     outcomesGrid.innerHTML = `
@@ -2388,7 +2442,7 @@ function performCrossbreed(seedA, seedB, outcomeId) {
 // stays absorber's own). Burnt Biom marked destroyed and removed from
 // the collection. Never fails (sacrifice is irreversible).
 function performBurn(burnSeed, absorbSeed) {
-  const { next } = burnOutcome(burnSeed, absorbSeed);
+  const { next, generationBump, combinedAncestry } = burnOutcome(burnSeed, absorbSeed);
   const ts2 = Date.now();
 
   // Apply the merged state to absorber. We compute the diff vs the
@@ -2409,6 +2463,16 @@ function performBurn(burnSeed, absorbSeed) {
     applyMutation(absorbSeed, { set_cellCount: next.cellCount });
   }
 
+  // Generation + burns-survived counter on absorber. These feed the UI
+  // (badge on collection card) and the future on-chain metadata
+  // (trait_type: 'Generation', value: N).
+  const ats = LabState.tokens[absorbSeed] || (LabState.tokens[absorbSeed] = {});
+  ats.generation     = generationBump.to;
+  ats.burnsAbsorbed  = (ats.burnsAbsorbed || 0) + 1;
+  // Store the full ancestry list (deduped + sorted base palette ids)
+  // so future burns can extend it without re-parsing the encoded string.
+  ats.paletteAncestry = combinedAncestry;
+
   // Mark burner as destroyed. We DON'T delete the token state because
   // wallet-mode parity would later need an on-chain burn signal; here
   // we just hide it from the collection.
@@ -2424,6 +2488,7 @@ function performBurn(burnSeed, absorbSeed) {
     ts: ts2, donor: burnSeed, recipient: absorbSeed,
     trait: 'merge',
     op: 'burn',
+    generation: generationBump.to,
   });
   if (LabState.log.length > 100) LabState.log.length = 100;
 
@@ -2518,17 +2583,24 @@ function renderLog() {
     return;
   }
   logEmpty.style.display = 'none';
+  // Op-aware status pill so burns / crossbreeds / transfers all read correctly.
+  // Each op gets a verb + ok/fail flag for colouring.
+  const STATUS = {
+    transfer:   { label: 'Transferred', ok: true,  detail: (e) => TRANSFERABLE_BY_ID[e.trait]?.label || e.trait },
+    crossbreed: { label: 'Crossbred',   ok: true,  detail: (e) => `shared ${TRANSFERABLE_BY_ID[e.trait]?.label || e.trait}` },
+    burn:       { label: 'Burnt',       ok: true,  detail: (e) => `merge → G${e.generation || '?'}` },
+    rejected:   { label: 'Rejected',    ok: false, detail: (e) => TRANSFERABLE_BY_ID[e.trait]?.label || e.trait },
+  };
   const html = LabState.log.slice(0, 20).map(entry => {
-    const trait = TRANSFERABLE_BY_ID[entry.trait]?.label || entry.trait;
-    const ok = entry.op === 'transfer';
+    const s = STATUS[entry.op] || { label: entry.op, ok: false, detail: () => entry.trait || '' };
     return `
       <div class="log-row">
         <span class="log-time">${fmtTime(entry.ts)}</span>
         <span class="log-desc">
           <strong>BIOM #${entry.donor}</strong> → <strong>BIOM #${entry.recipient}</strong>
-          <span style="color: var(--ink-3);"> — ${trait}</span>
+          <span style="color: var(--ink-3);"> — ${s.detail(entry)}</span>
         </span>
-        <span class="log-status ${ok ? 'ok' : 'fail'}">${ok ? 'Transferred' : 'Rejected'}</span>
+        <span class="log-status ${s.ok ? 'ok' : 'fail'}">${s.label}</span>
       </div>
     `;
   }).join('');

@@ -155,44 +155,69 @@
     const a = ((pa.a + pb.a) / 2).toFixed(2);
     return `rgba(${r}, ${g}, ${b}, ${a})`;
   }
-  function mixPalettes(idA, idB) {
-    if (idA === idB) return idA;
-    const pa = PALETTES[idA], pb = PALETTES[idB];
-    if (!pa || !pb) return idA || idB;
-    const key = `_mix_${[idA, idB].sort().join('_')}`;
-    if (PALETTES[key]) return key;
-    const mixed = {};
-    // Mark this palette as a burn-blend so resolveColor knows to use the
-    // chimera cycle on body cells (pure A | pure B | gradient per cellIdx).
-    mixed._bodyMode = 'mixCycle';
-    const keys = new Set([...Object.keys(pa), ...Object.keys(pb)]);
-    for (const k of keys) {
-      const va = pa[k], vb = pb[k];
-      // Special cases: body becomes a true two-stop gradient (resolveColor
-      // already renders array body as CSS linear-gradient), and each parent's
-      // accent stays distinct so the hybrid visibly carries marks from both.
-      if (k === 'body') {
-        const aBody = Array.isArray(va) ? va[0] : va;
-        const bBody = Array.isArray(vb) ? vb[0] : vb;
-        if (aBody && bBody && aBody !== '__GRAM_VARIABLE__' && bBody !== '__GRAM_VARIABLE__') {
-          mixed[k] = [aBody, bBody]; // engine → linear-gradient(angle, A 0%, B 100%)
-        } else {
-          mixed[k] = aBody || bBody;
-        }
-      } else if (k === 'accent') {
-        // Parent A's accent — stays as-is (its identifying mark)
-        mixed[k] = va || vb;
-      } else if (k === 'accentB') {
-        // Parent B's accent — stays as-is (its identifying mark)
-        mixed[k] = vb || va;
-      } else if (va === '__GRAM_VARIABLE__' || vb === '__GRAM_VARIABLE__') {
-        mixed[k] = (va === '__GRAM_VARIABLE__' ? vb : va) || va;
-      } else if (va && vb) {
-        mixed[k] = _blendRgba(va, vb);
-      } else {
-        mixed[k] = va || vb;
-      }
+  // Average N rgba strings channel-by-channel. Falls back to first valid
+  // value if everything fails to parse.
+  function _averageRgbas(rgbas) {
+    let rSum = 0, gSum = 0, bSum = 0, aSum = 0, count = 0;
+    for (const s of rgbas) {
+      const p = _parseRgba(s);
+      if (!p) continue;
+      rSum += p.r; gSum += p.g; bSum += p.b; aSum += p.a; count++;
     }
+    if (count === 0) return rgbas.find(Boolean) || null;
+    return `rgba(${Math.round(rSum/count)}, ${Math.round(gSum/count)}, ${Math.round(bSum/count)}, ${(aSum/count).toFixed(2)})`;
+  }
+
+  // Variadic palette mix — accepts any number of palette ids and folds
+  // them into a single synthetic palette. Used by the Lab's burn flow:
+  // each burn appends the burnt token's ancestry to the absorber, so
+  // a 4-generation hybrid carries colours from up to 4 parents.
+  //
+  // Output:
+  //   body      → array of N body colours (resolveColor cycles per cellIdx
+  //                through PURE_0, PURE_1, ..., PURE_{N-1}, grad(0→1),
+  //                grad(1→2), ..., grad(N-2→N-1) — every cell is either
+  //                a pure parent colour or a true gradient between two).
+  //   accent    → first parent's accent (parent A's identifying mark)
+  //   accentB   → last parent's accentB (parent B... or further-back parent)
+  //   capsule, cellWall, bodyDark, bodyDeep, organelle
+  //             → average of all N values (neutral middle tone)
+  //   _bodyMode = 'mixCycle' → resolveColor honours the chimera cycle
+  function mixPalettes(...ids) {
+    // Dedupe + sort for deterministic synthetic key
+    const unique = [...new Set(ids.filter(Boolean))].sort();
+    if (unique.length === 0) return ids[0];
+    if (unique.length === 1) return unique[0];
+    const key = `_mix_${unique.join('_')}`;
+    if (PALETTES[key]) return key;
+    const realPalettes = unique.map(id => PALETTES[id]).filter(Boolean);
+    if (realPalettes.length === 0) return ids[0];
+    if (realPalettes.length === 1) return unique[realPalettes.indexOf(realPalettes[0])];
+
+    const mixed = { _bodyMode: 'mixCycle' };
+
+    // Body — array of N pure body colours (one per parent)
+    const bodyColours = realPalettes
+      .map(p => Array.isArray(p.body) ? p.body[0] : p.body)
+      .filter(v => v && v !== '__GRAM_VARIABLE__');
+    mixed.body = bodyColours.length > 1 ? bodyColours : (bodyColours[0] || null);
+
+    // Accents — first parent's accent + last parent's accentB
+    mixed.accent  = realPalettes[0].accent  || realPalettes[0].body;
+    mixed.accentB = realPalettes[realPalettes.length - 1].accentB || realPalettes[realPalettes.length - 1].body;
+
+    // Other fields — average all N values channel-by-channel
+    const allKeys = new Set();
+    realPalettes.forEach(p => Object.keys(p).forEach(k => allKeys.add(k)));
+    for (const k of allKeys) {
+      if (k === 'body' || k === 'accent' || k === 'accentB' || k.startsWith('_')) continue;
+      const vals = realPalettes
+        .map(p => p[k])
+        .filter(v => v && v !== '__GRAM_VARIABLE__' && !Array.isArray(v));
+      if (vals.length === 0) continue;
+      mixed[k] = vals.length === 1 ? vals[0] : _averageRgbas(vals);
+    }
+
     PALETTES[key] = mixed;
     return key;
   }
@@ -641,17 +666,22 @@
       const idx = cellIdx != null ? cellIdx : 0;
       return idx % 2 === 0 ? palette._gramPlus : palette._gramMinus;
     }
-    // mixCycle mode (used by burn-mix palettes) — body cycles through
-    // PURE parent A, PURE parent B, and a true gradient between them
-    // per cellIdx, so a 6-cell hybrid reads as: A | B | grad | A | B | grad.
-    // The result looks like a chimera, not a flat average.
-    if (name === 'body' && palette._bodyMode === 'mixCycle' && Array.isArray(v) && v.length === 2) {
+    // mixCycle (burn-mix palettes) — INTERLEAVED chimera cycle:
+    //   [pure_0, grad(0→1), pure_1, grad(1→2), pure_2, ..., pure_{N-1}]
+    // For 2 parents: [A, grad(A,B), B] (3 stops)
+    // For 3 parents: [A, grad(A,B), B, grad(B,C), C] (5 stops)
+    // For N parents: 2N-1 stops, every other one is a true gradient.
+    // The interleave matters: with all pures first, a 5-cell hybrid of
+    // 5 parents would never hit the gradients. Interleaved guarantees
+    // every other cell is a transition regardless of count.
+    if (name === 'body' && palette._bodyMode === 'mixCycle' && Array.isArray(v) && v.length >= 2) {
       const angle = gradientAngle != null ? gradientAngle : 145;
-      const cycle = [
-        v[0],                                                            // pure parent A
-        v[1],                                                            // pure parent B
-        `linear-gradient(${angle}deg, ${v[0]} 0%, ${v[1]} 100%)`,        // gradient A → B
-      ];
+      const cycle = [];
+      for (let i = 0; i < v.length - 1; i++) {
+        cycle.push(v[i]);
+        cycle.push(`linear-gradient(${angle}deg, ${v[i]} 0%, ${v[i+1]} 100%)`);
+      }
+      cycle.push(v[v.length - 1]);
       return cycle[(cellIdx || 0) % cycle.length];
     }
     if (Array.isArray(v)) {
