@@ -1,0 +1,16 @@
+# Cloudflare Pages — URL rewrites
+# https://developers.cloudflare.com/pages/configuration/redirects/
+#
+# Status 200 = rewrite (URL stays /lab/burn for the user, lab.html
+# is served as the body). Status 301/302 = browser redirect (URL
+# would change). We want rewrites so the address bar shows the
+# semantic URL and bookmarks/shares land in the right mode.
+#
+# The lab.html JS reads the `mode` query param on load and either:
+#   - skips the chooser landing → mounts the matching mode directly
+#   - or shows the chooser if no mode (visiting bare /lab)
+#
+# Single file behind two semantic URLs — no code duplication.
+
+/lab/burn         /lab.html?mode=burn         200
+/lab/crossbreed   /lab.html?mode=crossbreed   200

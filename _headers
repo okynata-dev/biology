@@ -52,6 +52,15 @@
 /lab.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
+# Sub-routes /lab/burn and /lab/crossbreed are _redirects rewrites
+# that serve lab.html. The CSP applies via the underlying file's
+# rule, but Pages matches by request path string — list explicitly.
+/lab/burn
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/lab/crossbreed
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
 /make
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
