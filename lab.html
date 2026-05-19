@@ -1673,7 +1673,7 @@
          transitions when supported, but the bare links work without
          JS too. Hidden once a mode is picked. -->
     <div class="mode-chooser" id="modeChooser" role="group" aria-label="Choose Lab action">
-      <a class="chooser-card" data-mode="crossbreed" href="/lab/crossbreed">
+      <a class="chooser-card" data-mode="crossbreed" href="/lab?mode=crossbreed">
         <svg class="chooser-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M8 4v16M16 4v16M4 8h16M4 16h16"/>
         </svg>
@@ -1684,7 +1684,7 @@
           <span class="chooser-result">Both survive · collection grows</span>
         </span>
       </a>
-      <a class="chooser-card" data-mode="burn" href="/lab/burn">
+      <a class="chooser-card" data-mode="burn" href="/lab?mode=burn">
         <svg class="chooser-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 2c1 3 4 6 4 10a4 4 0 1 1-8 0c0-3 2-5 4-10z"/>
         </svg>
@@ -4363,11 +4363,12 @@ collectionGrid.addEventListener('click', (e) => {
     // Trigger the existing tab — runs arenaMode setter + UI sync
     const tab = document.querySelector('.arena-mode-tab[data-mode="' + mode + '"]');
     if (tab) tab.click();
-    // Update URL bar without reloading the page (the rewrite means
-    // both /lab/<mode> and /lab.html?mode=... serve the same body,
-    // but the user-facing URL should always be /lab/<mode>).
-    const target = '/lab/' + mode;
-    if (opts && opts.pushState && location.pathname !== target) {
+    // Update URL bar without reloading the page. Cloudflare Pages
+    // rewrite for /lab/<mode> turned out to be unreliable in our
+    // configuration, so we use /lab?mode=<...> — works identically
+    // for bookmarks, sharing, and browser back/forward.
+    const target = '/lab?mode=' + mode;
+    if (opts && opts.pushState && (location.pathname + location.search) !== target) {
       try { history.pushState({ mode }, '', target); } catch (_) {}
     }
     // Reset any in-flight selection so the user starts fresh.
@@ -4377,7 +4378,7 @@ collectionGrid.addEventListener('click', (e) => {
   function showChooser(opts) {
     chooser.hidden = false;
     labMain.hidden = true;
-    if (opts && opts.pushState && location.pathname !== '/lab') {
+    if (opts && opts.pushState && (location.pathname + location.search) !== '/lab') {
       try { history.pushState({ mode: null }, '', '/lab'); } catch (_) {}
     }
   }
