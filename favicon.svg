@@ -1,9 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- Diplo — two cells in the moment of binary fission, the
-       single visual that captures the whole project: bioms breed,
-       fuse, multiply. Reads as paired cells at any size including
-       16px favicon. Background-less so browsers can paint it on
-       any tab colour cleanly. -->
-  <circle cx="11" cy="16" r="8" fill="#1c1a16"/>
-  <circle cx="21" cy="16" r="8" fill="#1c1a16"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Bioms">
+  <title>Bioms</title>
+  <!--
+    A single capsule biom — the foundational morphology, rendered in
+    glass. Dark warm body to sit on the cream paper background, with
+    a top-left bloom highlight and three organelles visible through
+    the membrane (one larger nucleoid + two ribosomes drifting). Stays
+    legible at 16×16 favicon size because the silhouette is one strong
+    pill shape; details only register at 32+ where they enrich the
+    look. Single source of truth: the nav brand-mark on every page
+    loads this exact file so favicon and logo are byte-identical.
+  -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#3d3a32"/>
+      <stop offset="1"   stop-color="#16140f"/>
+    </linearGradient>
+    <radialGradient id="bloom" cx="0.28" cy="0.22" r="0.55">
+      <stop offset="0"   stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="1"   stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="0.18" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Body -->
+  <rect x="3" y="10" width="26" height="12" rx="6" fill="url(#body)"/>
+
+  <!-- Internal structures (visible through the glass) -->
+  <circle cx="10.8" cy="16"   r="2.6" fill="#f4ead4" fill-opacity="0.82"/>
+  <circle cx="17.4" cy="14.4" r="0.95" fill="#f4ead4" fill-opacity="0.68"/>
+  <circle cx="20.6" cy="17.6" r="0.75" fill="#f4ead4" fill-opacity="0.6"/>
+  <circle cx="23.4" cy="15.2" r="0.55" fill="#f4ead4" fill-opacity="0.5"/>
+
+  <!-- Glass overlays on top of the contents -->
+  <rect x="3" y="10" width="26" height="12" rx="6" fill="url(#bloom)"/>
+  <rect x="3" y="10" width="26" height="12" rx="6" fill="url(#sheen)"/>
+
+  <!-- Membrane edge -->
+  <rect x="3" y="10" width="26" height="12" rx="6"
+        fill="none" stroke="#0b0a07" stroke-width="0.6" stroke-opacity="0.65"/>
 </svg>

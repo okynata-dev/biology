@@ -184,8 +184,7 @@
     color: var(--ink-2);
     opacity: 0.5;
   }
-  .brand-mark svg { width: 100%; height: 100%; display: block; }
-  .brand-mark circle { fill: currentColor; }
+  .brand-mark img { width: 100%; height: 100%; display: block; }
 
   /* Respect users who prefer reduced motion — collapse animations
      to a single static frame, but keep the visual presence. */
@@ -197,10 +196,7 @@
 <body>
 
 <div class="brand-mark" aria-label="Bioms">
-  <svg viewBox="0 0 32 32" aria-hidden="true">
-    <circle cx="11" cy="16" r="8"/>
-    <circle cx="21" cy="16" r="8"/>
-  </svg>
+  <img src="/favicon.svg" alt="" decoding="async">
 </div>
 
 <div class="stage" role="img" aria-label="A Bioms specimen, not yet revealed.">
