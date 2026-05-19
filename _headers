@@ -13,8 +13,26 @@
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: interest-cohort=()
+  Permissions-Policy: interest-cohort=(), camera=(), microphone=(), geolocation=(), payment=()
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Cross-Origin-Opener-Policy: same-origin
+  # Baseline Content-Security-Policy applied to every response.
+  # frame-ancestors is intentionally OMITTED here — per-path blocks below
+  # set 'none' for wallet/landing pages, and preview.html / rare-*.html
+  # inherit no restriction (so OpenSea & other marketplaces can iframe
+  # them as NFT animation_url).
+  #
+  # 'unsafe-inline' on script-src / style-src is unavoidable until we
+  # add a build step (every page uses inline <script> + <style> by
+  # deliberate design — see CLAUDE.md §7). No 'unsafe-eval', no remote
+  # scripts: in practice the attack surface left is XSS via injected
+  # inline content, which the input validation in worker.js + the
+  # absence of innerHTML-from-untrusted-data in the renderer mitigate.
+  #
+  # connect-src is whitelisted to the API origin only — Alchemy/OpenSea
+  # are reached server-side via the worker, never directly from the
+  # browser, so they don't need to appear here.
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests
 
 # Lab + landing + make + explore — no third-party framing allowed.
 # Cloudflare Pages serves both /lab and /lab.html — we list BOTH because

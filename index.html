@@ -2,6 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- REVEAL gate — see specimen-engine.js → _resolveReveal().
+     Pre-mint / pre-reveal: content="false" (snipe-proof).
+     On reveal day: flip to content="true" in every HTML file. -->
+<meta name="bioms-reveal" content="false">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bioms</title>
 <meta name="description" content="A generative archive of microbial specimens. Each one generated live from a seed in your browser. On Ethereum.">
@@ -746,14 +750,14 @@
      faster page + smoother scroll. -->
 <script src="specimen-engine.js"></script>
 <script>
-// REVEAL — single switch for whether numeric seed IDs are surfaced to
-// users. Pre-mint / pre-reveal this is FALSE: no #0247 chips on the
-// hero or catalog so snipers can't match a specific seed's traits to
-// a tokenID and try to bid early. Mirror of BiomEngine.REVEAL in
-// specimen-engine.js — flip both on reveal day. (The engine is now
-// loaded on this page too, so this could be unified later, but keep
-// the explicit literal here for visibility / sed-replaceability.)
-const REVEAL = true;
+// REVEAL — read from the engine (single source of truth). The engine
+// resolves it in priority order: <meta name="bioms-reveal"> tag in
+// <head>, then window.BIOMS_REVEAL global, then hostname heuristic
+// (localhost = true, prod = false), defaulting fail-secure to FALSE.
+// See specimen-engine.js → _resolveReveal() for details.
+// To flip on reveal day: set <meta name="bioms-reveal" content="true">
+// in every HTML file's <head>.
+const REVEAL = (window.BiomEngine && window.BiomEngine.REVEAL) === true;
 
 // The hero is the only live render on the page. The catalog grid uses
 // THUMB renders (600×600, ~30-80KB WebP / ~150KB PNG) instead of the

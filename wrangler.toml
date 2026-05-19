@@ -24,10 +24,19 @@ name = "bioms-api"
 main = "worker.js"
 compatibility_date = "2026-05-17"
 
+# ------------------------------------------------------------
+# D1 binding — REQUIRED. The database_id below is intentionally a
+# do-not-deploy placeholder; replace it with the UUID printed by
+# `wrangler d1 create bioms-lab` BEFORE the first `wrangler deploy`.
+#
+# `scripts_deploy_check.sh` (run as part of the deploy workflow) refuses
+# to proceed while this placeholder is still present, so a clean clone
+# can't accidentally ship a worker pointed at a dead D1.
+# ------------------------------------------------------------
 [[d1_databases]]
 binding = "DB"
 database_name = "bioms-lab"
-database_id = "REPLACE_WITH_ID_FROM_d1_create"
+database_id = "PASTE_REAL_UUID_FROM_wrangler_d1_create__DO_NOT_DEPLOY_AS_IS"
 
 [vars]
 # Public config — fine to commit. Secrets go via `wrangler secret put`.
@@ -35,8 +44,10 @@ CHAIN_ID = "1"
 COOLDOWN_SECONDS = "2592000"   # 30 days
 REJECTION_RATE = "0.15"
 CONJUGATE_RATE_PER_MIN = "5"   # max accepted conjugates per signer per minute
+# MAX_TOKEN_ID = "2999"        # uncomment to override the default 0..2999 supply
 
 # Secrets (set via wrangler secret put — DO NOT commit values here):
 # - ALCHEMY_KEY        — Alchemy NFT API key, required for ownership checks
 # - CONTRACT_ADDRESS   — launch contract address, set after mint
 # - OPENSEA_API_KEY    — optional, enables auto metadata-refresh after each conjugation
+# - WAITLIST_IP_SALT   — optional, rotates IP-hash key for the waitlist rate-limiter

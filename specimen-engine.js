@@ -297,19 +297,54 @@
 
   // ============================================================
   // REVEAL FLAG — single source of truth for whether seed numbers
-  // are surfaced to users. Pre-mint / pre-reveal this is FALSE so
+  // are surfaced to users. Pre-mint / pre-reveal this MUST be false so
   // snipers can't match a specific seed's traits to a tokenID and
   // bid for it on a secondary market before reveal day.
   //
-  // Flip to TRUE on reveal day, then `setBaseURI` on the contract
-  // so OpenSea picks up real metadata.
+  // Resolution order (first hit wins, fail-secure to FALSE):
+  //   1. <meta name="bioms-reveal" content="true|false"> in <head>
+  //   2. window.BIOMS_REVEAL global (set BEFORE this script loads;
+  //      useful for console debugging)
+  //   3. Hostname heuristic — localhost / file:// / *.local → true
+  //      (dev convenience), every other host → false
+  //
+  // On reveal day: set <meta name="bioms-reveal" content="true">
+  // in every HTML file that renders a specimen card, AND call
+  // setBaseURI on the contract so OpenSea picks up real metadata.
   //
   // `label(seed)` is the canonical user-facing identifier — use it
   // anywhere the UI would otherwise show "BIOM #247". Pre-reveal it
   // returns just the generated genus name (HALOPHILA, AUROCAULA…);
   // post-reveal it appends "#0247" for collectors who want to track.
   // ============================================================
-  const REVEAL = true;
+  function _resolveReveal() {
+    try {
+      if (typeof document !== 'undefined') {
+        const m = document.querySelector('meta[name="bioms-reveal"]');
+        if (m) {
+          const v = (m.getAttribute('content') || '').toLowerCase().trim();
+          if (v === 'true') return true;
+          if (v === 'false') return false;
+        }
+      }
+      if (typeof window !== 'undefined' && typeof window.BIOMS_REVEAL === 'boolean') {
+        return window.BIOMS_REVEAL;
+      }
+      if (typeof window !== 'undefined' && window.location) {
+        const h = window.location.hostname || '';
+        const proto = window.location.protocol || '';
+        if (proto === 'file:' || h === 'localhost' || h === '127.0.0.1' ||
+            h === '0.0.0.0' || h === '' || h.endsWith('.local')) return true;
+      }
+    } catch (_) { /* fall through to fail-secure */ }
+    return false;  // FAIL-SECURE: hide seed numbers when in doubt
+  }
+  const REVEAL = _resolveReveal();
+  if (REVEAL && typeof window !== 'undefined' && window.location &&
+      (window.location.hostname === 'thebioms.com' || window.location.hostname === 'www.thebioms.com')) {
+    // Loud warning so a forgotten reveal=true on prod doesn't ship silently.
+    try { console.warn('[Bioms] REVEAL=true on production — verify contract setBaseURI is updated.'); } catch (_) {}
+  }
   function label(seed) {
     const name = pickName(seed);
     if (!REVEAL) return name;

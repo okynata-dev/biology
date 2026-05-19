@@ -1,0 +1,38 @@
+# Verify JS↔Python RNG parity on every push and PR.
+#
+# This is the only automated guard for the collection's hard invariant
+# (CLAUDE.md §4.1): the browser-side engine and the mint-time Python
+# generator MUST produce identical traits for every seed. A silent
+# drift between them would publish on-chain metadata that doesn't match
+# what holders see rendered — a collection-breaking bug that can't be
+# fixed post-mint.
+
+name: RNG parity
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A drift in either file should fail; no point running other jobs after.
+concurrency:
+  group: rng-parity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: JS ↔ Python parity diff
+        run: bash tests/rng_parity_check.sh

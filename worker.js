@@ -52,6 +52,30 @@ function error(msg, status = 400, origin = '') {
 }
 
 // ----- Game constants (mirror lab.html) -----
+// MAX_TOKEN_ID — single source of truth for the supply bound. If Series II
+// ever ships, override via env.MAX_TOKEN_ID (string) instead of code edits.
+const DEFAULT_MAX_TOKEN_ID = 2999;  // 0..2999 = 3000 tokens
+function maxTokenId(env) {
+  const v = parseInt(env && env.MAX_TOKEN_ID, 10);
+  return Number.isFinite(v) && v >= 0 ? v : DEFAULT_MAX_TOKEN_ID;
+}
+
+// External-fetch timeout. CF Workers has its own 30s cap, but we want a
+// faster fail so callers don't sit through it (and so we don't burn a
+// nonce on a slow Alchemy outage). 8s is well above p99 Alchemy latency
+// (~200-500ms typical) but short enough to feel responsive on failure.
+const EXTERNAL_FETCH_TIMEOUT_MS = 8000;
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = EXTERNAL_FETCH_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const TRANSFERABLE_TRAITS = new Set([
   'palette',
   'plasmid', 'pili', 'ribosomes', 'flagellum',
@@ -176,13 +200,18 @@ async function loadTokenState(env, tokenId) {
 }
 
 // ----- Alchemy ownership -----
+// viem's http() transport accepts a `timeout` (ms) — when the underlying
+// fetch exceeds it, the call rejects rather than waiting for CF's 30s cap.
 async function ownerOf(env, tokenId) {
   if (!env.CONTRACT_ADDRESS || env.CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
     return null; // pre-mint
   }
   const client = createPublicClient({
     chain: mainnet,
-    transport: http(`https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_KEY}`),
+    transport: http(`https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_KEY}`, {
+      timeout: EXTERNAL_FETCH_TIMEOUT_MS,
+      retryCount: 1,
+    }),
   });
   try {
     const owner = await client.readContract({
@@ -197,6 +226,9 @@ async function ownerOf(env, tokenId) {
     });
     return owner.toLowerCase();
   } catch (e) {
+    // Log so a sustained Alchemy outage shows up in `wrangler tail`,
+    // instead of silently returning null and surfacing as 502 'ownerOf_failed'.
+    console.warn('ownerOf failed:', tokenId, e?.shortMessage || e?.message || String(e));
     return null;
   }
 }
@@ -208,13 +240,18 @@ async function listOwned(env, address) {
   const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${env.ALCHEMY_KEY}/getNFTsForOwner` +
     `?owner=${address}&contractAddresses[]=${env.CONTRACT_ADDRESS}&withMetadata=false&pageSize=100`;
   try {
-    const r = await fetch(url);
-    if (!r.ok) return { tokens: [], contractDeployed: true, error: 'alchemy_error' };
+    const r = await fetchWithTimeout(url);
+    if (!r.ok) {
+      console.warn('listOwned Alchemy non-OK:', address, r.status);
+      return { tokens: [], contractDeployed: true, error: 'alchemy_error' };
+    }
     const data = await r.json();
     const tokens = (data.ownedNfts || []).map(n => parseInt(n.tokenId, 10)).filter(n => Number.isFinite(n));
     return { tokens, contractDeployed: true };
   } catch (e) {
-    return { tokens: [], contractDeployed: true, error: 'fetch_failed' };
+    const reason = e?.name === 'AbortError' ? 'timeout' : 'fetch_failed';
+    console.warn('listOwned exception:', address, reason, e?.message || e);
+    return { tokens: [], contractDeployed: true, error: reason };
   }
 }
 
@@ -237,6 +274,30 @@ const CONJUGATE_TYPES = {
   ],
 };
 
+// ----- Verifiable rejection roll -----
+// Replaces Math.random() with a deterministic, audit-able derivation from
+// the conjugation payload. Any client can recompute this from the signed
+// message and verify the server didn't cheat.
+//
+//   roll = uint32(SHA-256(signature || '|' || nonce || '|' || donor || '|' || recipient)[0..4]) / 2^32
+//
+// The signature alone is unpredictable (depends on the user's private key)
+// AND deterministic (same signature → same bytes). The server cannot bias
+// the outcome by choosing inputs — every field is signed by the caller.
+// Repeated nonces are blocked by used_nonces, so a player can't "reroll"
+// a single message until they like the result.
+async function verifiableRoll(signature, nonce, donorId, recipientId) {
+  const payload = `${signature}|${nonce}|${donorId}|${recipientId}`;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
+  const bytes = new Uint8Array(buf);
+  // Hex for audit trail.
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) hex += bytes[i].toString(16).padStart(2, '0');
+  // First 4 bytes → uint32 → normalize to [0, 1).
+  const u32 = (bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]) >>> 0;
+  return { roll: u32 / 4294967296, hex };
+}
+
 // ----- Conjugation handler -----
 async function handleConjugate(req, env, origin) {
   if (!env.CONTRACT_ADDRESS || env.CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
@@ -250,6 +311,8 @@ async function handleConjugate(req, env, origin) {
   const { donorId, recipientId, trait, nonce, deadline, address, signature } = body || {};
   if (typeof donorId !== 'number' || typeof recipientId !== 'number') return error('bad_ids', 400, origin);
   if (donorId === recipientId) return error('same_token', 400, origin);
+  const maxId = maxTokenId(env);
+  if (donorId < 0 || donorId > maxId || recipientId < 0 || recipientId > maxId) return error('bad_ids', 400, origin);
   if (!TRANSFERABLE_TRAITS.has(trait)) return error('untransferable_trait', 400, origin);
   if (typeof nonce !== 'number' || typeof deadline !== 'number') return error('bad_nonce_or_deadline', 400, origin);
   if (Date.now() > deadline) return error('signature_expired', 400, origin);
@@ -321,27 +384,19 @@ async function handleConjugate(req, env, origin) {
     donorPaletteValue = donorData.mutations.palette || donorBase.palette;
   }
 
-  // 6. Roll for rejection (server-side RNG; sole source of truth)
+  // 6. Roll for rejection — verifiable RNG derived from the signed payload.
+  //    Server has no degree of freedom; player can recompute and audit.
   const rejectionRate = parseFloat(env.REJECTION_RATE || '0.15');
-  const roll = Math.random();
+  const { roll, hex: rollHex } = await verifiableRoll(signature, nonce, donorId, recipientId);
   const rejected = roll < rejectionRate;
   const ts = Date.now();
   const tsSec = Math.floor(ts / 1000);
+  const cooldownSec = parseInt(env.COOLDOWN_SECONDS || '2592000', 10); // 30 days default
 
-  // 7. Persist (atomic-ish — D1 doesn't have transactions yet, but the
-  //    nonce insert is the gate that prevents double-spend on retry).
-  await env.DB.prepare(
-    'INSERT INTO used_nonces (signer, nonce, used_at) VALUES (?, ?, ?)'
-  ).bind(signerLc, nonce, tsSec).run();
-
-  await env.DB.prepare(
-    'INSERT INTO log (ts, donor, recipient, trait, result, signer) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(ts, donorId, recipientId, trait, rejected ? 'rejected' : 'transfer', signerLc).run();
-
+  // 7. Compute recipient's post-mutation state (only used if !rejected)
+  const recipientData = await loadTokenState(env, recipientId);
+  const recM = recipientData.mutations;
   if (!rejected) {
-    // Update recipient's mutations
-    const recipientData = await loadTokenState(env, recipientId);
-    const recM = recipientData.mutations;
     const kind = TRAIT_KIND[trait];
     if (kind === 'palette') {
       recM.palette = donorPaletteValue;
@@ -350,50 +405,130 @@ async function handleConjugate(req, env, origin) {
     } else if (kind === 'anomaly') {
       if (!recM.anomalies.includes(trait)) recM.anomalies.push(trait);
     }
-    await env.DB.prepare(`
-      INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(token_id) DO UPDATE SET
-        received_palette = excluded.received_palette,
-        received_organelles = excluded.received_organelles,
-        received_anomalies = excluded.received_anomalies,
-        updated_at = excluded.updated_at
-    `).bind(
-      recipientId,
-      recM.palette || null,
-      JSON.stringify(recM.organelles),
-      JSON.stringify(recM.anomalies),
-      tsSec
-    ).run();
+  }
 
-    // Donor: record depletion cooldown
-    const cooldownSec = parseInt(env.COOLDOWN_SECONDS || '2592000', 10); // 30 days default
-    await env.DB.prepare(
-      'INSERT INTO depletions (token_id, trait, to_token, donated_at, regenerates_at) VALUES (?, ?, ?, ?, ?)'
-    ).bind(donorId, trait, recipientId, tsSec, tsSec + cooldownSec).run();
+  // 8. Persist as a SINGLE D1 batch — atomic across all tables.
+  //    The depletion INSERT uses WHERE NOT EXISTS for a live-cooldown
+  //    guard: two parallel conjugations of the same (donor, trait) can
+  //    both pass step 4 but only one can land the depletion row. The
+  //    post-batch check below detects that case and returns 409.
+  const stmts = [
+    env.DB.prepare(
+      'INSERT INTO used_nonces (signer, nonce, used_at) VALUES (?, ?, ?)'
+    ).bind(signerLc, nonce, tsSec),
+    env.DB.prepare(
+      'INSERT INTO log (ts, donor, recipient, trait, result, signer, roll_hex) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(ts, donorId, recipientId, trait, rejected ? 'rejected' : 'transfer', signerLc, rollHex),
+  ];
 
+  if (!rejected) {
+    stmts.push(
+      // Depletion insert — conditional on no active cooldown for this (donor, trait).
+      env.DB.prepare(`
+        INSERT INTO depletions (token_id, trait, to_token, donated_at, regenerates_at)
+        SELECT ?, ?, ?, ?, ?
+        WHERE NOT EXISTS (
+          SELECT 1 FROM depletions WHERE token_id = ? AND trait = ? AND regenerates_at > ?
+        )
+      `).bind(
+        donorId, trait, recipientId, tsSec, tsSec + cooldownSec,
+        donorId, trait, tsSec
+      ),
+      // Recipient state — conditional on the depletion having just landed.
+      // If a parallel request raced and won the depletion, this no-ops too,
+      // keeping (donor cooldown ↔ recipient mutation) in lockstep.
+      env.DB.prepare(`
+        INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, updated_at)
+        SELECT ?, ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM depletions WHERE token_id = ? AND trait = ? AND donated_at = ? AND to_token = ?
+        )
+        ON CONFLICT(token_id) DO UPDATE SET
+          received_palette = excluded.received_palette,
+          received_organelles = excluded.received_organelles,
+          received_anomalies = excluded.received_anomalies,
+          updated_at = excluded.updated_at
+      `).bind(
+        recipientId, recM.palette || null, JSON.stringify(recM.organelles), JSON.stringify(recM.anomalies), tsSec,
+        donorId, trait, tsSec, recipientId
+      )
+    );
+  }
+
+  let batchResults;
+  try {
+    batchResults = await env.DB.batch(stmts);
+  } catch (e) {
+    // Most common cause: used_nonces UNIQUE violation (caller re-sent).
+    // We already checked step 2 but the parallel-request window is real.
+    if (String(e?.message || '').toLowerCase().includes('unique')) {
+      return error('nonce_used', 401, origin);
+    }
+    console.error('Conjugate batch failed:', e?.stack || e);
+    return error('persist_failed', 500, origin);
+  }
+
+  // Post-batch race detection: confirm the depletion landed. If it
+  // didn't, a parallel conjugation grabbed this trait — the recipient
+  // state insert was no-op'd (the EXISTS guard saw nothing), but the
+  // nonce is burned and the log row claims 'transfer'. Patch the log
+  // and tell the caller.
+  if (!rejected) {
+    const depConfirm = await env.DB.prepare(
+      'SELECT 1 FROM depletions WHERE token_id = ? AND trait = ? AND donated_at = ? AND to_token = ?'
+    ).bind(donorId, trait, tsSec, recipientId).first();
+    if (!depConfirm) {
+      await env.DB.prepare(
+        'UPDATE log SET result = ? WHERE ts = ? AND donor = ? AND recipient = ? AND signer = ?'
+      ).bind('conjugate_race', ts, donorId, recipientId, signerLc).run();
+      return error('trait_already_donated', 409, origin);
+    }
     // Best-effort: ping OpenSea metadata-refresh for both tokens so the
-    // marketplace re-caches the new state. Failures are silent — D1 is
-    // already updated; OS will catch up on its own polling cadence too.
-    refreshOpenSeaMetadata(env, donorId, recipientId).catch(() => {});
+    // marketplace re-caches the new state. Failures are visible in the
+    // log table (result='os_refresh_failed') rather than silently swallowed.
+    refreshOpenSeaMetadata(env, donorId, recipientId).catch(e => {
+      console.warn('OS refresh top-level error:', e?.message || e);
+    });
   }
 
   return json({
     ok: !rejected,
     rejected,
-    log: { ts, donor: donorId, recipient: recipientId, trait, op: rejected ? 'rejected' : 'transfer' },
+    log: { ts, donor: donorId, recipient: recipientId, trait, op: rejected ? 'rejected' : 'transfer', rollHex },
   }, {}, origin);
 }
 
+// Best-effort OpenSea metadata-refresh ping. Failures are recorded in
+// the log table so a rotated/expired API key surfaces in operations
+// review instead of dying silently.
 async function refreshOpenSeaMetadata(env, ...tokenIds) {
   if (!env.OPENSEA_API_KEY || !env.CONTRACT_ADDRESS) return;
   const chain = env.CHAIN_ID === '1' ? 'ethereum' : 'sepolia';
-  await Promise.all(tokenIds.map(id =>
-    fetch(`https://api.opensea.io/api/v2/chain/${chain}/contract/${env.CONTRACT_ADDRESS}/nfts/${id}/refresh`, {
-      method: 'POST',
-      headers: { 'X-API-KEY': env.OPENSEA_API_KEY },
-    })
+  const ts = Date.now();
+  const settled = await Promise.allSettled(tokenIds.map(id =>
+    fetchWithTimeout(
+      `https://api.opensea.io/api/v2/chain/${chain}/contract/${env.CONTRACT_ADDRESS}/nfts/${id}/refresh`,
+      { method: 'POST', headers: { 'X-API-KEY': env.OPENSEA_API_KEY } },
+    ).then(r => ({ id, ok: r.ok, status: r.status }))
   ));
+  const failures = settled
+    .map((s, i) => ({ s, id: tokenIds[i] }))
+    .filter(({ s }) => s.status === 'rejected' || !s.value?.ok);
+  if (failures.length === 0) return;
+  // Best-effort log; don't await further fan-out into more failures.
+  try {
+    const stmts = failures.map(({ s, id }) => {
+      const detail = s.status === 'rejected'
+        ? (s.reason?.name === 'AbortError' ? 'timeout' : (s.reason?.message || 'rejected'))
+        : `http_${s.value.status}`;
+      return env.DB.prepare(
+        'INSERT INTO log (ts, donor, recipient, trait, result, signer, roll_hex) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind(ts, id, 0, `os_refresh:${detail}`, 'os_refresh_failed', '0x', null);
+    });
+    await env.DB.batch(stmts);
+  } catch (e) {
+    console.warn('Failed to log OS refresh failure:', e?.message || e);
+  }
 }
 
 // ----- Route handlers -----
@@ -405,7 +540,8 @@ async function handleOwned(env, address, origin) {
 
 async function handleState(env, tokenIdStr, origin) {
   const tokenId = parseInt(tokenIdStr, 10);
-  if (!Number.isFinite(tokenId) || tokenId < 0 || tokenId > 2999) return error('bad_token_id', 400, origin);
+  const maxId = maxTokenId(env);
+  if (!Number.isFinite(tokenId) || tokenId < 0 || tokenId > maxId) return error('bad_token_id', 400, origin);
   const { mutations, depletions } = await loadTokenState(env, tokenId);
   return json({ tokenId, mutations, depletions }, {
     headers: { 'Cache-Control': 'public, max-age=10, s-maxage=10' },
@@ -413,7 +549,8 @@ async function handleState(env, tokenIdStr, origin) {
 }
 
 async function handleStateBatch(env, tokensParam, origin) {
-  const ids = (tokensParam || '').split(',').map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n >= 0 && n <= 2999).slice(0, 100);
+  const maxId = maxTokenId(env);
+  const ids = (tokensParam || '').split(',').map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n >= 0 && n <= maxId).slice(0, 100);
   if (ids.length === 0) return json({ states: {} }, {}, origin);
   const entries = await Promise.all(ids.map(async id => [id, await loadTokenState(env, id)]));
   return json({ states: Object.fromEntries(entries) }, {
@@ -521,14 +658,28 @@ export default {
     try {
       if (path === '/api/health') {
         const deployed = !!env.CONTRACT_ADDRESS && env.CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000';
+        // Probe D1 with a cheap SELECT — surfaces a missing or wrong
+        // database_id at health-check time (used by uptime monitors)
+        // instead of waiting for the first user conjugation to 500.
+        let dbOk = false;
+        let dbError = null;
+        try {
+          const row = await env.DB.prepare('SELECT 1 AS ok').first();
+          dbOk = row && row.ok === 1;
+        } catch (e) {
+          dbError = e?.message || String(e);
+        }
         return json({
-          ok: true,
+          ok: dbOk,
+          db: { ok: dbOk, error: dbError },
           contractDeployed: deployed,
           contractAddress: deployed ? env.CONTRACT_ADDRESS : null,
           chainId: parseInt(env.CHAIN_ID || '1', 10),
+          maxTokenId: maxTokenId(env),
           cooldownSeconds: parseInt(env.COOLDOWN_SECONDS || '2592000', 10),
           rejectionRate: parseFloat(env.REJECTION_RATE || '0.15'),
-        }, {}, origin);
+          conjugateRatePerMin: parseInt(env.CONJUGATE_RATE_PER_MIN || '5', 10),
+        }, { status: dbOk ? 200 : 503 }, origin);
       }
 
       if (path.startsWith('/api/owned/')) {

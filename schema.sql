@@ -28,6 +28,16 @@ CREATE TABLE IF NOT EXISTS depletions (
 );
 CREATE INDEX IF NOT EXISTS idx_depletions_token       ON depletions(token_id);
 CREATE INDEX IF NOT EXISTS idx_depletions_regenerates ON depletions(regenerates_at);
+-- Idempotency / dedup guard: blocks duplicate retries from inserting two
+-- depletion rows for the same (donor, trait) at the same instant. The
+-- LIVE anti-double-spend check (donor can't donate the same trait to
+-- two recipients while a cooldown is active) is enforced in worker.js
+-- handleConjugate() via an INSERT ... WHERE NOT EXISTS guard wrapped
+-- inside env.DB.batch() with the nonce + log + token_state writes, so
+-- the whole conjugation is atomic. This index is the schema-level
+-- belt-and-suspenders backup.
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_depletions_grant
+  ON depletions(token_id, trait, donated_at);
 
 CREATE TABLE IF NOT EXISTS used_nonces (
   signer    TEXT NOT NULL,
@@ -43,8 +53,9 @@ CREATE TABLE IF NOT EXISTS log (
   donor       INTEGER NOT NULL,
   recipient   INTEGER NOT NULL,
   trait       TEXT NOT NULL,
-  result      TEXT NOT NULL,       -- 'transfer' | 'rejected'
-  signer      TEXT NOT NULL
+  result      TEXT NOT NULL,       -- 'transfer' | 'rejected' | 'os_refresh_failed' | 'conjugate_race'
+  signer      TEXT NOT NULL,
+  roll_hex    TEXT                 -- SHA-256(sig || nonce || donor || recipient) — verifiable rejection roll
 );
 CREATE INDEX IF NOT EXISTS idx_log_ts        ON log(ts);
 CREATE INDEX IF NOT EXISTS idx_log_donor     ON log(donor);
