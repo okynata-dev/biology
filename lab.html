@@ -56,7 +56,7 @@
     position: fixed; inset: 0;
     pointer-events: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
-    mix-blend-mode: multiply;
+
     z-index: 1;
   }
 
@@ -67,9 +67,7 @@
     position: sticky; top: 0; z-index: 50;
     padding: 18px 32px;
     display: flex; justify-content: space-between; align-items: center;
-    backdrop-filter: blur(16px) saturate(1.2);
-    -webkit-backdrop-filter: blur(16px) saturate(1.2);
-    background: rgba(236, 233, 224, 0.78);
+    background: rgba(236, 233, 224, 0.94);
     border-bottom: 1px solid var(--rule);
   }
   .brand {
@@ -343,55 +341,25 @@
     border: 0; display: block;
     pointer-events: none;
   }
-  /* === INLINE THUMBNAIL — replaces the per-card iframe ===
-   * 30 iframes = 30 doc loads + 30 script contexts = the source of the
-   * "lab lags" problem. Inline rendering uses BiomEngine.renderSpecimen()
-   * straight into a div, sharing the lab's existing JS context. Each
-   * thumbnail then weighs ~30 DOM nodes instead of an entire HTML doc.
-   *
-   * Backdrop-filter is disabled at thumbnail size — the blur is
-   * imperceptible below ~150px but expensive on the compositor. */
+  /* === THUMBNAIL — single <img> from a canvas snapshot ===
+   * Replaces the inline panel DOM with one PNG per card. The
+   * canvas renderer (specimen-engine.js renderSpecimenToCanvas)
+   * draws all panels, shadows, and gradients at 600px, then we
+   * dump it to a data URL. The compositor only ever paints one
+   * image per card after that — no panel divs, no per-panel
+   * shadows, no sheen blend modes. This was THE main reason
+   * the lab page was chugging with 12+ cards in the grid. */
   .biom-thumb-inline {
     width: 100%; height: 100%;
     position: relative;
     overflow: hidden;
-    background: linear-gradient(160deg, #faf8f3 0%, #efebe2 100%);
     pointer-events: none;
   }
-  .biom-thumb-inline .scene {
-    position: absolute;
-    inset: 0;
-  }
-  .biom-thumb-inline .composition {
-    position: absolute;
-    inset: 0;
-  }
-  .biom-thumb-inline .panel {
-    position: absolute;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.85),
-      inset 0 2px 4px rgba(255, 255, 255, 0.4),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
-      0 1px 3px rgba(0, 0, 0, 0.05),
-      0 4px 12px rgba(0, 0, 0, 0.06);
-    border: 0.5px solid rgba(255, 255, 255, 0.6);
-    overflow: hidden;
-  }
-  .biom-thumb-inline .panel::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background:
-      linear-gradient(135deg,
-        rgba(255, 255, 255, 0) 0%,
-        rgba(255, 255, 255, 0.18) 28%,
-        rgba(255, 255, 255, 0.42) 38%,
-        rgba(255, 255, 255, 0.15) 48%,
-        rgba(255, 255, 255, 0) 60%
-      );
-    mix-blend-mode: overlay;
-    pointer-events: none;
+  .biom-thumb-img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: block;
+    background: #ffffff;
   }
   /* Tier classes are still applied to the thumbnail by JS, but the
    * decorative overlays (shimmer, crystalline frame, halo) were
@@ -2640,7 +2608,7 @@ function _buildCardElement(seed) {
   card.innerHTML = `
     <div class="biom-thumb">
       <div class="biom-thumb-inline ${thumbCls}">
-        <div class="scene"><div class="composition"></div></div>
+        <img class="biom-thumb-img" alt="">
       </div>
       ${tier ? `<span class="gen-badge ${tier.cls}" title="${badgeTitle}">${tier.name}</span>` : ''}
       <span class="role-tag" hidden></span>
@@ -2651,21 +2619,24 @@ function _buildCardElement(seed) {
       <span class="biom-traits">${traitsText}</span>
     </div>
   `;
-  // Render the specimen into the .composition slot with the effective
-  // (post-mutation) state. organelles is a Set in eff; renderSpecimen
-  // honours that. Wrapped in try/catch so a single bad render can't
-  // take out the whole grid.
+  // Snapshot the specimen ONCE to a 600px canvas → PNG → <img>.
+  // The lab grid used to render ~30-80 panel divs per card × 12+ cards
+  // = 360-960 live nodes with shadows, sheen overlays, and per-panel
+  // gradients. That was the main reason the lab page chugged. Now
+  // each card is a single static image; the compositor only repaints
+  // when state actually changes (which re-snapshots via cardStateHash).
   try {
-    // Multi-parent palettes are encoded as 'a+b+c' until resolved into
-    // a synthetic key via mixPalettes. The engine's PALETTES table
-    // looks up by single key — so we resolve here.
     let resolvedPalette = eff.palette;
     if (typeof resolvedPalette === 'string' && resolvedPalette.includes('+')) {
       const parts = resolvedPalette.split('+').filter(Boolean);
       resolvedPalette = window.BiomEngine.mixPalettes(...parts);
     }
-    const comp = card.querySelector('.composition');
-    window.BiomEngine.renderSpecimen(comp, seed, {
+    const SIZE = 600;
+    const c = document.createElement('canvas');
+    c.width = SIZE; c.height = SIZE;
+    window.BiomEngine.renderSpecimenToCanvas(c, seed, {
+      specSize: SIZE, tx: 0, ty: 0,
+      scale: 1, rotation: 0, flipX: 1, flipY: 1,
       state: {
         morphology: eff.morphology,
         cellCount: eff.cellCount,
@@ -2678,6 +2649,7 @@ function _buildCardElement(seed) {
         biofilmHalo: eff.biofilmHalo,
       },
     });
+    card.querySelector('.biom-thumb-img').src = c.toDataURL('image/png');
   } catch (err) {
     console.warn(`[lab] thumb render failed for #${seed}`, err);
   }
