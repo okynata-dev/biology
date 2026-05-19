@@ -20,7 +20,7 @@
 
 set -e
 
-BUCKET="${BIOMS_R2_BUCKET:-bioms-bucket}"  # override via env if your bucket is named differently
+BUCKET="${BIOMS_R2_BUCKET:-bioms-pngs}"  # actual R2 bucket name (custom domain: pngs.thebioms.com)
 THUMB_DIR="pngs/thumb"
 
 if [ ! -d "$THUMB_DIR" ]; then
