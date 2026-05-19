@@ -438,6 +438,77 @@ async function handleLog(env, url, origin) {
   return json({ log: results || [] }, {}, origin);
 }
 
+// ============================================================
+// WAITLIST — pre-mint signup
+// Two endpoints:
+//   POST /api/waitlist        — add a row {kind, value}
+//   GET  /api/waitlist/count  — return total signup count
+//
+// Goal isn't to filter, just to count interest. Same address or
+// email submitted twice is idempotent (unique constraint on value).
+// Soft rate limit via ip_hash so a single client can't spam-add
+// thousands of fake addresses.
+// ============================================================
+const RE_ETH_ADDR = /^0x[a-fA-F0-9]{40}$/;
+const RE_EMAIL_LOOSE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function _sha256Hex(text) {
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function handleWaitlistAdd(req, env, origin) {
+  let body;
+  try { body = await req.json(); }
+  catch { return error('invalid_json', 400, origin); }
+
+  const kind = body && body.kind;
+  let value = body && body.value;
+  if (typeof value !== 'string') return error('bad_value', 400, origin);
+  value = value.trim().toLowerCase();
+  if (kind === 'address') {
+    if (!RE_ETH_ADDR.test(value)) return error('bad_address', 400, origin);
+  } else if (kind === 'email') {
+    if (!RE_EMAIL_LOOSE.test(value) || value.length > 254) return error('bad_email', 400, origin);
+  } else {
+    return error('bad_kind', 400, origin);
+  }
+
+  // Soft rate-limit: at most 30 signups per IP per hour. Cheap counter
+  // against the existing rows by ip_hash. Reasonable for a sign-up form.
+  const ip = req.headers.get('CF-Connecting-IP') || req.headers.get('X-Forwarded-For') || 'unknown';
+  const salt = env.WAITLIST_IP_SALT || 'bioms-waitlist-v1';
+  const ipHash = await _sha256Hex(ip + ':' + salt);
+  const nowMs = Date.now();
+  const hourAgo = nowMs - 3_600_000;
+  const recent = await env.DB.prepare(
+    'SELECT COUNT(*) AS n FROM waitlist WHERE ip_hash = ? AND ts > ?'
+  ).bind(ipHash, hourAgo).first();
+  if (recent && recent.n >= 30) {
+    return error('rate_limited', 429, origin);
+  }
+
+  // INSERT OR IGNORE so a duplicate value silently succeeds — the user
+  // sees "you're on the list" either way. We don't leak whether they
+  // were already there.
+  await env.DB.prepare(
+    'INSERT OR IGNORE INTO waitlist (kind, value, ts, ip_hash) VALUES (?, ?, ?, ?)'
+  ).bind(kind, value, nowMs, ipHash).run();
+
+  return json({ ok: true }, {}, origin);
+}
+
+async function handleWaitlistCount(env, origin) {
+  const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM waitlist').first();
+  const count = row ? row.n : 0;
+  return json({ count }, {
+    headers: {
+      'Cache-Control': 'public, max-age=60, s-maxage=60',
+    },
+  }, origin);
+}
+
 // ----- Main dispatcher -----
 export default {
   async fetch(req, env) {
@@ -476,6 +547,12 @@ export default {
       }
       if (path === '/api/log') {
         return await handleLog(env, url, origin);
+      }
+      if (path === '/api/waitlist/count') {
+        return await handleWaitlistCount(env, origin);
+      }
+      if (path === '/api/waitlist' && req.method === 'POST') {
+        return await handleWaitlistAdd(req, env, origin);
       }
 
       return error('not_found', 404, origin);

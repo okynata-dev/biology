@@ -52,6 +52,12 @@
 /manifesto.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
+/reserve
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/reserve.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
 /404
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bioms — Reserve your spot</title>
+<meta name="description" content="Drop your wallet or email to be counted before mint. No filter — we just want to know how many of you are coming.">
+<meta name="theme-color" content="#ece9e0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/favicon.svg">
+<link rel="canonical" href="https://thebioms.com/reserve">
+
+<meta property="og:title" content="Bioms — Reserve your spot">
+<meta property="og:description" content="Drop your wallet or email to be counted before mint.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://thebioms.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ece9e0;
+    --paper: #f4f1e8;
+    --ink: #1c1a16;
+    --ink-2: #5b554a;
+    --ink-3: #8b8576;
+    --rule: rgba(28, 26, 22, 0.12);
+    --ok: #2e7d4f;
+    --bad: #9a4a2e;
+  }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    line-height: 1.55;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    z-index: 1;
+  }
+
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+  a:hover { text-decoration-color: var(--ink); }
+
+  /* === NAV (canonical) === */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    padding: 18px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(236, 233, 224, 0.94);
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 17px; font-weight: 500; letter-spacing: -0.005em;
+    color: var(--ink); text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .brand:hover { opacity: 0.65; text-decoration: none; }
+  .brand-mark { width: 18px; height: 18px; display: block; }
+  .brand-mark circle { fill: currentColor; }
+  .nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
+  .nav-links a {
+    color: var(--ink-3); text-decoration: none;
+    transition: color 0.15s;
+  }
+  .nav-links a:hover { color: var(--ink); text-decoration: none; }
+  .nav-x { display: inline-flex; align-items: center; color: var(--ink-3); transition: color 0.15s; margin-left: 4px; }
+  .nav-x:hover { color: var(--ink); text-decoration: none; }
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px;
+  }
+  .x-icon { width: 15px; height: 15px; display: block; }
+  @media (max-width: 600px) {
+    nav { padding: 14px 18px; }
+    .nav-links { gap: 14px; font-size: 13px; }
+  }
+
+  /* === CARD === */
+  .wrap {
+    position: relative; z-index: 2;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: clamp(64px, 12vh, 120px) 28px 96px;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 22px;
+  }
+  h1 {
+    font-size: clamp(38px, 5.2vw, 56px);
+    letter-spacing: -0.025em;
+    font-weight: 500;
+    line-height: 1.05;
+    margin-bottom: 22px;
+  }
+  .lede {
+    font-size: clamp(17px, 1.5vw, 19px);
+    line-height: 1.55;
+    color: var(--ink-2);
+    margin-bottom: 44px;
+  }
+
+  /* === FORM === */
+  form.reserve-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .field {
+    position: relative;
+  }
+  .field input {
+    width: 100%;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-family: inherit;
+    font-size: 16px;
+    color: var(--ink);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .field input::placeholder {
+    color: var(--ink-3);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+  }
+  .field input:focus {
+    border-color: var(--ink);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(28,26,22,0.08);
+  }
+  .field input.valid    { border-color: rgba(46, 125, 79, 0.5); }
+  .field input.invalid  { border-color: rgba(154, 74, 46, 0.6); }
+  .hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--ink-3);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.02em;
+    min-height: 16px;
+  }
+  .hint.bad { color: var(--bad); }
+  .hint.ok  { color: var(--ok); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    background: var(--ink);
+    color: var(--bg);
+    border: 1px solid var(--ink);
+    padding: 16px 22px;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.05s;
+  }
+  .btn:hover { opacity: 0.92; }
+  .btn:active { transform: scale(0.997); }
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn.secondary {
+    background: transparent;
+    color: var(--ink);
+  }
+
+  /* === COUNTER + AFTER-SUBMIT === */
+  .counter {
+    text-align: center;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    color: var(--ink-3);
+    letter-spacing: 0.06em;
+    margin-top: 16px;
+  }
+  .counter strong {
+    color: var(--ink);
+    font-weight: 500;
+    font-size: 15px;
+  }
+
+  .note {
+    margin-top: 36px;
+    padding-top: 28px;
+    border-top: 1px solid var(--rule);
+    font-size: 14px;
+    color: var(--ink-3);
+    line-height: 1.55;
+  }
+  .note p + p { margin-top: 10px; }
+
+  /* === SUCCESS STATE === */
+  .success {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    padding: 28px 22px;
+    text-align: center;
+  }
+  .success-title {
+    font-size: 22px;
+    letter-spacing: -0.015em;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .success-body {
+    color: var(--ink-2);
+    font-size: 15px;
+    margin-bottom: 22px;
+  }
+  .success-share {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  .success-share a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: 13px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .success-share a:hover { color: var(--ink); border-color: var(--ink); }
+
+  /* === FOOTER (canonical) === */
+  footer {
+    padding: 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px;
+    font-size: 13px; color: var(--ink-3);
+    border-top: 1px solid var(--rule);
+    position: relative; z-index: 2;
+  }
+  footer a { color: inherit; text-decoration: none; transition: color 0.15s; }
+  footer a:hover { color: var(--ink); }
+  .footer-meta { display: flex; align-items: center; gap: 14px; }
+  .footer-meta .sep { opacity: 0.4; }
+  @media (max-width: 600px) {
+    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="11" cy="16" r="8"/>
+      <circle cx="21" cy="16" r="8"/>
+    </svg>
+    <span>Bioms</span>
+  </a>
+  <div class="nav-links">
+    <a href="/lab">Lab</a>
+    <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
+      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <div class="eyebrow">Reserve · before mint</div>
+  <h1>Be counted.</h1>
+  <p class="lede">Drop your wallet address or an email to save your spot. No filter, no gatekeeping — I just want to know how many of you are coming.</p>
+
+  <div id="formContainer">
+    <form class="reserve-form" id="reserveForm" novalidate>
+      <div class="field">
+        <input
+          type="text"
+          id="reserveInput"
+          name="value"
+          placeholder="0x… or your email"
+          autocomplete="email"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          required
+          aria-label="Wallet address or email"
+        />
+        <div class="hint" id="reserveHint">An Ethereum address or an email — either works.</div>
+      </div>
+      <button type="submit" class="btn" id="reserveSubmit" disabled>Save my spot</button>
+    </form>
+    <div class="counter" id="reserveCounter" hidden>
+      <strong id="reserveCount">—</strong> already saved
+    </div>
+  </div>
+
+  <div id="successPanel" class="success" hidden>
+    <div class="success-title">You're on the list.</div>
+    <div class="success-body" id="successBody">When mint goes live you'll get a 24-hour head start.</div>
+    <div class="success-share">
+      <a href="#" id="shareTwitter" target="_blank" rel="noopener">Share on X</a>
+      <a href="/lab">Try the Lab</a>
+    </div>
+  </div>
+
+  <div class="note">
+    <p>One per address. If your wallet wins a spot at mint, this list is how you'll find out.</p>
+    <p>I won't sell your email or do drip campaigns. There will be exactly one message: "mint is live."</p>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-meta">
+    <span>© 2026 Bioms</span>
+    <span class="sep">·</span>
+    <a href="/lab">Lab</a>
+    <span class="sep">·</span>
+    <a href="/explore">Traits</a>
+    <span class="sep">·</span>
+    <a href="/make">Banners</a>
+    <span class="sep">·</span>
+    <a href="/reserve">Reserve</a>
+    <span class="sep">·</span>
+    <a href="/manifesto">Manifesto</a>
+  </div>
+  <div class="footer-meta">
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
+    <span class="sep">·</span>
+    <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">by @timsouw</a>
+  </div>
+</footer>
+
+<script>
+// =============================================================
+// RESERVE — pre-mint signup form
+//
+// Single input that accepts EITHER an Ethereum address OR an
+// email. We auto-detect on every keystroke and validate. Submit
+// POSTs to the Worker; if the Worker is offline we fall back to
+// a mailto: so nobody who tries to sign up gets dropped on the
+// floor.
+// =============================================================
+const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:8787'
+  : 'https://api.thebioms.com';
+
+const input        = document.getElementById('reserveInput');
+const submitBtn    = document.getElementById('reserveSubmit');
+const hint         = document.getElementById('reserveHint');
+const form         = document.getElementById('reserveForm');
+const counterEl    = document.getElementById('reserveCounter');
+const countNumEl   = document.getElementById('reserveCount');
+const formContainer = document.getElementById('formContainer');
+const successPanel = document.getElementById('successPanel');
+const successBody  = document.getElementById('successBody');
+const shareTwitter = document.getElementById('shareTwitter');
+
+const RE_ETH   = /^0x[a-fA-F0-9]{40}$/;
+const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function classify(v) {
+  const trimmed = v.trim();
+  if (!trimmed) return { kind: null, valid: false, msg: 'An Ethereum address or an email — either works.' };
+  if (trimmed.startsWith('0x') || /^[a-fA-F0-9]/.test(trimmed)) {
+    // Looks like it's heading toward an address
+    if (RE_ETH.test(trimmed)) return { kind: 'address', valid: true, value: trimmed.toLowerCase(), msg: 'Looks like a wallet — perfect.' };
+    return { kind: 'address', valid: false, msg: 'An Ethereum address is 0x + 40 hex characters.' };
+  }
+  if (trimmed.includes('@')) {
+    if (RE_EMAIL.test(trimmed)) return { kind: 'email', valid: true, value: trimmed.toLowerCase(), msg: 'Looks like an email — perfect.' };
+    return { kind: 'email', valid: false, msg: 'That email doesn\'t look quite right.' };
+  }
+  return { kind: null, valid: false, msg: 'An Ethereum address or an email — either works.' };
+}
+
+function updateValidation() {
+  const r = classify(input.value);
+  if (!input.value.trim()) {
+    input.classList.remove('valid', 'invalid');
+    hint.className = 'hint';
+    hint.textContent = r.msg;
+    submitBtn.disabled = true;
+    return;
+  }
+  if (r.valid) {
+    input.classList.remove('invalid');
+    input.classList.add('valid');
+    hint.className = 'hint ok';
+    submitBtn.disabled = false;
+  } else {
+    input.classList.remove('valid');
+    input.classList.add('invalid');
+    hint.className = 'hint bad';
+    submitBtn.disabled = true;
+  }
+  hint.textContent = r.msg;
+}
+
+input.addEventListener('input', updateValidation);
+input.addEventListener('blur', updateValidation);
+
+async function loadCount() {
+  try {
+    const r = await fetch(`${WORKER_URL}/api/waitlist/count`, { method: 'GET' });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (typeof data.count === 'number') {
+      countNumEl.textContent = data.count.toLocaleString();
+      counterEl.hidden = false;
+    }
+  } catch (e) {
+    // Worker not deployed yet — hide the counter quietly.
+  }
+}
+
+async function submitReservation(payload) {
+  const r = await fetch(`${WORKER_URL}/api/waitlist`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new Error(data.error || 'request_failed');
+  }
+  return r.json();
+}
+
+function showSuccess(kind) {
+  formContainer.hidden = true;
+  successPanel.hidden = false;
+  successBody.textContent = kind === 'address'
+    ? "When mint goes live you'll see the option in your wallet's mint window — and you'll get a heads-up on X."
+    : "When mint goes live you'll get exactly one email: \"mint is live\". No drip, no spam.";
+  const tweetText = encodeURIComponent("Just reserved my spot for @theBioms. Three thousand microbes that breed, burn, and evolve on-chain.");
+  shareTwitter.href = `https://twitter.com/intent/tweet?text=${tweetText}&url=https%3A%2F%2Fthebioms.com`;
+  // Bump the displayed counter optimistically if it was loaded.
+  if (!counterEl.hidden && countNumEl.textContent !== '—') {
+    const n = parseInt(countNumEl.textContent.replace(/[^\d]/g, ''), 10) || 0;
+    countNumEl.textContent = (n + 1).toLocaleString();
+  }
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const r = classify(input.value);
+  if (!r.valid) return;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Saving…';
+  try {
+    await submitReservation({ kind: r.kind, value: r.value });
+    showSuccess(r.kind);
+  } catch (err) {
+    // Worker unreachable or rejected — fall back to mailto so the
+    // signup intent isn't lost. Pre-fills subject and body.
+    const subj = encodeURIComponent('Bioms — count me in');
+    const body = encodeURIComponent(`Save my spot for the Bioms mint.\n\n${r.kind === 'address' ? 'Wallet' : 'Email'}: ${r.value}\n\n(Sent via /reserve — backend not yet live, this is the manual path.)`);
+    const mailto = `mailto:hello@thebioms.com?subject=${subj}&body=${body}`;
+    // Auto-open the user's email client and ALSO show success — the
+    // intent is captured either way.
+    window.location.href = mailto;
+    showSuccess(r.kind);
+  }
+});
+
+// Boot
+loadCount();
+updateValidation();
+</script>
+
+</body>
+</html>

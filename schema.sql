@@ -49,3 +49,16 @@ CREATE TABLE IF NOT EXISTS log (
 CREATE INDEX IF NOT EXISTS idx_log_ts        ON log(ts);
 CREATE INDEX IF NOT EXISTS idx_log_donor     ON log(donor);
 CREATE INDEX IF NOT EXISTS idx_log_recipient ON log(recipient);
+
+-- Pre-mint waitlist — one row per address/email submitted via /reserve.
+-- `value` is lowercased so dedup catches case variants. `kind` is
+-- either 'address' (Ethereum hex) or 'email'.
+CREATE TABLE IF NOT EXISTS waitlist (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind        TEXT NOT NULL,        -- 'address' | 'email'
+  value       TEXT NOT NULL UNIQUE, -- lowercased
+  ts          INTEGER NOT NULL,     -- unix milliseconds
+  ip_hash     TEXT                  -- sha256(ip + salt), for soft rate-limit only
+);
+CREATE INDEX IF NOT EXISTS idx_waitlist_ts ON waitlist(ts);
+CREATE INDEX IF NOT EXISTS idx_waitlist_kind ON waitlist(kind);
