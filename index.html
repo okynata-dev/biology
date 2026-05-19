@@ -364,44 +364,57 @@
   }
   @media (hover: none) { .catalog-cell .seed-tag { opacity: 1; } }
 
-  /* === LAB — feature section. Bioms are not just static art; they
-       breed, fuse, and evolve. This section pulls that promise out
-       of the footer-nav into a hero-grade callout. Asymmetric grid
-       mirrors the top hero — specimen pair (parent + survivor) on
-       the left, copy + CTA on the right. */
-  .lab { padding: 80px 32px 100px; }
+  /* === LAB — feature section (Ive-pass).
+   * Asymmetric diptych: small recessive Genesis upper-left, large
+   * dominant Phoenix lower-right with slight overlap (Phoenix grows
+   * out of where Genesis was — that IS the mechanic). One-word
+   * headline. Tier ladder as a text scale, not pills. One CTA. */
+  .lab { padding: 100px 32px 120px; }
   .lab-grid {
     display: grid;
     grid-template-columns: 1.05fr 1fr;
     align-items: center;
-    gap: clamp(40px, 6vw, 88px);
+    gap: clamp(48px, 7vw, 96px);
     max-width: 1100px;
     margin: 0 auto;
   }
   @media (max-width: 820px) {
-    .lab-grid { grid-template-columns: 1fr; gap: 28px; }
+    .lab-grid { grid-template-columns: 1fr; gap: 40px; }
   }
-  /* Twin-pane visual: two specimens stacked with a thin "→" between,
-     reading as "parent transforms into evolved child". Each pane is
-     a square iframe of preview.html — same render path as the hero. */
+  /* Diptych — Genesis small/top-left, Phoenix large/bottom-right.
+     Slight overlap suggests the Phoenix grew from the Genesis. */
   .lab-visual {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
     position: relative;
+    aspect-ratio: 1;
+    max-width: 540px;
+    margin: 0 auto;
   }
   .lab-pane {
-    aspect-ratio: 1;
-    border-radius: 16px;
+    position: absolute;
+    border-radius: 18px;
     overflow: hidden;
     background: var(--paper);
-    box-shadow: 0 1px 1px rgba(0,0,0,0.03), 0 8px 22px rgba(0,0,0,0.06);
-    position: relative;
   }
-  /* Inline render container — replaces the iframe with a direct
-     BiomEngine.renderSpecimen target. Same panel styles as the
-     lab thumbnail; no backdrop-filter (imperceptible at this size
-     and expensive on the compositor). */
+  .lab-pane-genesis {
+    top: 0; left: 0;
+    width: 38%;
+    aspect-ratio: 1;
+    z-index: 1;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.03), 0 4px 14px rgba(0,0,0,0.05);
+  }
+  .lab-pane-phoenix {
+    bottom: 0; right: 0;
+    width: 76%;
+    aspect-ratio: 1;
+    z-index: 2;
+    background:
+      radial-gradient(circle at 50% 50%, #fff5e6 0%, #f4ead4 45%, #efebe2 100%);
+    box-shadow:
+      0 1px 1px rgba(0,0,0,0.04),
+      0 16px 36px rgba(28,26,22,0.10),
+      0 6px 14px rgba(28,26,22,0.06);
+  }
+  /* Inline render slot — DOM panels (preserves glass effect). */
   .lab-pane-render {
     width: 100%; height: 100%;
     position: relative;
@@ -436,69 +449,69 @@
     mix-blend-mode: overlay;
     pointer-events: none;
   }
-  .lab-pane.evolved {
-    background:
-      radial-gradient(circle at 50% 50%, #fff5e6 0%, #f4ead4 45%, #efebe2 100%);
-  }
-  .lab-pane .pane-label {
-    position: absolute;
-    top: 10px; left: 12px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 10px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--ink-3);
-    pointer-events: none;
-  }
-  .lab-pane.evolved .pane-label { color: rgba(28, 26, 22, 0.55); }
-  .lab-arrow {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 36px; height: 36px;
-    border-radius: 50%;
-    background: var(--bg);
-    border: 1px solid var(--rule);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px;
-    color: var(--ink);
-    pointer-events: none;
-    z-index: 5;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.06);
-  }
-  .lab-copy h2 {
-    margin: 0 0 16px;
-    font-size: clamp(34px, 4vw, 52px);
-    letter-spacing: -0.025em;
-    line-height: 1.04;
+
+  /* Copy column — graduated spacing. Headline → body big gap →
+     ladder bigger gap → CTA biggest gap. The eye steps down. */
+  .lab-copy h2.lab-headline {
+    margin: 0 0 36px;
+    font-size: clamp(56px, 8vw, 96px);
+    letter-spacing: -0.035em;
+    line-height: 0.92;
     font-weight: 500;
   }
   .lab-copy p {
-    margin: 0 0 16px;
+    margin: 0 0 20px;
     font-size: clamp(15px, 1.3vw, 17px);
-    line-height: 1.55;
+    line-height: 1.6;
     color: var(--ink-2);
+    max-width: 460px;
   }
-  .lab-tiers {
+  .lab-copy p:last-of-type { margin-bottom: 0; }
+
+  /* Tier ladder — text scale. Genesis quiet (small + low opacity),
+     Phoenix loud (larger + full ink + weight). Reads as a literal
+     ascending bar, not four equal chips. */
+  .lab-ladder {
+    margin: 48px 0 0;
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 18px 0 24px;
-  }
-  .lab-tier {
+    align-items: baseline;
+    gap: 10px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    padding: 5px 10px;
-    border-radius: 999px;
-    border: 1px solid var(--rule);
-    color: var(--ink-2);
-    background: var(--paper);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
   }
-  .lab-cta { display: flex; gap: 10px; flex-wrap: wrap; }
+  .lab-ladder .step {
+    color: var(--ink);
+    transition: color 0.15s;
+  }
+  .lab-ladder .step.s1 { font-size: 10px; opacity: 0.42; }
+  .lab-ladder .step.s2 { font-size: 11px; opacity: 0.55; }
+  .lab-ladder .step.s3 { font-size: 12px; opacity: 0.72; font-weight: 500; }
+  .lab-ladder .step.s4 { font-size: 14px; opacity: 1.0;  font-weight: 500; }
+  .lab-ladder .sep {
+    color: var(--ink-3);
+    opacity: 0.5;
+    font-size: 11px;
+  }
+
+  /* CTA — one solid button, one text aside. Hierarchy: action vs note. */
+  .lab-cta {
+    margin: 56px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .lab-cta-aside {
+    font-size: 13px;
+    color: var(--ink-3);
+    letter-spacing: 0.01em;
+  }
   @media (max-width: 820px) {
-    .lab { padding: 56px 18px 64px; }
-    .lab-cta .btn { flex: 1 1 auto; text-align: center; }
+    .lab { padding: 64px 18px 80px; }
+    .lab-copy h2.lab-headline { font-size: clamp(48px, 14vw, 72px); }
+    .lab-ladder { margin-top: 36px; }
+    .lab-cta { margin-top: 40px; }
   }
 
   /* === DROP — closing block. Centered, quiet, simple. No info-list
@@ -646,29 +659,29 @@
   <div class="wrap">
     <div class="lab-grid">
       <div class="lab-visual" aria-hidden="true">
-        <div class="lab-pane">
-          <span class="pane-label">Genesis</span>
+        <div class="lab-pane lab-pane-genesis">
           <div class="lab-pane-render" data-lab-seed="genesis"></div>
         </div>
-        <div class="lab-pane evolved">
-          <span class="pane-label">Phoenix · G7</span>
+        <div class="lab-pane lab-pane-phoenix">
           <div class="lab-pane-render" data-lab-seed="phoenix"></div>
         </div>
-        <div class="lab-arrow">→</div>
       </div>
       <div class="lab-copy">
-        <h2>Bioms breed. Bioms burn. Survivors evolve.</h2>
-        <p>This isn't a static collection. Pair two Bioms to share a trait. Sacrifice one to a fire and feed it to another. The survivor inherits the lineage, gains a generation, and unlocks visual rarities you can't get at mint.</p>
-        <p>Every act of fusion is permanent and on-chain. Burned Bioms are gone forever. The Phoenix tier — the rarest survivors — exists only because someone chose to torch ten others.</p>
-        <div class="lab-tiers">
-          <span class="lab-tier">Genesis</span>
-          <span class="lab-tier">Hybrid</span>
-          <span class="lab-tier">Chimera</span>
-          <span class="lab-tier">Phoenix</span>
+        <h2 class="lab-headline">Evolve.</h2>
+        <p>Pair two Bioms to share a trait. Burn one to feed another. The survivor inherits everything — palette, organelles, the body of the dead.</p>
+        <p>Reaching Phoenix takes eight Bioms consumed. Most collectors will never get there. The ones who do made a small, irreversible decision over and over.</p>
+        <div class="lab-ladder" aria-label="Rarity ladder">
+          <span class="step s1">Genesis</span>
+          <span class="sep">→</span>
+          <span class="step s2">Hybrid</span>
+          <span class="sep">→</span>
+          <span class="step s3">Chimera</span>
+          <span class="sep">→</span>
+          <span class="step s4">Phoenix</span>
         </div>
         <div class="lab-cta">
           <a href="/lab" class="btn">Open the Lab</a>
-          <a href="/lab" class="btn btn-ghost">Try it without a wallet</a>
+          <span class="lab-cta-aside">No wallet required.</span>
         </div>
       </div>
     </div>
@@ -786,9 +799,17 @@ document.getElementById('rollBtn').addEventListener('click', () => {
   if (REVEAL) seedDisplay.textContent = String(currentSeed);
 });
 
-// Lab section diptych — inline-render via BiomEngine into the pane
-// containers. Canvas snapshots lose the glass effect; DOM render
-// preserves it. Only 2 specimens here, so the perf cost is bounded.
+// Lab section diptych — small recessive Genesis upper-left, large
+// dominant Phoenix lower-right. Both are inline-rendered via the
+// engine so the glass effect is preserved.
+//
+// Genesis showcase forces a darker palette (methylene blue) — the
+// natural cream paper background was washing out silver/white
+// specimens. Methylene gives proper contrast and reads as "a real
+// specimen in the start state."
+//
+// Phoenix showcase forces gold + extra organelles + cluster cellCount
+// to read unmistakably as a Phoenix-tier survivor.
 function _renderLabPane(targetEl, seed, override) {
   if (!window.BiomEngine) return;
   targetEl.innerHTML = '<div class="scene"><div class="composition"></div></div>';
@@ -797,6 +818,11 @@ function _renderLabPane(targetEl, seed, override) {
     window.BiomEngine.renderSpecimen(comp, seed, { state: override });
   } catch (e) { /* render failures shouldn't break the page */ }
 }
+const GENESIS_SHOWCASE = {
+  palette: 'methylene',
+  cellCount: 4,
+  organelles: new Set(['capsule', 'nucleoid', 'ribosomes']),
+};
 const PHOENIX_SHOWCASE = {
   palette: 'gold',
   cellCount: 5,
@@ -809,7 +835,7 @@ const labSeeds = {
 };
 document.querySelectorAll('[data-lab-seed]').forEach(el => {
   const k = el.dataset.labSeed;
-  if (k === 'genesis') _renderLabPane(el, labSeeds.genesis, null);
+  if (k === 'genesis') _renderLabPane(el, labSeeds.genesis, GENESIS_SHOWCASE);
   else if (k === 'phoenix') _renderLabPane(el, labSeeds.phoenix, PHOENIX_SHOWCASE);
 });
 
