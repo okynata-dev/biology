@@ -424,9 +424,14 @@
     color: var(--ink-3);
     text-align: right;
   }
-  /* Role tag — compact pill that scales from one letter (A/B in crossbreed)
-     to a short word (Burn/Keep in burn mode). Auto-widths via inline-flex. */
-  .biom-card .role-tag {
+  /* Role tag was a pill that named the role of each selected card
+     (A/B in crossbreed, Burn/Keep in burn). Hidden now because the
+     border colour already carries the same information without
+     stacking visual noise on top of the card — orange border = will
+     burn, dark border = will receive. The DOM stays so the JS that
+     toggles it doesn't break; CSS just keeps it off-screen. */
+  .biom-card .role-tag { display: none; }
+  .biom-card .role-tag.__legacy_unused {
     position: absolute;
     top: 10px; right: 10px;
     min-width: 32px; height: 26px;
@@ -1008,8 +1013,90 @@
   }
   .slot.flash-fail { animation: recipient-shake 0.5s ease-out; }
 
-  /* === ARENA MODE TABS — Crossbreed vs Burn === */
-  .arena-mode-tabs {
+  /* === MODE CHOOSER — the first thing you see in the Lab ===
+     Two big cards, one decision. Crossbreed = mix, Burn = sacrifice.
+     Replaces the old "everything visible at once" approach: pick what
+     you came to do, then the rest of the UI mounts only for that mode.
+     Big-tap-target, single-glance copy — designed so it reads cleanly
+     to a first-time visitor without explanation. */
+  .mode-chooser {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin: 16px 0 56px;
+  }
+  @media (max-width: 720px) {
+    .mode-chooser { grid-template-columns: 1fr; gap: 14px; }
+  }
+  .chooser-card {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 22px;
+    padding: 40px 36px;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+    transition: transform 0.18s ease-out, border-color 0.18s, box-shadow 0.18s;
+    display: flex; flex-direction: column;
+    gap: 14px;
+    position: relative;
+    overflow: hidden;
+    /* Each card is a self-contained tappable surface — contain isolates
+       its hover/transform from re-layouting the rest of the page. */
+    contain: layout style paint;
+  }
+  .chooser-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--ink-3);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  }
+  .chooser-card .chooser-icon {
+    width: 36px; height: 36px;
+    color: var(--ink-2);
+  }
+  .chooser-card .chooser-title {
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    color: var(--ink);
+  }
+  .chooser-card .chooser-tag {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink-3);
+    max-width: 32ch;
+  }
+  .chooser-card[data-mode="burn"]:hover {
+    border-color: #c45a3a;
+    box-shadow: 0 8px 24px rgba(196, 90, 58, 0.10);
+  }
+  .chooser-card[data-mode="burn"]:hover .chooser-icon { color: #c45a3a; }
+  .chooser-card[data-mode="burn"]:hover .chooser-title { color: #9a4a2e; }
+  /* The "Back" link — soft, sits above the working area without
+     stealing attention. Click goes back to the chooser. */
+  .back-to-chooser {
+    background: none;
+    border: 0;
+    color: var(--ink-3);
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 0;
+    margin-bottom: 18px;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: color 0.15s;
+  }
+  .back-to-chooser:hover { color: var(--ink); }
+
+  /* The legacy pill-style mode tabs are still in the DOM for
+     accessibility (focusable) but visually replaced by the chooser
+     landing. Hidden until/unless we ever want to bring them back. */
+  .arena-mode-tabs { display: none !important; }
+
+  /* === LEGACY ARENA MODE TABS (kept for ref / restore) === */
+  .arena-mode-tabs__legacy {
     display: inline-flex;
     background: var(--paper);
     border: 1px solid var(--rule);
@@ -1554,6 +1641,36 @@
 
 <section class="arena-section">
   <div class="wrap">
+    <!-- Landing chooser — first thing the visitor sees in the Lab.
+         Two big tap-targets, one clear question: what do you want to
+         do? Hidden once a mode is picked; restorable via the "Back"
+         link inside the working area below. -->
+    <div class="mode-chooser" id="modeChooser" role="group" aria-label="Choose Lab action">
+      <button class="chooser-card" data-mode="crossbreed" type="button">
+        <svg class="chooser-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M8 4v16M16 4v16M4 8h16M4 16h16"/>
+        </svg>
+        <span class="chooser-title">Crossbreed</span>
+        <span class="chooser-tag">Mix two Bioms. They share one trait. Both survive — your collection grows.</span>
+      </button>
+      <button class="chooser-card" data-mode="burn" type="button">
+        <svg class="chooser-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2c1 3 4 6 4 10a4 4 0 1 1-8 0c0-3 2-5 4-10z"/>
+        </svg>
+        <span class="chooser-title">Burn</span>
+        <span class="chooser-tag">Sacrifice one Biom to feed another. The survivor absorbs every trait. Permanent.</span>
+      </button>
+    </div>
+
+    <!-- Working area — everything below stays hidden until a mode is
+         picked. Lazy-mount: less to render on page load, fewer DOM
+         elements competing for the GPU compositor while the user is
+         still on the chooser landing. -->
+    <div class="lab-main" id="labMain" hidden>
+    <button class="back-to-chooser" id="backToChooser" type="button" aria-label="Change Lab action">
+      ← Choose another action
+    </button>
+
     <div class="collection-head">
       <h2>Your collection</h2>
       <div class="collection-actions" id="demoActions">
@@ -1622,6 +1739,7 @@
       <button class="btn" type="button" id="burnConfirmYes" style="background:#c45a3a; border-color:#c45a3a;">Yes, burn it</button>
       <button class="btn btn-ghost" type="button" id="burnConfirmNo">Cancel</button>
     </div>
+    </div><!-- /.lab-main -->
   </div>
 </section>
 
@@ -4174,6 +4292,58 @@ collectionGrid.addEventListener('click', (e) => {
     _drag.suppressNextClick = false;
   }
 }, true);  // capture phase so we run before the card's own click handler
+
+// ============================================================
+// MODE CHOOSER — landing screen with two big choices.
+//
+// First visit (or after "Back"): show the chooser, hide the working
+// area. Pick a mode → working area mounts, chooser hides. The choice
+// persists in localStorage so returning visitors land directly in
+// their preferred mode; clicking "Back" wipes it so they get the
+// chooser again.
+//
+// We don't re-implement mode-switching here — we delegate to the
+// existing .arena-mode-tab buttons (now CSS-hidden but still in DOM
+// and still wired up). Pressing a chooser card programmatically
+// clicks the matching tab → existing arenaMode handler runs → no
+// duplicated state machine.
+// ============================================================
+(function setupModeChooser() {
+  const MODE_KEY = 'bioms-lab-mode-chosen';
+  const chooser = document.getElementById('modeChooser');
+  const labMain = document.getElementById('labMain');
+  const backBtn = document.getElementById('backToChooser');
+  if (!chooser || !labMain) return;
+
+  function show(mode) {
+    chooser.hidden = true;
+    labMain.hidden = false;
+    // Trigger the existing tab — runs arenaMode setter + UI sync
+    const tab = document.querySelector('.arena-mode-tab[data-mode="' + mode + '"]');
+    if (tab) tab.click();
+    try { localStorage.setItem(MODE_KEY, mode); } catch (_) {}
+    // Reset selection state so the user starts fresh in the chosen mode.
+    const reset = document.getElementById('resetBtn');
+    if (reset) reset.click();
+  }
+  function showChooser() {
+    chooser.hidden = false;
+    labMain.hidden = true;
+    try { localStorage.removeItem(MODE_KEY); } catch (_) {}
+  }
+
+  chooser.querySelectorAll('.chooser-card').forEach(card => {
+    card.addEventListener('click', () => show(card.dataset.mode));
+  });
+  if (backBtn) backBtn.addEventListener('click', showChooser);
+
+  // Returning visitor — restore last choice. New visitor — show chooser.
+  let saved = null;
+  try { saved = localStorage.getItem(MODE_KEY); } catch (_) {}
+  if (saved === 'crossbreed' || saved === 'burn') {
+    show(saved);
+  }
+})();
 
 // ============================================================
 // IFRAME RAF GOVERNOR — pause off-screen preview.html liveLoops.
