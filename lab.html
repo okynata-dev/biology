@@ -424,34 +424,11 @@
     color: var(--ink-3);
     text-align: right;
   }
-  /* Role tag was a pill that named the role of each selected card
-     (A/B in crossbreed, Burn/Keep in burn). Hidden now because the
-     border colour already carries the same information without
-     stacking visual noise on top of the card — orange border = will
-     burn, dark border = will receive. The DOM stays so the JS that
-     toggles it doesn't break; CSS just keeps it off-screen. */
+  /* Role tag is hidden — border colour already tells you which card
+     is the donor/burner (orange in burn mode, ink elsewhere). The
+     element itself stays in the DOM so the JS that toggles its text
+     content doesn't have to special-case its absence. */
   .biom-card .role-tag { display: none; }
-  .biom-card .role-tag.__legacy_unused {
-    position: absolute;
-    top: 10px; right: 10px;
-    min-width: 32px; height: 26px;
-    padding: 0 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: none;
-    background: var(--ink);
-    color: var(--bg);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
-  }
-  .biom-card.selected-donor     .role-tag,
-  .biom-card.selected-recipient .role-tag { background: var(--ink); }
-  body.mode-burn .biom-card.selected-donor .role-tag { background: #9a4a2e; }
-
   /* Generation badge — small chip in top-left for tokens that have
      survived at least one burn. Visual rarity ladder: higher-gen
      tokens stand out, originals (G0 = no badge) become collector items. */
@@ -1115,50 +1092,6 @@
   }
   .back-to-chooser:hover { color: var(--ink); }
 
-  /* The legacy pill-style mode tabs are still in the DOM for
-     accessibility (focusable) but visually replaced by the chooser
-     landing. Hidden until/unless we ever want to bring them back. */
-  .arena-mode-tabs { display: none !important; }
-
-  /* === LEGACY ARENA MODE TABS (kept for ref / restore) === */
-  .arena-mode-tabs__legacy {
-    display: inline-flex;
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: 999px;
-    padding: 4px;
-    margin-bottom: 24px;
-    gap: 2px;
-  }
-  .arena-mode-tab {
-    background: transparent;
-    border: 0;
-    font: inherit;
-    cursor: pointer;
-    padding: 9px 22px;
-    border-radius: 999px;
-    color: var(--ink-3);
-    font-size: 14px;
-    font-weight: 500;
-    transition: background 0.15s, color 0.15s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .arena-mode-tab:not(.active):hover { color: var(--ink); }
-  /* Ghost-toggle — text bolds on active, underline supplies the cue.
-     Burn keeps a subtle warm tint to signal destructive action without
-     a heavy solid pill. */
-  .arena-mode-tab.active { color: var(--ink); font-weight: 600; }
-  .arena-mode-tab.active::after {
-    content: ''; display: block; height: 2px; background: currentColor;
-    margin-top: 2px; border-radius: 2px;
-  }
-  .arena-mode-tab[data-mode="burn"].active { color: #9a4a2e; }
-  .arena-mode-tab .tab-icon {
-    width: 14px; height: 14px;
-  }
-
   /* Burn-mode slot styling — left slot is the sacrifice */
   body.mode-burn .slot.donor.filled { border-color: #c45a3a; }
   body.mode-burn .slot.donor .role-label { color: #c45a3a; }
@@ -1721,25 +1654,6 @@
     </div>
 
     <div style="margin-top: 64px;"></div>
-
-    <!-- Mode tabs — Crossbreed (gentle, mutual share) vs Burn (sacrifice
-         one to power up the other). Tabs sit above the step banner so
-         the user picks WHAT they want to do before being walked through
-         picking pairs. -->
-    <div class="arena-mode-tabs" role="tablist" aria-label="Lab action">
-      <button class="arena-mode-tab active" data-mode="crossbreed" type="button" role="tab" aria-selected="true">
-        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M8 4v16M16 4v16M4 8h16M4 16h16"/>
-        </svg>
-        Crossbreed
-      </button>
-      <button class="arena-mode-tab" data-mode="burn" type="button" role="tab" aria-selected="false">
-        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 2c1 3 4 6 4 10a4 4 0 1 1-8 0c0-3 2-5 4-10z"/>
-        </svg>
-        Burn
-      </button>
-    </div>
 
     <!-- Step banner — replaces the wall-of-text intro. ONE clear next-
          action at a time, color-coded to the slot it relates to. -->
@@ -3938,31 +3852,25 @@ function hideBurnConfirm() {
   burnConfirmEl.classList.remove('visible');
 }
 
-// Mode tabs — clicking switches arenaMode, resets the arena state, and
-// re-runs all renders so the UI reflects the new mode.
-document.querySelectorAll('.arena-mode-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    if (isAnimating) return;
-    const newMode = tab.dataset.mode;
-    if (newMode === arenaMode) return;
-    arenaMode = newMode;
-    selectedTrait = null;
-    pendingBurnConfirm = false;
-    hideBurnConfirm();
-    // Update tab visual + body class for mode-scoped CSS
-    document.querySelectorAll('.arena-mode-tab').forEach(t => {
-      const active = t.dataset.mode === newMode;
-      t.classList.toggle('active', active);
-      t.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
-    document.body.classList.toggle('mode-burn', newMode === 'burn');
-    // Update commit button label
-    conjugateBtn.textContent = newMode === 'burn' ? 'Burn & Absorb' : 'Crossbreed';
-    // Re-render slots (labels change), outcomes (different gallery), etc.
-    _outcomesPairKey = null;  // force gallery rebuild
-    renderArenaAll();
-  });
-});
+// Mode switching — single function, called from the chooser landing
+// and from anywhere else that needs to flip Crossbreed ↔ Burn. Idempotent
+// (early-returns if you ask for the mode that's already active).
+function setArenaMode(newMode) {
+  if (isAnimating) return;
+  if (newMode !== 'crossbreed' && newMode !== 'burn') return;
+  if (newMode === arenaMode) return;
+  arenaMode = newMode;
+  selectedTrait = null;
+  pendingBurnConfirm = false;
+  hideBurnConfirm();
+  document.body.classList.toggle('mode-burn', newMode === 'burn');
+  conjugateBtn.textContent = newMode === 'burn' ? 'Burn & Absorb' : 'Crossbreed';
+  // Re-render slots (labels change), outcomes (different gallery), etc.
+  _outcomesPairKey = null;  // force gallery rebuild
+  renderArenaAll();
+}
+// Expose for the chooser (defined later in the file).
+window.__bioms_setArenaMode = setArenaMode;
 
 // Recompute cooldown labels every 10 s so the "regenerates in" timers
 // tick down naturally without re-rendering on every frame.
@@ -4331,25 +4239,15 @@ collectionGrid.addEventListener('click', (e) => {
 // ============================================================
 // MODE CHOOSER — landing screen with two big choices.
 //
-// Two semantic URLs back this UI:
-//   /lab            → landing chooser (pick one)
-//   /lab/crossbreed → crossbreed mode mounted directly
-//   /lab/burn       → burn mode mounted directly
-// The /lab/<mode> URLs are rewrites in _redirects to /lab.html?mode=...
-// so the same file serves all three. We read window.location for the
-// path AND ?mode= query, so both rewrite-served and direct-with-query
-// requests behave the same.
+// URLs:
+//   /lab                  → landing chooser (pick one)
+//   /lab?mode=crossbreed  → crossbreed mounted directly
+//   /lab?mode=burn        → burn mounted directly
 //
-// chooser-card and back-to-chooser are real anchor tags. The handlers
-// here progressively enhance the click — intercept it to do an in-page
-// transition (no full page reload, keeps Demo collection state alive).
-// Without JS the anchor still works as a plain link.
-//
-// We don't re-implement mode-switching here — we delegate to the
-// existing .arena-mode-tab buttons (CSS-hidden but still in DOM and
-// still wired up). Pressing a chooser card programmatically clicks
-// the matching tab → existing arenaMode handler runs → no duplicated
-// state machine.
+// chooser-card and back-to-chooser are real anchor tags — they work
+// without JS. The JS layer intercepts clicks for in-page transitions
+// (no full reload, preserves Demo collection state). Cmd/Ctrl/Shift
+// /middle-click still does the default new-tab thing.
 // ============================================================
 (function setupModeChooser() {
   const chooser = document.getElementById('modeChooser');
@@ -4360,9 +4258,11 @@ collectionGrid.addEventListener('click', (e) => {
   function showMode(mode, opts) {
     chooser.hidden = true;
     labMain.hidden = false;
-    // Trigger the existing tab — runs arenaMode setter + UI sync
-    const tab = document.querySelector('.arena-mode-tab[data-mode="' + mode + '"]');
-    if (tab) tab.click();
+    // Delegate the actual mode switch — single source of truth lives
+    // earlier in the file as setArenaMode().
+    if (typeof window.__bioms_setArenaMode === 'function') {
+      window.__bioms_setArenaMode(mode);
+    }
     // Update URL bar without reloading the page. Cloudflare Pages
     // rewrite for /lab/<mode> turned out to be unreliable in our
     // configuration, so we use /lab?mode=<...> — works identically
