@@ -412,6 +412,16 @@
   @media (max-width: 600px) {
     footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
   }
+
+  /* Accessibility — and a free perf win on low-end devices. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 </style>
 </head>
 <body>

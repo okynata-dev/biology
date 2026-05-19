@@ -43,6 +43,12 @@
     overflow: hidden;
     background: linear-gradient(160deg, #faf8f3 0%, #efebe2 100%);
     flex-shrink: 0;
+    /* The card is the full visible area in every embed context — what's
+       inside it (breathing panels, drifting organelles) can't visually
+       affect anything outside. `contain: strict` lets the compositor
+       treat this as one isolated layer and skip global reflow when the
+       border-radius morph runs every frame. */
+    contain: strict;
   }
 
   .pfp-card::before {
@@ -260,6 +266,22 @@
     text-align: center;
     margin-bottom: 12px;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ============================================================
+     ACCESSIBILITY — respect the OS "reduce motion" preference.
+     Skipping the breathing animation + noise overlay also halves
+     the per-frame CPU cost on low-end devices, so this is a perf
+     win too, not just an accessibility one.
+     ============================================================ */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    .noise { display: none !important; }
   }
 </style>
 </head>
@@ -1298,17 +1320,31 @@ function formatBorderRadius(r) {
 // Optimized: 30fps, transforms only, no layout thrashing
 // Panels NodeList is cached and re-populated by buildScene() — saves a
 // DOM walk every frame (mycelium specimens have 40-80 panels).
-// Skips work entirely while the tab/iframe is hidden so OpenSea card feeds
-// with many specimens don't burn CPU off-screen.
+// Skips work entirely while:
+//   - The tab is hidden (document.hidden) — browser-level signal.
+//   - Parent posted { type: 'visibility', visible: false } via
+//     IntersectionObserver — fires when the iframe is scrolled out
+//     of the parent viewport. Without this an off-screen Lab
+//     thumbnail keeps burning 30fps of CPU on a panel nobody sees.
 // ============================================================
 let animStart = performance.now();
 let lastFrame = 0;
 const FRAME_INTERVAL = 1000 / 30; // 30fps
 let cachedPanels = [];  // refreshed in buildScene()
 
+// Default: visible. Parent observer flips this to false when we
+// scroll out of view, true again when we return.
+let _externallyVisible = true;
+window.addEventListener('message', (ev) => {
+  const d = ev && ev.data;
+  if (d && d.type === 'visibility' && typeof d.visible === 'boolean') {
+    _externallyVisible = d.visible;
+  }
+}, { passive: true });
+
 function liveLoop(now) {
   requestAnimationFrame(liveLoop);
-  if (document.hidden) { lastFrame = now; return; }
+  if (document.hidden || !_externallyVisible) { lastFrame = now; return; }
   if (now - lastFrame < FRAME_INTERVAL) return;
   lastFrame = now;
 

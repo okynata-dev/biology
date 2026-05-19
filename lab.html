@@ -285,6 +285,11 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 14px;
+    /* content-visibility lets the browser skip layout/paint for cells
+       outside the viewport entirely. Combined with the intrinsic-size
+       hint, scrolling a 50+ Biom collection costs almost nothing. */
+    content-visibility: auto;
+    contain-intrinsic-size: 400px;
   }
   .collection-empty {
     padding: 48px 24px;
@@ -344,6 +349,11 @@
     width: 100%; height: 100%;
     border: 0; display: block;
     pointer-events: none;
+    /* `contain: strict` = layout + style + paint + size. The iframe is
+       a complete sub-document, nothing inside it can affect the parent.
+       Strict containment lets the compositor treat it as one opaque
+       layer — scroll/animations elsewhere don't trigger its repaint. */
+    contain: strict;
   }
   /* === INLINE THUMBNAIL — DOM specimen render ===
    * Each card renders the biom as DOM panels inside .composition.
@@ -539,6 +549,9 @@
     border-radius: 20px;
     position: relative;
     overflow: hidden;
+    /* Layout/paint/style isolation — a hover or animation inside the
+       slot can't force a reflow of the rest of the arena. */
+    contain: layout style paint;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -756,6 +769,9 @@
     background: var(--paper);
     overflow: hidden;
     position: relative;
+    /* Each outcome card is independent — contain prevents the
+       breathing animation inside one card from reflowing the gallery. */
+    contain: layout style paint;
   }
   .outcome-frame iframe {
     width: 100%; height: 100%; border: 0; display: block;
@@ -1186,13 +1202,15 @@
     align-items: center;
     justify-content: center;
     background: rgba(21, 17, 13, 0);
-    backdrop-filter: blur(0);
-    -webkit-backdrop-filter: blur(0);
     opacity: 0;
     pointer-events: none;
+    /* backdrop-filter intentionally NOT transitioned — it's the most
+       expensive CSS effect to animate (the browser re-blurs the entire
+       page behind it every frame). The opacity + background fade already
+       reads as smooth; the blur snapping in once is invisible inside
+       a 600ms opacity ramp. Was a top scroll-jank cause. */
     transition:
       background 600ms cubic-bezier(0.4, 0, 0.2, 1),
-      backdrop-filter 600ms cubic-bezier(0.4, 0, 0.2, 1),
       opacity 600ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   .burn-ritual.visible {
@@ -1201,6 +1219,10 @@
     backdrop-filter: blur(24px) saturate(1.2);
     -webkit-backdrop-filter: blur(24px) saturate(1.2);
     pointer-events: auto;
+  }
+  .burn-ritual:not(.visible) {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
   .ritual-stage {
     max-width: 720px;
@@ -1452,6 +1474,20 @@
     .ritual-title { margin-bottom: 32px; font-size: 17px; }
     .ritual-commit { gap: 12px; }
     .ritual-result { margin-top: 28px; }
+  }
+
+  /* ============================================================
+     ACCESSIBILITY — respect OS "reduce motion" preference. Also a
+     perf win on low-end machines: kills CSS transitions on a page
+     that has dozens of slot + outcome + burn-ritual transitions.
+     ============================================================ */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 </style>
 </head>
@@ -4113,6 +4149,57 @@ collectionGrid.addEventListener('click', (e) => {
     _drag.suppressNextClick = false;
   }
 }, true);  // capture phase so we run before the card's own click handler
+
+// ============================================================
+// IFRAME RAF GOVERNOR — pause off-screen preview.html liveLoops.
+//
+// Lab is an iframe-heavy page: donor + recipient slots, up to 6+
+// outcome cards, sometimes burn preview, biom-thumb-iframes for
+// mutated tokens in the collection grid. Each iframe runs its own
+// 30fps liveLoop (breathing animation), which is invisible CPU on
+// any iframe currently below the fold.
+//
+// IntersectionObserver pings each iframe with postMessage when it
+// enters/leaves the viewport. preview.html listens and skips its
+// RAF body when externallyVisible === false. Result: 4-6 iframes
+// open but only 1-2 actively animating → ~3-5× CPU headroom.
+//
+// MutationObserver re-scans when the outcomes-grid rebuilds (each
+// crossbreed swap drops 4+ new iframes into the DOM).
+// ============================================================
+(function setupIframeGovernor() {
+  if (typeof IntersectionObserver !== 'function') return;
+  const KEY = '__biomsRafGov';
+  const send = (iframe, visible) => {
+    try {
+      if (iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'visibility', visible }, '*');
+      }
+    } catch (_) { /* cross-origin or detached — ignore */ }
+  };
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => send(e.target, e.isIntersecting));
+  }, { rootMargin: '120px' });
+
+  function attachAll() {
+    document.querySelectorAll('iframe').forEach(f => {
+      if (f[KEY]) return;
+      f[KEY] = true;
+      // Re-announce visibility on every reload (src changes), since
+      // the child preview.html starts with _externallyVisible=true.
+      f.addEventListener('load', () => {
+        const r = f.getBoundingClientRect();
+        const visible = r.top < (window.innerHeight + 120) && r.bottom > -120;
+        send(f, visible);
+      });
+      io.observe(f);
+    });
+  }
+  attachAll();
+  // Watch for iframes added later (outcomes gallery, thumb swaps).
+  const mo = new MutationObserver(attachAll);
+  mo.observe(document.body, { childList: true, subtree: true });
+})();
 </script>
 
 </body>

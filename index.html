@@ -159,6 +159,18 @@
     padding: 96px 32px;
     position: relative;
     z-index: 2;
+    /* Each landing section is a self-contained block — paint + style
+       containment lets the browser skip work in sections the user
+       isn't currently looking at. Hero stays uncontained (it sits at
+       the top and its hero-stage iframe needs to compose freely). */
+    contain: layout style;
+  }
+  /* Off-screen sections: skip render entirely until they come into view.
+     intrinsic-size hint keeps scroll-bar height accurate so jumps to
+     anchor links land in the right spot.  */
+  section[data-cv-auto] {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 800px;
   }
   section + section { border-top: 1px solid var(--rule); }
   @media (max-width: 600px) { section { padding: 64px 20px; } }
@@ -284,6 +296,9 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 18px;
     margin-top: 40px;
+    /* The grid is below the fold — skip its render until visible. */
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 600px;
   }
   @media (max-width: 900px) { .catalog-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; } }
   @media (max-width: 600px) { .catalog-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
@@ -624,6 +639,16 @@
   @media (max-width: 600px) {
     footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
   }
+
+  /* Accessibility — and a free perf win on low-end devices. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -667,7 +692,7 @@
   </div>
 </section>
 
-<section class="lab">
+<section class="lab" data-cv-auto>
   <div class="wrap">
     <div class="lab-grid">
       <div class="lab-visual" aria-hidden="true">
@@ -701,7 +726,7 @@
 </section>
 
 
-<section>
+<section data-cv-auto>
   <div class="wrap">
     <h2 class="catalog-title">Three thousand Bioms.</h2>
     <div class="catalog-grid" id="catalogGrid"></div>
@@ -709,7 +734,7 @@
 </section>
 
 
-<section class="drop">
+<section class="drop" data-cv-auto>
   <div class="wrap">
     <div class="drop-block">
       <h2>The drop.</h2>
@@ -929,6 +954,48 @@ if (catalogGrid) {
   }, { passive: true });
   window.addEventListener('resize', update, { passive: true });
   update();
+})();
+
+// ============================================================
+// IFRAME RAF GOVERNOR — pause off-screen preview.html liveLoops.
+//
+// Landing has the hero iframe + (post-reveal) any inline previews
+// the design team adds later. preview.html listens for our
+// postMessage({type:'visibility', visible}) and skips its RAF body
+// when off-screen. The hero is always above the fold, so this is
+// a no-op in practice — but it's free insurance for future iframes
+// that drop below the fold, AND it stops the hero from animating
+// while the user is reading the manifesto section 4 screens down.
+// ============================================================
+(function setupIframeGovernor() {
+  if (typeof IntersectionObserver !== 'function') return;
+  const KEY = '__biomsRafGov';
+  const send = (iframe, visible) => {
+    try {
+      if (iframe.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'visibility', visible }, '*');
+      }
+    } catch (_) { /* cross-origin or detached — ignore */ }
+  };
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => send(e.target, e.isIntersecting));
+  }, { rootMargin: '120px' });
+
+  function attachAll() {
+    document.querySelectorAll('iframe').forEach(f => {
+      if (f[KEY]) return;
+      f[KEY] = true;
+      f.addEventListener('load', () => {
+        const r = f.getBoundingClientRect();
+        const visible = r.top < (window.innerHeight + 120) && r.bottom > -120;
+        send(f, visible);
+      });
+      io.observe(f);
+    });
+  }
+  attachAll();
+  const mo = new MutationObserver(attachAll);
+  mo.observe(document.body, { childList: true, subtree: true });
 })();
 
 </script>
