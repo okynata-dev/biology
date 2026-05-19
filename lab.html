@@ -341,25 +341,48 @@
     border: 0; display: block;
     pointer-events: none;
   }
-  /* === THUMBNAIL — single <img> from a canvas snapshot ===
-   * Replaces the inline panel DOM with one PNG per card. The
-   * canvas renderer (specimen-engine.js renderSpecimenToCanvas)
-   * draws all panels, shadows, and gradients at 600px, then we
-   * dump it to a data URL. The compositor only ever paints one
-   * image per card after that — no panel divs, no per-panel
-   * shadows, no sheen blend modes. This was THE main reason
-   * the lab page was chugging with 12+ cards in the grid. */
+  /* === INLINE THUMBNAIL — DOM specimen render ===
+   * Each card renders the biom as DOM panels inside .composition.
+   * We tried canvas snapshots for perf, but they lost the glass
+   * backdrop-filter and multi-layer shadows that make the bioms
+   * look luminous instead of flat. So DOM render stays — perf
+   * relief comes from removing per-frame work elsewhere (nav
+   * blur, body blend mode). */
   .biom-thumb-inline {
     width: 100%; height: 100%;
     position: relative;
     overflow: hidden;
+    background: linear-gradient(160deg, #faf8f3 0%, #efebe2 100%);
     pointer-events: none;
   }
-  .biom-thumb-img {
-    width: 100%; height: 100%;
-    object-fit: contain;
-    display: block;
-    background: #ffffff;
+  .biom-thumb-inline .scene { position: absolute; inset: 0; }
+  .biom-thumb-inline .composition { position: absolute; inset: 0; }
+  .biom-thumb-inline .panel {
+    position: absolute;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      inset 0 2px 4px rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.08),
+      0 1px 3px rgba(0, 0, 0, 0.05),
+      0 4px 12px rgba(0, 0, 0, 0.06);
+    border: 0.5px solid rgba(255, 255, 255, 0.6);
+    overflow: hidden;
+  }
+  .biom-thumb-inline .panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background:
+      linear-gradient(135deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.18) 28%,
+        rgba(255, 255, 255, 0.42) 38%,
+        rgba(255, 255, 255, 0.15) 48%,
+        rgba(255, 255, 255, 0) 60%
+      );
+    mix-blend-mode: overlay;
+    pointer-events: none;
   }
   /* Tier classes are still applied to the thumbnail by JS, but the
    * decorative overlays (shimmer, crystalline frame, halo) were
@@ -2608,7 +2631,7 @@ function _buildCardElement(seed) {
   card.innerHTML = `
     <div class="biom-thumb">
       <div class="biom-thumb-inline ${thumbCls}">
-        <img class="biom-thumb-img" alt="">
+        <div class="scene"><div class="composition"></div></div>
       </div>
       ${tier ? `<span class="gen-badge ${tier.cls}" title="${badgeTitle}">${tier.name}</span>` : ''}
       <span class="role-tag" hidden></span>
@@ -2619,24 +2642,19 @@ function _buildCardElement(seed) {
       <span class="biom-traits">${traitsText}</span>
     </div>
   `;
-  // Snapshot the specimen ONCE to a 600px canvas → PNG → <img>.
-  // The lab grid used to render ~30-80 panel divs per card × 12+ cards
-  // = 360-960 live nodes with shadows, sheen overlays, and per-panel
-  // gradients. That was the main reason the lab page chugged. Now
-  // each card is a single static image; the compositor only repaints
-  // when state actually changes (which re-snapshots via cardStateHash).
+  // Inline-render via BiomEngine into the .composition slot.
+  // Canvas snapshots were tried but they lost the glass effect —
+  // the DOM render preserves backdrop-filter, multi-layer shadows,
+  // and the sheen pseudo-elements that make the specimen look
+  // luminous instead of flat.
   try {
     let resolvedPalette = eff.palette;
     if (typeof resolvedPalette === 'string' && resolvedPalette.includes('+')) {
       const parts = resolvedPalette.split('+').filter(Boolean);
       resolvedPalette = window.BiomEngine.mixPalettes(...parts);
     }
-    const SIZE = 600;
-    const c = document.createElement('canvas');
-    c.width = SIZE; c.height = SIZE;
-    window.BiomEngine.renderSpecimenToCanvas(c, seed, {
-      specSize: SIZE, tx: 0, ty: 0,
-      scale: 1, rotation: 0, flipX: 1, flipY: 1,
+    const comp = card.querySelector('.composition');
+    window.BiomEngine.renderSpecimen(comp, seed, {
       state: {
         morphology: eff.morphology,
         cellCount: eff.cellCount,
@@ -2649,7 +2667,6 @@ function _buildCardElement(seed) {
         biofilmHalo: eff.biofilmHalo,
       },
     });
-    card.querySelector('.biom-thumb-img').src = c.toDataURL('image/png');
   } catch (err) {
     console.warn(`[lab] thumb render failed for #${seed}`, err);
   }

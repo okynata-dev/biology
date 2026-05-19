@@ -742,37 +742,19 @@ const PNG_BASE = 'https://pngs.thebioms.com';
 const padSeed  = (n) => String(n).padStart(5, '0');
 const masterUrl = (seed) => `${PNG_BASE}/preview/${padSeed(seed)}.png`;
 
-// Hero — renders the specimen as a canvas-snapshot PNG, not an iframe.
-// Iframe was loading preview.html (~60KB doc + 54KB engine + perspective
-// transforms running on the compositor every frame). Canvas snapshot
-// is a single 800px PNG drawn once into an <img> — flat, static, free
-// to repaint. Click Next → re-snapshot a new seed in ~10ms.
-function _heroSnapshotPng(seed) {
-  if (!window.BiomEngine) return null;
-  try {
-    const SIZE = 800;
-    const c = document.createElement('canvas');
-    c.width = SIZE; c.height = SIZE;
-    window.BiomEngine.renderSpecimenToCanvas(c, seed, {
-      specSize: SIZE, tx: 0, ty: 0,
-      scale: 1, rotation: 0, flipX: 1, flipY: 1,
-    });
-    return c.toDataURL('image/png');
-  } catch (e) { return null; }
-}
+// Hero — mounts the live preview.html in an iframe. Canvas snapshots
+// lose the glass backdrop-filter + multi-layer shadows that make the
+// biom look luminous, so iframes stay even though they're heavier.
 function mountHero(el, seed) {
-  const url = _heroSnapshotPng(seed);
-  if (!url) { el.innerHTML = ''; return; }
-  let img = el.querySelector('img.hero-img');
-  if (!img) {
-    el.innerHTML = '';
-    img = document.createElement('img');
-    img.className = 'hero-img';
-    img.alt = 'Live Biom specimen';
-    img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;';
-    el.appendChild(img);
-  }
-  img.src = url;
+  el.innerHTML = '';
+  const iframe = document.createElement('iframe');
+  iframe.className = 'specimen';
+  iframe.loading = 'eager';
+  iframe.style.cssText = 'width:100%;height:100%;border:0;display:block;';
+  // bare=1 strips the inner card frame so the specimen sits on the
+  // hero-stage paper background directly.
+  iframe.src = `preview.html?seed=${seed}&bare=1`;
+  el.appendChild(iframe);
 }
 
 const heroEl = document.getElementById('heroSpecimen');
@@ -802,22 +784,16 @@ document.getElementById('rollBtn').addEventListener('click', () => {
   if (REVEAL) seedDisplay.textContent = String(currentSeed);
 });
 
-// Lab section diptych — two specimens snapshot to canvas PNGs.
-// Same pattern as the hero + catalog: render once, hand off to <img>,
-// zero compositor cost on scroll. Was 120+ panel divs with shadows.
-function _paneSnapshotPng(seed, override) {
-  if (!window.BiomEngine) return null;
+// Lab section diptych — inline-render via BiomEngine into the pane
+// containers. Canvas snapshots lose the glass effect; DOM render
+// preserves it. Only 2 specimens here, so the perf cost is bounded.
+function _renderLabPane(targetEl, seed, override) {
+  if (!window.BiomEngine) return;
+  targetEl.innerHTML = '<div class="scene"><div class="composition"></div></div>';
+  const comp = targetEl.querySelector('.composition');
   try {
-    const SIZE = 600;
-    const c = document.createElement('canvas');
-    c.width = SIZE; c.height = SIZE;
-    window.BiomEngine.renderSpecimenToCanvas(c, seed, {
-      specSize: SIZE, tx: 0, ty: 0,
-      scale: 1, rotation: 0, flipX: 1, flipY: 1,
-      state: override,
-    });
-    return c.toDataURL('image/png');
-  } catch (e) { return null; }
+    window.BiomEngine.renderSpecimen(comp, seed, { state: override });
+  } catch (e) { /* render failures shouldn't break the page */ }
 }
 const PHOENIX_SHOWCASE = {
   palette: 'gold',
@@ -831,16 +807,8 @@ const labSeeds = {
 };
 document.querySelectorAll('[data-lab-seed]').forEach(el => {
   const k = el.dataset.labSeed;
-  const seed = k === 'genesis' ? labSeeds.genesis : labSeeds.phoenix;
-  const override = k === 'phoenix' ? PHOENIX_SHOWCASE : null;
-  const url = _paneSnapshotPng(seed, override);
-  if (!url) return;
-  const img = document.createElement('img');
-  img.alt = 'Biom specimen';
-  img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;';
-  el.innerHTML = '';
-  el.appendChild(img);
-  img.src = url;
+  if (k === 'genesis') _renderLabPane(el, labSeeds.genesis, null);
+  else if (k === 'phoenix') _renderLabPane(el, labSeeds.phoenix, PHOENIX_SHOWCASE);
 });
 
 // Catalog grid — twelve specimens showcasing the range of the collection.
@@ -854,23 +822,11 @@ const CATALOG_SEEDS = REVEAL
   : Array.from({ length: 12 }, () => Math.floor(Math.random() * 3000));
 const catalogGrid = document.getElementById('catalogGrid');
 if (catalogGrid) {
-  // Every catalog cell renders ONCE to a 600px canvas → PNG data URL →
-  // <img>. This applies regardless of REVEAL: the R2 master PNGs are
-  // 3000×3000 (designed for full-quality mint), and pulling 12 of them
-  // to display as 250px thumbnails was burning ~18MB of bandwidth
-  // and forcing the browser to decode+scale 9 megapixel images each.
-  //
-  // The canvas snapshot uses the same rendering engine as preview.html,
-  // so visually it IS the specimen — just sized for a thumbnail.
-  // Anywhere full-quality matters (clicking through to preview.html,
-  // save-as-PNG, make.html banner export) still uses the live engine
-  // or the R2 master.
-  //
-  // Cost: ~5-10ms per cell on page load (one-time, ~80-100ms total).
-  // Memory: ~150KB per data URL, ~1.8MB held by the browser.
-  // Permanent paint cost: a single <img> blit instead of panel-DOM
-  // composited over the page.
-  const SIZE = 600;
+  // Use the actual R2 master PNGs — they're the canonical specimen
+  // renders with full glass effect, multi-layer shadows, real
+  // backdrop-filter blur. Canvas snapshots looked flat by comparison.
+  // loading="lazy" ensures only visible cells download upfront; the
+  // browser handles the rest as user scrolls.
   for (const seed of CATALOG_SEEDS) {
     const a = document.createElement('a');
     a.className = 'catalog-cell';
@@ -879,20 +835,12 @@ if (catalogGrid) {
     a.rel = 'noopener';
     a.setAttribute('aria-label', 'Open a Biom specimen in a new tab');
     const img = document.createElement('img');
+    img.src = masterUrl(seed);
     img.alt = 'Biom specimen';
+    img.loading = 'lazy';
     img.decoding = 'async';
+    img.onerror = () => { a.style.display = 'none'; };
     a.appendChild(img);
-    if (window.BiomEngine) {
-      try {
-        const c = document.createElement('canvas');
-        c.width = SIZE; c.height = SIZE;
-        window.BiomEngine.renderSpecimenToCanvas(c, seed, {
-          specSize: SIZE, tx: 0, ty: 0,
-          scale: 1, rotation: 0, flipX: 1, flipY: 1,
-        });
-        img.src = c.toDataURL('image/png');
-      } catch (e) { /* swallow — cell stays empty */ }
-    }
     if (REVEAL) {
       const tag = document.createElement('span');
       tag.className = 'seed-tag';
