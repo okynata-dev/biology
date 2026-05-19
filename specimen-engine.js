@@ -1223,7 +1223,33 @@
     }, 0);
   }
 
-  function _saveBiomAsPng(seed, stateOverride) {
+  // Filename uses the public label (pickName pre-reveal, name+seed
+  // post-reveal). Reads like a thing, not an ID.
+  function _saveFilename(seed) {
+    return 'bioms-' + label(seed).replace(/[^A-Za-z0-9_-]/g, '_') + '.png';
+  }
+
+  // For BASE bioms (no mutations) we fetch the R2 master PNG directly —
+  // it's the canonical render with full glass, real shadows, real
+  // backdrop-filter. Canvas snapshots can't replicate that.
+  async function _saveBiomViaMaster(seed, masterUrl) {
+    try {
+      const r = await fetch(masterUrl, { mode: 'cors' });
+      if (!r.ok) throw new Error('fetch_failed');
+      const blob = await r.blob();
+      _downloadBlob(blob, _saveFilename(seed));
+      return true;
+    } catch (e) {
+      // CORS or network — caller will fall back to canvas snapshot.
+      return false;
+    }
+  }
+
+  // Canvas fallback — used ONLY for mutated bioms (post-burn,
+  // post-crossbreed) where R2 master doesn't reflect the current
+  // state. Lower fidelity but the only option for one-of-a-kind
+  // post-Lab specimens.
+  function _saveBiomViaCanvas(seed, stateOverride) {
     const size = 1500;
     const c = document.createElement('canvas');
     c.width = size;
@@ -1238,11 +1264,20 @@
     });
     c.toBlob((blob) => {
       if (!blob) return;
-      // Filename uses the public label (pickName pre-reveal,
-      // name+seed post-reveal). Reads like a thing, not an ID.
-      const safe = label(seed).replace(/[^A-Za-z0-9_-]/g, '_');
-      _downloadBlob(blob, `bioms-${safe}.png`);
+      _downloadBlob(blob, _saveFilename(seed));
     }, 'image/png');
+  }
+
+  async function _saveBiomAsPng(seed, stateOverride, masterUrl) {
+    // Prefer the R2 master PNG when available AND the biom is in its
+    // base state. R2 master IS the canonical visual; using it ensures
+    // "Save as PNG" matches what the user actually sees on the site.
+    if (masterUrl && !stateOverride) {
+      const ok = await _saveBiomViaMaster(seed, masterUrl);
+      if (ok) return;
+      // Master fetch failed (CORS, 404, offline) — fall through to canvas.
+    }
+    _saveBiomViaCanvas(seed, stateOverride);
   }
 
   function enableSaveAsPng(targetEl, getInfo) {
@@ -1253,7 +1288,7 @@
       e.preventDefault();
       e.stopPropagation();
       _renderCtxMenu(e.clientX, e.clientY, [
-        { label: 'Save as PNG', action: () => _saveBiomAsPng(info.seed, info.state) },
+        { label: 'Save as PNG', action: () => _saveBiomAsPng(info.seed, info.state, info.masterUrl) },
       ]);
     });
   }

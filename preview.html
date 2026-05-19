@@ -1778,10 +1778,24 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom specimen');
     if (url.has('forceBiofilm')) out.biofilmHalo   = url.get('forceBiofilm') === '1';
     return Object.keys(out).length ? out : null;
   }
-  window.BiomEngine.enableSaveAsPng(_pfp, () => ({
-    seed: state.seed,
-    state: buildSnapshotState(),
-  }));
+  // R2 master URL — used when biom has no force* overrides. The R2
+  // master IS the canonical render (3000×3000 glass-effect screenshot
+  // from this very page), so save-as-PNG just downloads it directly.
+  const padSeed = (n) => String(n).padStart(5, '0');
+  function masterUrl(seed) {
+    return `https://pngs.thebioms.com/preview/${padSeed(seed)}.png`;
+  }
+  window.BiomEngine.enableSaveAsPng(_pfp, () => {
+    const overrideState = buildSnapshotState();
+    return {
+      seed: state.seed,
+      state: overrideState,
+      // Pass masterUrl only when there are no overrides — otherwise
+      // the master doesn't reflect the current state, so canvas
+      // fallback is correct.
+      masterUrl: overrideState ? undefined : masterUrl(state.seed),
+    };
+  });
 })();
 </script>
 

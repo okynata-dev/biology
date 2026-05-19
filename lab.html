@@ -2677,14 +2677,37 @@ function _buildCardElement(seed) {
   card.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); }
   });
-  // Right-click / two-finger / long-press → "Save as PNG" menu. The
-  // callback returns the CURRENT effective state so a mutated Biom
-  // saves with its mutations (palette blend, added organelles, etc.).
+  // Right-click / two-finger / long-press → "Save as PNG" menu.
+  //
+  // If the biom is still in its BASE state (no received palette,
+  // no received organelles/anomalies, rank 1) we hand back the R2
+  // master URL so the canonical 3000×3000 render gets downloaded
+  // directly — that's the actual canonical visual.
+  //
+  // Once a biom has been mutated by Lab interactions (post-burn or
+  // post-crossbreed), R2 master no longer represents its current
+  // visual state. We hand back the effectiveState so the canvas
+  // renderer paints the current mutation. Lower fidelity than R2
+  // master but it's the only honest path for one-of-a-kind survivors.
   window.BiomEngine.enableSaveAsPng(card, () => {
     const eff = effectiveState(seed);
-    // Resolve multi-parent palette strings to a synthetic key before
-    // handing state to the canvas renderer — same trick we use for
-    // the live thumbnail render.
+    const t = LabState.tokens[seed] || {};
+    const isBase = !t.receivedPalette
+      && !(t.receivedOrganelles && t.receivedOrganelles.length)
+      && !(t.receivedAnomalies && t.receivedAnomalies.length)
+      && !t.receivedMorphology && !t.receivedCellCount
+      && !t.receivedLifecycle && !t.receivedReserve
+      && (eff.rank || 1) === 1;
+
+    if (isBase) {
+      const padded = String(seed).padStart(5, '0');
+      return {
+        seed,
+        masterUrl: `https://pngs.thebioms.com/preview/${padded}.png`,
+      };
+    }
+
+    // Mutated — canvas snapshot of the current effective state.
     let palette = eff.palette;
     if (typeof palette === 'string' && palette.includes('+')) {
       const parts = palette.split('+').filter(Boolean);
