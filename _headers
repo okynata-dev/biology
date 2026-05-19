@@ -71,7 +71,9 @@
   Cache-Control: public, max-age=300, s-maxage=300
   Access-Control-Allow-Origin: *
 
-# Token PNGs — immutable, cache forever
+# Token PNGs / thumbs — immutable, cache forever.
+# Thumbs (pngs/thumb/*) are 600×600 WebP+PNG, served by Pages directly.
+# Masters (pngs/preview/*) are 3000×3000 PNGs, served by R2.
 /pngs/*
   Cache-Control: public, max-age=31536000, immutable
   Access-Control-Allow-Origin: *
