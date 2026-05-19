@@ -1025,6 +1025,11 @@
     gap: 18px;
     margin: 16px 0 56px;
   }
+  /* [hidden] HTML attribute has lower CSS specificity than our display:grid
+     above, so it loses if we don't reinstate it explicitly. Same trick for
+     .lab-main further down. Without these two the JS toggle silently fails
+     and both chooser + main render at once. */
+  .mode-chooser[hidden], .lab-main[hidden] { display: none !important; }
   @media (max-width: 720px) {
     .mode-chooser { grid-template-columns: 1fr; gap: 14px; }
   }
