@@ -956,16 +956,62 @@ canvas.addEventListener('mousedown', (e) => {
 window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
 window.addEventListener('mouseup', endDrag);
 
+// Touch flow on the editor canvas:
+//   - 1 finger  → drag the specimen (existing behavior)
+//   - 2 fingers → pinch to scale the specimen (NEW)
+// touch-action: none in CSS still blocks the system pinch-zoom of
+// the page when fingers are on the canvas — and rightly so: a
+// banner editor should scale the specimen, not the page text.
+// Page-zoom (system) still works when the user pinches anywhere
+// else (text above/below the canvas, header, etc.).
+let pinch = null;
+
 canvas.addEventListener('touchstart', (e) => {
-  if (e.touches.length !== 1) return;
-  startDrag(e.touches[0].clientX, e.touches[0].clientY);
+  if (e.touches.length === 1) {
+    startDrag(e.touches[0].clientX, e.touches[0].clientY);
+  } else if (e.touches.length === 2) {
+    // Two fingers down — cancel any pending drag, capture the
+    // initial finger-to-finger distance and the current scale so
+    // we can derive scale factor on every move.
+    if (isDragging) endDrag();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinch = {
+      startDist: Math.hypot(dx, dy),
+      startScale: state.scale,
+    };
+    e.preventDefault();
+  }
 }, { passive: false });
+
 canvas.addEventListener('touchmove', (e) => {
+  if (pinch && e.touches.length === 2) {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+    const factor = dist / pinch.startDist;
+    state.scale = Math.max(0.1, Math.min(4, pinch.startScale * factor));
+    scaleSlider.value = Math.round(state.scale * 100);
+    scaleVal.textContent = Math.round(state.scale * 100) + '%';
+    applyTransform();
+    deselectTemplates();
+    return;
+  }
   if (!isDragging || e.touches.length !== 1) return;
   e.preventDefault();
   moveDrag(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: false });
-canvas.addEventListener('touchend', endDrag);
+
+canvas.addEventListener('touchend', (e) => {
+  // Pinch ends as soon as either finger leaves
+  if (pinch && e.touches.length < 2) pinch = null;
+  endDrag();
+});
+canvas.addEventListener('touchcancel', (e) => {
+  pinch = null;
+  endDrag();
+});
 
 // =========================================================================
 // SCROLL TO ZOOM
