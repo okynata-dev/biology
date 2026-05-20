@@ -223,63 +223,23 @@
   }
   .success-cta-btn:hover { background: var(--ink); color: var(--bg); }
 
-  /* === CHECK SUB-FORM (lives on success panel) === */
-  .check-block {
-    margin-top: 28px;
-    padding-top: 22px;
+  .success-secondary {
+    margin-top: 22px;
+    padding-top: 20px;
     border-top: 1px solid var(--rule);
-    text-align: left;
   }
-  .check-label {
-    font-size: 13px;
+  .link-btn {
+    background: none;
+    border: 0;
     color: var(--ink-3);
-    margin-bottom: 8px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-  .check-row {
-    display: flex;
-    gap: 8px;
-  }
-  .check-row input {
-    flex: 1;
-    background: var(--bg);
-    border: 1px solid var(--rule);
-    border-radius: 8px;
-    padding: 10px 12px;
-    font-family: inherit;
-    font-size: 14px;
-    color: var(--ink);
-    min-width: 0;
-  }
-  .check-row input:focus {
-    border-color: var(--ink); outline: none;
-    box-shadow: 0 0 0 2px rgba(28,26,22,0.08);
-  }
-  .check-row button {
-    background: transparent;
-    border: 1px solid var(--ink);
-    color: var(--ink);
-    border-radius: 8px;
-    padding: 0 16px;
     font: inherit;
     font-size: 14px;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
   }
-  .check-row button:hover { background: var(--ink); color: var(--bg); }
-  .check-row button:disabled { opacity: 0.4; cursor: not-allowed; }
-  .check-result {
-    margin-top: 12px;
-    font-size: 14px;
-    line-height: 1.4;
-    min-height: 18px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  }
-  .check-result.in    { color: var(--ok); }
-  .check-result.out   { color: var(--ink-3); }
-  .check-result.bad   { color: var(--bad); }
+  .link-btn:hover { color: var(--ink); background: rgba(28,26,22,0.04); }
 
   /* === FOOTER (canonical) === */
   footer {
@@ -363,23 +323,8 @@
     <div class="success-cta">
       <a class="success-cta-btn" href="https://twitter.com/theBioms" target="_blank" rel="noopener">Follow @theBioms</a>
     </div>
-
-    <div class="check-block">
-      <div class="check-label">Check another address</div>
-      <form class="check-row" id="checkForm" novalidate>
-        <input
-          type="text"
-          id="checkInput"
-          placeholder="0x… or yourname.eth"
-          autocomplete="off"
-          autocapitalize="off"
-          autocorrect="off"
-          spellcheck="false"
-          aria-label="Address or ENS name to check"
-        />
-        <button type="submit" id="checkSubmit" disabled>Check</button>
-      </form>
-      <div class="check-result" id="checkResult"></div>
+    <div class="success-secondary">
+      <button type="button" class="link-btn" id="addAnotherBtn">Add another address</button>
     </div>
   </div>
 </main>
@@ -430,10 +375,7 @@ const formContainer = document.getElementById('formContainer');
 const successPanel  = document.getElementById('successPanel');
 const successTitle  = document.getElementById('successTitle');
 const successSub    = document.getElementById('successSub');
-const checkInput    = document.getElementById('checkInput');
-const checkSubmit   = document.getElementById('checkSubmit');
-const checkForm     = document.getElementById('checkForm');
-const checkResult   = document.getElementById('checkResult');
+const addAnotherBtn = document.getElementById('addAnotherBtn');
 
 const RE_ETH = /^0x[a-fA-F0-9]{40}$/;
 const RE_ENS = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.eth$/i;
