@@ -466,49 +466,19 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
-// === CHECK SUB-FORM ===
-// Lives on the success panel. Anyone can paste a wallet or ENS to see
-// if it's on the list. Defaults to the user's own input on first show
-// (so they can verify their own save with one tap).
-function updateCheckValidation() {
-  const r = classify(checkInput.value);
-  checkSubmit.disabled = !r.valid;
-}
-checkInput.addEventListener('input', updateCheckValidation);
-checkInput.addEventListener('blur', updateCheckValidation);
-
-checkForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const r = classify(checkInput.value);
-  if (!r.valid) return;
-  checkSubmit.disabled = true;
-  checkSubmit.textContent = '…';
-  checkResult.className = 'check-result';
-  checkResult.textContent = '';
-  try {
-    const url = `${WORKER_URL}/api/waitlist/check?address=${encodeURIComponent(r.value)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('http');
-    const data = await res.json();
-    if (data.ens_unresolvable) {
-      checkResult.className = 'check-result bad';
-      checkResult.textContent = "Couldn't resolve that ENS name.";
-    } else if (data.in_list) {
-      checkResult.className = 'check-result in';
-      const addr = shortAddr(data.resolved_address || r.value);
-      const when = data.signed_up_ms ? ' · saved ' + shortDate(data.signed_up_ms) : '';
-      checkResult.textContent = '✓ ' + addr + when;
-    } else {
-      checkResult.className = 'check-result out';
-      checkResult.textContent = 'Not on the list yet.';
-    }
-  } catch (err) {
-    checkResult.className = 'check-result bad';
-    checkResult.textContent = 'Check failed — try again.';
-  } finally {
-    checkSubmit.textContent = 'Check';
-    updateCheckValidation();
-  }
+// === ADD ANOTHER ===
+// Reset success panel back to the form for entering a new address.
+// The previous wallet stays in the list — this just clears the
+// frontend state so user can submit a second one.
+addAnotherBtn.addEventListener('click', () => {
+  input.value = '';
+  input.classList.remove('valid', 'invalid');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Save my spot';
+  successPanel.hidden = true;
+  formContainer.hidden = false;
+  input.focus();
+  loadCount();
 });
 
 async function loadCount() {
@@ -525,7 +495,6 @@ async function loadCount() {
 
 // Boot
 updateValidation();
-updateCheckValidation();
 loadCount();
 </script>
 
