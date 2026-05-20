@@ -146,26 +146,37 @@
     text-align: center;
   }
 
-  .cell {
-    width: 96px;
-    height: 96px;
-    margin: 0 auto 32px;
-    border-radius: 50%;
-    background: var(--ink);
-    position: relative;
-    box-shadow:
-      inset 0 -8px 24px rgba(0, 0, 0, 0.4),
-      0 12px 32px rgba(0, 0, 0, 0.08);
+  /* Ruptured specimen — the brand mark capsule shape, broken along
+     its membrane. Replaces the off-brand generic black circle.
+     SVG is inline so it doesn't need a separate HTTP fetch and can
+     pick up brand colors via currentColor / CSS variables.
+     Subtle drift animation suggests the broken piece is floating
+     just slightly out of place — invisible at first, then noticed. */
+  .broken-biom {
+    width: 220px;
+    aspect-ratio: 2 / 1;
+    margin: 0 auto 40px;
+    display: block;
+    filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.08));
   }
-  .cell::after {
-    content: "";
-    position: absolute;
-    left: 50%; top: 50%;
-    transform: translate(-50%, -50%);
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    background: var(--bg);
-    opacity: 0.92;
+  .broken-biom .body { fill: var(--ink); }
+  .broken-biom .organelle { fill: var(--paper); opacity: 0.85; }
+  .broken-biom .rupture {
+    stroke: var(--bg);
+    stroke-width: 3;
+    fill: none;
+    stroke-linecap: round;
+  }
+  .broken-biom .fragment {
+    animation: drift-away 7s ease-in-out infinite;
+    transform-origin: center;
+  }
+  @keyframes drift-away {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    50%      { transform: translate(8px, -3px) rotate(-4deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .broken-biom .fragment { animation: none; }
   }
 
   h1 {
@@ -223,7 +234,22 @@
 </nav>
 
 <div class="wrap">
-  <div class="cell"></div>
+  <svg class="broken-biom" viewBox="0 0 64 32" role="img" aria-label="A ruptured Biom specimen">
+    <title>A ruptured Biom — page not found</title>
+    <!-- Main capsule body, intact left half -->
+    <path class="body" d="M 10 6 L 30 6 A 10 10 0 0 1 30 26 L 10 26 A 10 10 0 0 1 10 6 Z"/>
+    <!-- Fragment of the capsule that drifted off to the right -->
+    <g class="fragment">
+      <path class="body" d="M 34 8 L 50 8 A 8 8 0 0 1 50 24 L 34 24 Z"/>
+      <circle class="organelle" cx="42" cy="16" r="2.4"/>
+    </g>
+    <!-- Inner structures still inside the intact half -->
+    <circle class="organelle" cx="18" cy="16" r="3"/>
+    <circle class="organelle" cx="25" cy="13" r="1.4"/>
+    <circle class="organelle" cx="25" cy="19" r="1.2"/>
+    <!-- Rupture line — jagged gap between the two halves -->
+    <path class="rupture" d="M 31 7 L 33 12 L 31 17 L 33 22 L 31 26"/>
+  </svg>
   <div class="code">404 · Not found</div>
   <h1>This specimen couldn't be located.</h1>
   <p>The link is broken, the page was moved, or this Biom never existed in the first place.</p>

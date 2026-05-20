@@ -104,6 +104,15 @@
 /*.html
   Cache-Control: public, max-age=3600, must-revalidate
 
+# 404 explicitly NOT cached — without this, /*.html catches /404.html
+# with a 1-hour cache, which means after a redeploy that adds a new
+# real page, the CDN may keep serving the old 404 for legitimate URLs.
+# `must-revalidate` forces the CDN to ask the origin every time.
+/404.html
+  Cache-Control: no-cache, must-revalidate
+/404
+  Cache-Control: no-cache, must-revalidate
+
 # Static brand assets
 /og-image.png
   Cache-Control: public, max-age=86400

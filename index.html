@@ -68,6 +68,21 @@
   a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
   a:hover { text-decoration-color: var(--ink); }
 
+  /* Skip-link — hidden until keyboard-focused. Lets screen-reader and
+     keyboard users bypass the nav and jump straight to main content
+     (WCAG 2.4.1). The off-screen positioning is the standard pattern;
+     it becomes visible when the user tabs into it. */
+  .skip-link {
+    position: absolute; left: -9999px; top: 0;
+    background: var(--ink); color: var(--bg);
+    padding: 12px 18px;
+    border-radius: 0 0 8px 0;
+    font-size: 14px; font-weight: 500;
+    text-decoration: none;
+    z-index: 9999;
+  }
+  .skip-link:focus { left: 0; outline: 2px solid var(--bg); outline-offset: -2px; }
+
   /* === SCROLL PROGRESS BAR ===
      Slim 2px line at the very top of the viewport that fills
      left-to-right as the page is scrolled. Apple-grade in that
@@ -292,6 +307,27 @@
     .hero { padding: 32px 18px 48px; }
     .hero-stage { border-radius: 18px; max-height: none; max-width: 560px; }
     .hero-text { max-width: 100%; }
+  }
+
+  /* === PULL QUOTE — the line from the manifesto, lifted up because
+     it's the single sentence that captures the whole project.
+     Quiet section: full-width centered, italic-light type, generous
+     vertical space so the eye rests on it. */
+  .pull-quote {
+    padding: clamp(80px, 12vh, 140px) 32px;
+  }
+  .pull-quote blockquote {
+    max-width: 720px;
+    margin: 0 auto;
+    text-align: center;
+    font-size: clamp(20px, 2.2vw, 28px);
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+    font-weight: 400;
+    color: var(--ink);
+  }
+  @media (max-width: 600px) {
+    .pull-quote { padding: 56px 22px; }
   }
 
   /* === CATALOG — curated grid showing the range of the collection.
@@ -671,6 +707,7 @@
      original 2px bar markup is in git history if anyone wants it back. -->
 
 
+<a class="skip-link" href="#main">Skip to content</a>
 <nav>
   <a class="brand" href="/" aria-label="Bioms — home">
     <img class="brand-mark" src="/favicon.svg" alt="" width="18" height="18" decoding="async">
@@ -686,20 +723,32 @@
   </div>
 </nav>
 
-<section class="hero">
+<section class="hero" id="main">
   <div class="wrap">
     <div class="hero-grid">
       <div class="hero-stage" id="heroSpecimen" aria-label="Live Biom specimen"></div>
       <div class="hero-text">
         <h1 class="hero-title">Bioms</h1>
-        <p class="hero-tag">Living art. Three thousand microbes that breed, fuse, evolve. On Ethereum.</p>
+        <p class="hero-tag">Three thousand living microbes. They share traits. They burn each other. The survivors carry everything forward.</p>
         <div class="hero-caption">
-          <span id="seedChip">BIOM #<span id="seedDisplay"></span></span>
+          <span id="seedChip">BIOM #<span id="seedDisplay" aria-live="polite" aria-atomic="true"></span></span>
           <span class="sep" id="seedChipSep">·</span>
           <button type="button" class="caption-btn" id="rollBtn" aria-label="Generate next specimen">Next →</button>
         </div>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- Pull quote — the line from the manifesto that captures the whole
+     project. Quiet section between hero and lab so the eye lands on
+     these two sentences before the rest of the page demands attention. -->
+<section class="pull-quote" data-cv-auto>
+  <div class="wrap">
+    <blockquote>
+      Most digital things are designed so nothing you do matters.<br>
+      Bioms are designed so that everything you do matters, permanently.
+    </blockquote>
   </div>
 </section>
 
@@ -717,7 +766,7 @@
       <div class="lab-copy">
         <h2 class="lab-headline">Evolve.</h2>
         <p>Pair two Bioms to share a trait. Burn one to feed another. The survivor inherits everything — palette, organelles, the body itself.</p>
-        <p>Phoenix takes eight Bioms. Most collectors will never get there. The ones who do make a small, irreversible decision over and over.</p>
+        <p>Phoenix takes eight Bioms — burn two together to get a Hybrid (rank 2), two Hybrids to get a Chimera (rank 4), two Chimeras for a Phoenix (rank 8). Most collectors will never get there. The ones who do make a small, irreversible decision over and over.</p>
         <div class="lab-ladder" aria-label="Rarity ladder">
           <span class="step s1">Genesis</span>
           <span class="sep">→</span>
@@ -739,7 +788,7 @@
 
 <section data-cv-auto>
   <div class="wrap">
-    <h2 class="catalog-title">Three thousand Bioms.</h2>
+    <h2 class="catalog-title">A glimpse.</h2>
     <div class="catalog-grid" id="catalogGrid"></div>
   </div>
 </section>

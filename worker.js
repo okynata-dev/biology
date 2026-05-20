@@ -26,9 +26,11 @@ import { mainnet } from 'viem/chains';
 import { normalize } from 'viem/ens';
 
 // ----- CORS / utility -----
+// Canonical URLs all live at apex thebioms.com (no www). www-subdomain
+// isn't pointed in DNS, so listing it as an allowed origin was a
+// non-functional artifact. Trimmed.
 const ALLOWED_ORIGINS = [
   'https://thebioms.com',
-  'https://www.thebioms.com',
   'http://localhost:8000',
   'http://localhost:8787',
 ];
