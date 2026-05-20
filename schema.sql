@@ -15,8 +15,24 @@ CREATE TABLE IF NOT EXISTS token_state (
   received_palette      TEXT,
   received_organelles   TEXT,    -- JSON array, e.g. '["plasmid","flagellum"]'
   received_anomalies    TEXT,    -- JSON array
+  absorbed_seeds        TEXT,    -- JSON array of seeds burned into this token (rank ladder)
   updated_at            INTEGER  -- unix seconds
 );
+
+-- Permanent record of on-chain burns. Primary key on burned_token_id
+-- enforces "a token can only be burned once" at the schema level —
+-- replay attempts (same token sent through twice) will UNIQUE-violate.
+-- tx_hash is verifiable on any block explorer.
+CREATE TABLE IF NOT EXISTS burns (
+  burned_token_id      INTEGER PRIMARY KEY,
+  recipient_token_id   INTEGER NOT NULL,
+  signer               TEXT NOT NULL,
+  tx_hash              TEXT NOT NULL,
+  burned_at            INTEGER NOT NULL    -- unix milliseconds
+);
+CREATE INDEX IF NOT EXISTS idx_burns_recipient ON burns(recipient_token_id);
+CREATE INDEX IF NOT EXISTS idx_burns_signer    ON burns(signer);
+CREATE INDEX IF NOT EXISTS idx_burns_burned_at ON burns(burned_at);
 
 CREATE TABLE IF NOT EXISTS depletions (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,

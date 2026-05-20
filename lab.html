@@ -2103,6 +2103,129 @@ const Wallet = {
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
     return data; // { ok, rejected, log }
   },
+
+  // === Sign a burn (SEPARATE EIP-712 type from Conjugate) ===
+  // MetaMask shows "Burn" type name distinctly from "Conjugate" — a
+  // compromised site can't disguise a burn as a regular share.
+  async signBurn(donorId, recipientId, nonce, deadline) {
+    if (!this.config) throw new Error('Backend config not loaded.');
+    if (!this.config.contractDeployed) throw new Error('Mint contract not yet deployed.');
+    const typedData = {
+      domain: {
+        name: 'Bioms Lab',
+        version: '1',
+        chainId: this.config.chainId,
+        verifyingContract: this.config.contractAddress,
+      },
+      types: {
+        EIP712Domain: [
+          { name: 'name', type: 'string' },
+          { name: 'version', type: 'string' },
+          { name: 'chainId', type: 'uint256' },
+          { name: 'verifyingContract', type: 'address' },
+        ],
+        Burn: [
+          { name: 'donorId', type: 'uint256' },
+          { name: 'recipientId', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      },
+      primaryType: 'Burn',
+      message: {
+        donorId: String(donorId),
+        recipientId: String(recipientId),
+        nonce: String(nonce),
+        deadline: String(deadline),
+      },
+    };
+    return await window.ethereum.request({
+      method: 'eth_signTypedData_v4',
+      params: [this.address, JSON.stringify(typedData)],
+    });
+  },
+
+  // === Execute on-chain burn via the contract ===
+  // Sends eth_sendTransaction calling contract.burn(donorId). User
+  // sees a wallet prompt with "Burn NFT #N — Gas: X ETH" — explicit,
+  // unforgeable. Returns the tx hash; caller waits for confirmation.
+  //
+  // Calldata = burn(uint256) selector + 32-byte tokenId.
+  // burn() function selector = first 4 bytes of keccak256("burn(uint256)")
+  // = 0x42966c68. Hardcoded so we don't need a keccak in the browser.
+  async sendBurnTx(donorId) {
+    if (!this.config?.contractDeployed) throw new Error('Mint contract not yet deployed.');
+    const tokenHex = BigInt(donorId).toString(16).padStart(64, '0');
+    const data = '0x42966c68' + tokenHex;
+    const txHash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{
+        from: this.address,
+        to: this.config.contractAddress,
+        data,
+        // gas + maxFeePerGas left to wallet — MetaMask estimates correctly
+      }],
+    });
+    return txHash;
+  },
+
+  // === Wait for tx confirmation via polling getTransactionReceipt ===
+  // Simple poll loop because we don't have a websocket. 2s intervals
+  // for up to ~3 minutes (90 attempts). Most burns confirm in 12-30s.
+  async waitForTx(txHash, maxAttempts = 90, intervalMs = 2000) {
+    for (let i = 0; i < maxAttempts; i++) {
+      const receipt = await window.ethereum.request({
+        method: 'eth_getTransactionReceipt',
+        params: [txHash],
+      });
+      if (receipt) {
+        const success = receipt.status === '0x1' || receipt.status === 1;
+        return { receipt, success };
+      }
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
+    throw new Error('tx_timeout');
+  },
+
+  // === Full burn flow: sign + send tx + wait + persist to worker ===
+  async submitBurn(donorId, recipientId, onProgress) {
+    if (!this.config?.contractDeployed) throw new Error('Mint contract not yet deployed.');
+    if (!this.config?.features?.walletBurn) {
+      throw new Error('Burn requires ALCHEMY_KEY secret on the worker. Falling back to demo behavior is not enabled here.');
+    }
+    if (!await this.ensureChain(this.config.chainId)) {
+      throw new Error(`Switch your wallet to chain ${this.config.chainId} (Ethereum) to burn.`);
+    }
+
+    const nonce = Date.now();
+    const deadline = Date.now() + 5 * 60 * 1000;
+
+    onProgress?.('signing');
+    const signature = await this.signBurn(donorId, recipientId, nonce, deadline);
+
+    onProgress?.('sending');
+    const txHash = await this.sendBurnTx(donorId);
+
+    onProgress?.('confirming');
+    const { success } = await this.waitForTx(txHash);
+    if (!success) throw new Error('Burn transaction reverted on-chain.');
+
+    onProgress?.('persisting');
+    const r = await fetch(`${WORKER_URL}/api/burn`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        donorId, recipientId,
+        nonce, deadline,
+        address: this.address,
+        signature,
+        txHash,
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    return data; // { ok, burnedTokenId, recipientTokenId, txHash, absorbedSeeds, rank }
+  },
 };
 
 // EIP-55 checksum (compact in-page implementation — avoids viem on the client)
@@ -4073,13 +4196,66 @@ function _ritualCancelHold() {
   ritualHold.classList.remove('holding');
 }
 
-function _ritualCommit() {
+async function _ritualCommit() {
   if (_ritual.committed) return;
   _ritual.committed = true;
   const { burnSeed, absorbSeed } = _ritual;
-  // Run the actual burn — performBurn mutates LabState and clears the burner
+
+  // Branch by mode:
+  //   - Wallet + walletBurn enabled → real on-chain burn via Wallet.submitBurn
+  //   - Otherwise (Demo, or wallet pre-mint) → soft burn in LabState
+  const wantHardBurn = LabState.mode === 'wallet'
+    && Wallet?.config?.features?.walletBurn
+    && Wallet.address;
+
+  if (wantHardBurn) {
+    // Display progress messages inside the ritual title — the user is
+    // staring at this overlay for 30-60 seconds while the tx mines.
+    const originalTitle = ritualTitle.textContent;
+    const setStage = (msg) => { ritualTitle.textContent = msg; };
+    try {
+      const onProgress = (stage) => {
+        if (stage === 'signing')    setStage('Sign the burn in your wallet…');
+        if (stage === 'sending')    setStage('Confirm the burn transaction…');
+        if (stage === 'confirming') setStage('Burning on-chain — this takes ~30s…');
+        if (stage === 'persisting') setStage('Almost done — applying mutations…');
+      };
+      const result = await Wallet.submitBurn(burnSeed, absorbSeed, onProgress);
+      // Pull the recipient's fresh state from worker (it has the
+      // canonical absorbed_seeds + new mutations)
+      await refreshTokens([absorbSeed]);
+      const newEff = effectiveState(absorbSeed);
+      _renderRitualSpecimen(ritualAbsorberRender, absorbSeed, newEff);
+      ritualResultName.textContent = window.BiomEngine.label(absorbSeed);
+      const ancestors = newEff.ancestors || [];
+      if (ancestors.length === 0) {
+        ritualResultLineage.textContent = '';
+      } else {
+        const names = ancestors.map(a => window.BiomEngine.label(a.seed));
+        ritualResultLineage.textContent = 'Carries the memory of ' + names.join(', ') + '.';
+      }
+      const tier = tierForRank(result.rank);
+      ritualResultTier.textContent = (tier ? tier.name : 'Genesis') + ' · Rank ' + result.rank;
+      setStage('It is done.');
+      burnRitual.classList.add('committed');
+      burnRitual.classList.remove('holding');
+      resetArena();
+    } catch (e) {
+      // Burn failed — restore the ritual to a recoverable state so user
+      // can cancel out without losing data
+      setStage('Burn failed: ' + (e?.message || e));
+      _ritual.committed = false;
+      burnRitual.classList.remove('holding');
+      // The donor was NOT burned on-chain (or worker rejected). Don't
+      // touch local state. User can press-and-hold again or cancel.
+      setTimeout(() => { setStage(originalTitle); }, 6000);
+    }
+    return;
+  }
+
+  // === Soft burn path (Demo mode, or wallet pre-launch) ===
+  // performBurn mutates LabState and clears the burner.
   performBurn(burnSeed, absorbSeed);
-  // The survivor's new effective state
   const newEff = effectiveState(absorbSeed);
   _renderRitualSpecimen(ritualAbsorberRender, absorbSeed, newEff);
   ritualResultName.textContent = window.BiomEngine.label(absorbSeed);
@@ -4094,7 +4270,6 @@ function _ritualCommit() {
   ritualResultTier.textContent = (tier ? tier.name : 'Genesis') + ' · Rank ' + newEff.rank;
   burnRitual.classList.add('committed');
   burnRitual.classList.remove('holding');
-  // Sync the lab state behind the ritual (selection cleared, collection re-rendered).
   resetArena();
 }
 

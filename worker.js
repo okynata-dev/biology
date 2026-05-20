@@ -173,9 +173,9 @@ function tokenHasTrait(base, mutations, depletionsActive, traitId) {
 
 // ----- D1 helpers -----
 async function loadTokenState(env, tokenId) {
-  // Mutations row
+  // Mutations row + absorbed lineage
   const m = await env.DB.prepare(
-    'SELECT received_palette, received_organelles, received_anomalies FROM token_state WHERE token_id = ?'
+    'SELECT received_palette, received_organelles, received_anomalies, absorbed_seeds FROM token_state WHERE token_id = ?'
   ).bind(tokenId).first();
 
   const mutations = {
@@ -183,6 +183,10 @@ async function loadTokenState(env, tokenId) {
     organelles: m?.received_organelles ? JSON.parse(m.received_organelles) : [],
     anomalies: m?.received_anomalies ? JSON.parse(m.received_anomalies) : [],
   };
+
+  let absorbedSeeds = [];
+  try { if (m?.absorbed_seeds) absorbedSeeds = JSON.parse(m.absorbed_seeds); } catch (_) {}
+  if (!Array.isArray(absorbedSeeds)) absorbedSeeds = [];
 
   // Active depletions (regenerates_at > now)
   const now = Math.floor(Date.now() / 1000);
@@ -197,8 +201,42 @@ async function loadTokenState(env, tokenId) {
     regeneratesAt: r.regenerates_at * 1000,
   }));
 
-  return { mutations, depletions };
+  // Check whether this token itself has been burned — if yes, callers
+  // can decide how to render (e.g. "Burned ✕" overlay).
+  const burnSelfRow = await env.DB.prepare(
+    'SELECT recipient_token_id, tx_hash, burned_at FROM burns WHERE burned_token_id = ?'
+  ).bind(tokenId).first();
+  const burnedInfo = burnSelfRow ? {
+    burned: true,
+    intoTokenId: burnSelfRow.recipient_token_id,
+    txHash: burnSelfRow.tx_hash,
+    at: burnSelfRow.burned_at,
+  } : null;
+
+  return { mutations, depletions, absorbedSeeds, burned: burnedInfo };
 }
+
+// ----- viem client factory -----
+// Shared between ownerOf / listOwned / verifyBurnTx. All three need a
+// public client pointing at the same mainnet RPC; sharing keeps the
+// timeout/retry behavior consistent.
+function getMainnetClient(env) {
+  return createPublicClient({
+    chain: mainnet,
+    transport: http(`https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_KEY}`, {
+      timeout: EXTERNAL_FETCH_TIMEOUT_MS,
+      retryCount: 1,
+    }),
+  });
+}
+
+// ERC-721 Transfer event signature — used to detect a burn from a tx
+// receipt. The topic hash is keccak256("Transfer(address,address,uint256)").
+const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+const BURN_ADDRESSES = new Set([
+  '0x0000000000000000000000000000000000000000',
+  '0x000000000000000000000000000000000000dead',
+]);
 
 // ----- Alchemy ownership -----
 // viem's http() transport accepts a `timeout` (ms) — when the underlying
@@ -207,13 +245,11 @@ async function ownerOf(env, tokenId) {
   if (!env.CONTRACT_ADDRESS || env.CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
     return null; // pre-mint
   }
-  const client = createPublicClient({
-    chain: mainnet,
-    transport: http(`https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_KEY}`, {
-      timeout: EXTERNAL_FETCH_TIMEOUT_MS,
-      retryCount: 1,
-    }),
-  });
+  if (!env.ALCHEMY_KEY) {
+    console.warn('ownerOf called without ALCHEMY_KEY — returning null');
+    return null;
+  }
+  const client = getMainnetClient(env);
   try {
     const owner = await client.readContract({
       address: env.CONTRACT_ADDRESS,
@@ -274,6 +310,78 @@ const CONJUGATE_TYPES = {
     { name: 'deadline', type: 'uint256' },
   ],
 };
+
+// SEPARATE EIP-712 type for burn — intentionally distinct from
+// Conjugate so MetaMask shows the user a DIFFERENT type name in the
+// signature prompt. If a compromised site tried to disguise a burn
+// as a crossbreed (or vice versa), the prompt would visibly mismatch
+// the action the user thought they were doing. Defense-in-depth
+// against UI-level phishing.
+const BURN_TYPES = {
+  Burn: [
+    { name: 'donorId', type: 'uint256' },
+    { name: 'recipientId', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'deadline', type: 'uint256' },
+  ],
+};
+
+// ----- On-chain burn verification -----
+// Fetches the transaction receipt and confirms it includes an ERC-721
+// Transfer event from the expected signer to a burn address (0x0 or
+// 0x...dEaD) for the expected tokenId, emitted by our contract.
+//
+// All four checks must pass:
+//   1. Tx status === success (not reverted)
+//   2. Transfer event present in logs
+//   3. From = signer (the user actually burned their own token)
+//   4. To = burn address (0x0 or dEaD — not just transferred to a friend)
+//   5. tokenId matches donorId in our request
+//   6. Contract address matches env.CONTRACT_ADDRESS (can't fake via a
+//      different ERC-721 contract you control)
+async function verifyBurnTx(env, txHash, expectedTokenId, expectedSigner) {
+  if (!env.ALCHEMY_KEY) {
+    return { ok: false, reason: 'no_alchemy_key' };
+  }
+  if (!env.CONTRACT_ADDRESS || env.CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+    return { ok: false, reason: 'no_contract_address' };
+  }
+  if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
+    return { ok: false, reason: 'bad_tx_hash' };
+  }
+  const client = getMainnetClient(env);
+  let receipt;
+  try {
+    receipt = await client.getTransactionReceipt({ hash: txHash });
+  } catch (e) {
+    return { ok: false, reason: 'receipt_unavailable' };
+  }
+  if (!receipt) return { ok: false, reason: 'tx_not_mined' };
+  if (receipt.status !== 'success') return { ok: false, reason: 'tx_reverted' };
+
+  const contractLc = env.CONTRACT_ADDRESS.toLowerCase();
+  const signerLc = expectedSigner.toLowerCase();
+  const expectedTokenHex = '0x' + BigInt(expectedTokenId).toString(16).padStart(64, '0');
+
+  // Walk the logs looking for a matching Transfer event. Multiple
+  // events may exist (proxy contracts, marketplaces relay) — we just
+  // need to find at least one that matches our criteria.
+  for (const log of receipt.logs || []) {
+    if (!log || !log.address || !log.topics) continue;
+    if (log.address.toLowerCase() !== contractLc) continue;
+    if (log.topics[0] !== TRANSFER_TOPIC) continue;
+    if (log.topics.length < 4) continue;  // erc721 Transfer has 4 topics
+    // topics[1] = from (left-padded), topics[2] = to, topics[3] = tokenId
+    const fromAddr = '0x' + log.topics[1].slice(-40).toLowerCase();
+    const toAddr   = '0x' + log.topics[2].slice(-40).toLowerCase();
+    const tokenIdHex = log.topics[3].toLowerCase();
+    if (fromAddr !== signerLc) continue;
+    if (!BURN_ADDRESSES.has(toAddr)) continue;
+    if (tokenIdHex !== expectedTokenHex.toLowerCase()) continue;
+    return { ok: true, blockNumber: receipt.blockNumber };
+  }
+  return { ok: false, reason: 'no_matching_burn_event' };
+}
 
 // ----- Verifiable rejection roll -----
 // Replaces Math.random() with a deterministic, audit-able derivation from
@@ -532,6 +640,202 @@ async function refreshOpenSeaMetadata(env, ...tokenIds) {
   }
 }
 
+// ============================================================
+// BURN handler — permanent on-chain sacrifice
+//
+// Two-step UX on the client:
+//   1. User signs EIP-712 Burn (intent + replay protection)
+//   2. User submits tx: contract.burn(donorId) — wallet shows real
+//      "burn this NFT" prompt, gas is paid, token leaves supply
+//   3. Client posts { signature, tx_hash } to this endpoint
+//
+// Worker verifies:
+//   - Signature recovers to claimed signer
+//   - Nonce hasn't been used
+//   - tx_hash actually represents a burn of donorId from signer to
+//     a burn address, emitted by our contract (verifyBurnTx)
+//   - recipientId is owned by the signer (so traits land in their wallet)
+//
+// On success:
+//   - INSERT into burns table (PK enforces "burned only once" forever)
+//   - Update recipient's token_state: absorb all donor's effective
+//     traits + append donor seed to absorbed_seeds for rank ladder
+//   - Refresh OpenSea metadata for the recipient (donor is gone)
+// ============================================================
+async function handleBurn(req, env, origin) {
+  if (!env.CONTRACT_ADDRESS || env.CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+    return error('Mint contract not yet deployed. Burn will activate post-mint.', 503, origin);
+  }
+  if (!env.ALCHEMY_KEY) {
+    return error('Burn verification requires Alchemy. Set ALCHEMY_KEY secret.', 503, origin);
+  }
+
+  let body;
+  try { body = await req.json(); }
+  catch { return error('invalid_json', 400, origin); }
+
+  const { donorId, recipientId, nonce, deadline, address, signature, txHash } = body || {};
+  if (typeof donorId !== 'number' || typeof recipientId !== 'number') return error('bad_ids', 400, origin);
+  if (donorId === recipientId) return error('same_token', 400, origin);
+  const maxId = maxTokenId(env);
+  if (donorId < 0 || donorId > maxId || recipientId < 0 || recipientId > maxId) return error('bad_ids', 400, origin);
+  if (typeof nonce !== 'number' || typeof deadline !== 'number') return error('bad_nonce_or_deadline', 400, origin);
+  if (Date.now() > deadline) return error('signature_expired', 400, origin);
+  if (!isAddress(address)) return error('bad_address', 400, origin);
+  if (typeof signature !== 'string' || !signature.startsWith('0x')) return error('bad_signature', 400, origin);
+  if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) return error('bad_tx_hash', 400, origin);
+
+  // 1. Verify EIP-712 signature
+  let recovered;
+  try {
+    recovered = await recoverTypedDataAddress({
+      domain: eip712Domain(env),
+      types: BURN_TYPES,
+      primaryType: 'Burn',
+      message: {
+        donorId: BigInt(donorId),
+        recipientId: BigInt(recipientId),
+        nonce: BigInt(nonce),
+        deadline: BigInt(deadline),
+      },
+      signature,
+    });
+  } catch (e) {
+    return error('signature_recovery_failed', 400, origin);
+  }
+  if (getAddress(recovered) !== getAddress(address)) return error('signer_mismatch', 401, origin);
+
+  const signerLc = address.toLowerCase();
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  // 2. Rate limit (shared bucket with conjugate via used_nonces table)
+  const rateLimit = parseInt(env.CONJUGATE_RATE_PER_MIN || '5', 10);
+  const recentRow = await env.DB.prepare(
+    'SELECT COUNT(*) AS n FROM used_nonces WHERE signer = ? AND used_at > ?'
+  ).bind(signerLc, nowSec - 60).first();
+  if (recentRow && recentRow.n >= rateLimit) {
+    return error('rate_limited', 429, origin);
+  }
+
+  // 3. Replay protection
+  const nonceRow = await env.DB.prepare(
+    'SELECT 1 FROM used_nonces WHERE signer = ? AND nonce = ?'
+  ).bind(signerLc, nonce).first();
+  if (nonceRow) return error('nonce_used', 401, origin);
+
+  // 4. Has this token already been burned? PK on burns.burned_token_id
+  //    enforces this at INSERT, but we want a clean 409 with reason
+  //    instead of a generic batch failure.
+  const burnRow = await env.DB.prepare(
+    'SELECT tx_hash, burned_at FROM burns WHERE burned_token_id = ?'
+  ).bind(donorId).first();
+  if (burnRow) return error('already_burned', 409, origin);
+
+  // 5. Recipient must be owned by the signer (donor's owner check is
+  //    moot — it was just burned, ownerOf will revert)
+  const recOwner = await ownerOf(env, recipientId);
+  if (!recOwner) return error('ownerOf_failed', 502, origin);
+  if (recOwner !== signerLc) return error('not_recipient_owner', 403, origin);
+
+  // 6. The big one — verify on-chain that this signer actually
+  //    burned donorId via the tx they claim
+  const verdict = await verifyBurnTx(env, txHash, donorId, signerLc);
+  if (!verdict.ok) return error('burn_tx_verification_failed:' + verdict.reason, 400, origin);
+
+  // 7. Compute absorber's new state. The recipient absorbs ALL of the
+  //    donor's effective traits (base + any prior mutations donor had).
+  const donorBase = generateBaseTraits(donorId);
+  const donorData = await loadTokenState(env, donorId);
+  const donorEffectivePalette = donorData.mutations.palette || donorBase.palette;
+  const donorEffectiveOrganelles = new Set(donorBase.organelles);
+  for (const o of (donorData.mutations.organelles || [])) donorEffectiveOrganelles.add(o);
+  const donorEffectiveAnomalies = new Set();
+  if (donorBase.phageAttached || (donorData.mutations.anomalies || []).includes('phageAttached')) donorEffectiveAnomalies.add('phageAttached');
+  if (donorBase.endosymbiont    || (donorData.mutations.anomalies || []).includes('endosymbiont'))    donorEffectiveAnomalies.add('endosymbiont');
+  if (donorBase.biofilmHalo     || (donorData.mutations.anomalies || []).includes('biofilmHalo'))     donorEffectiveAnomalies.add('biofilmHalo');
+
+  // Load recipient's current state and merge
+  const recipientData = await loadTokenState(env, recipientId);
+  const recM = recipientData.mutations;
+  const recAbsorbedRaw = (await env.DB.prepare(
+    'SELECT absorbed_seeds FROM token_state WHERE token_id = ?'
+  ).bind(recipientId).first()) || {};
+  let absorbedSeeds = [];
+  try { if (recAbsorbedRaw.absorbed_seeds) absorbedSeeds = JSON.parse(recAbsorbedRaw.absorbed_seeds); } catch (_) {}
+  if (!Array.isArray(absorbedSeeds)) absorbedSeeds = [];
+
+  // Recipient's palette becomes donor's (donor's stain "wins" — visual
+  // signal that absorption changed the survivor's appearance)
+  recM.palette = donorEffectivePalette;
+  // Organelles + anomalies: union, dedup
+  const recOrgSet = new Set(recM.organelles || []);
+  for (const o of donorEffectiveOrganelles) if (o !== 'capsule' && o !== 'nucleoid') recOrgSet.add(o);
+  recM.organelles = Array.from(recOrgSet);
+  const recAnoSet = new Set(recM.anomalies || []);
+  for (const a of donorEffectiveAnomalies) recAnoSet.add(a);
+  recM.anomalies = Array.from(recAnoSet);
+  // Append donor seed to lineage — first absorbed seed = rank-2, etc.
+  absorbedSeeds.push(donorId);
+
+  const ts = Date.now();
+  const tsSec = Math.floor(ts / 1000);
+
+  // 8. Persist as atomic batch
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        'INSERT INTO used_nonces (signer, nonce, used_at) VALUES (?, ?, ?)'
+      ).bind(signerLc, nonce, tsSec),
+      env.DB.prepare(
+        'INSERT INTO burns (burned_token_id, recipient_token_id, signer, tx_hash, burned_at) VALUES (?, ?, ?, ?, ?)'
+      ).bind(donorId, recipientId, signerLc, txHash, ts),
+      env.DB.prepare(
+        'INSERT INTO log (ts, donor, recipient, trait, result, signer, roll_hex) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).bind(ts, donorId, recipientId, '*burn*', 'burn', signerLc, null),
+      env.DB.prepare(`
+        INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, absorbed_seeds, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(token_id) DO UPDATE SET
+          received_palette = excluded.received_palette,
+          received_organelles = excluded.received_organelles,
+          received_anomalies = excluded.received_anomalies,
+          absorbed_seeds = excluded.absorbed_seeds,
+          updated_at = excluded.updated_at
+      `).bind(
+        recipientId,
+        recM.palette || null,
+        JSON.stringify(recM.organelles),
+        JSON.stringify(recM.anomalies),
+        JSON.stringify(absorbedSeeds),
+        tsSec
+      ),
+    ]);
+  } catch (e) {
+    if (String(e?.message || '').toLowerCase().includes('unique')) {
+      // burns PK or used_nonces PK violation — concurrent burn race
+      return error('already_burned_or_nonce_used', 409, origin);
+    }
+    console.error('Burn batch failed:', e?.stack || e);
+    return error('persist_failed', 500, origin);
+  }
+
+  // Best-effort: refresh OpenSea metadata for the recipient (donor's
+  // metadata becomes irrelevant once it's burned on-chain).
+  refreshOpenSeaMetadata(env, recipientId).catch(e => {
+    console.warn('OS refresh top-level error:', e?.message || e);
+  });
+
+  return json({
+    ok: true,
+    burnedTokenId: donorId,
+    recipientTokenId: recipientId,
+    txHash,
+    blockNumber: verdict.blockNumber ? String(verdict.blockNumber) : null,
+    absorbedSeeds,
+    rank: absorbedSeeds.length + 1,
+  }, {}, origin);
+}
+
 // ----- Route handlers -----
 async function handleOwned(env, address, origin) {
   if (!isAddress(address)) return error('bad_address', 400, origin);
@@ -784,6 +1088,11 @@ export default {
         } catch (e) {
           dbError = e?.message || String(e);
         }
+        // Features tell the client what's wired up. burnEnabled is the
+        // wallet-mode hard-burn gate: needs both contract + Alchemy.
+        // Frontend uses this to flip burn UI between "Demo only" and
+        // "wallet burn is live."
+        const burnEnabled = deployed && !!env.ALCHEMY_KEY;
         return json({
           ok: dbOk,
           db: { ok: dbOk, error: dbError },
@@ -794,6 +1103,10 @@ export default {
           cooldownSeconds: parseInt(env.COOLDOWN_SECONDS || '2592000', 10),
           rejectionRate: parseFloat(env.REJECTION_RATE || '0.15'),
           conjugateRatePerMin: parseInt(env.CONJUGATE_RATE_PER_MIN || '5', 10),
+          features: {
+            walletBurn: burnEnabled,
+            walletCrossbreed: deployed,
+          },
         }, { status: dbOk ? 200 : 503 }, origin);
       }
 
@@ -810,6 +1123,9 @@ export default {
       }
       if (path === '/api/conjugate' && req.method === 'POST') {
         return await handleConjugate(req, env, origin);
+      }
+      if (path === '/api/burn' && req.method === 'POST') {
+        return await handleBurn(req, env, origin);
       }
       if (path === '/api/log') {
         return await handleLog(env, url, origin);
