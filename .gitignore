@@ -35,3 +35,11 @@ Thumbs.db
 .env
 .env.local
 .dev.vars
+
+# Local exports — wallets export from /admin or wrangler queries
+allowlist.json
+waitlist*.json
+waitlist*.csv
+bioms-waitlist-*.csv
+bioms-admin-token.txt
+
