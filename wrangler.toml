@@ -36,7 +36,7 @@ compatibility_date = "2026-05-17"
 [[d1_databases]]
 binding = "DB"
 database_name = "bioms-lab"
-database_id = "PASTE_REAL_UUID_FROM_wrangler_d1_create__DO_NOT_DEPLOY_AS_IS"
+database_id = "3f0dd6bd-c62d-4fe8-a0db-e351d410ebfa"
 
 [vars]
 # Public config — fine to commit. Secrets go via `wrangler secret put`.
