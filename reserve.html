@@ -170,6 +170,70 @@
     letter-spacing: -0.015em;
     font-weight: 500;
   }
+  .success-sub {
+    color: var(--ink-3);
+    font-size: 14px;
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* === CHECK SUB-FORM (lives on success panel) === */
+  .check-block {
+    margin-top: 28px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    text-align: left;
+  }
+  .check-label {
+    font-size: 13px;
+    color: var(--ink-3);
+    margin-bottom: 8px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .check-row {
+    display: flex;
+    gap: 8px;
+  }
+  .check-row input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    min-width: 0;
+  }
+  .check-row input:focus {
+    border-color: var(--ink); outline: none;
+    box-shadow: 0 0 0 2px rgba(28,26,22,0.08);
+  }
+  .check-row button {
+    background: transparent;
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    border-radius: 8px;
+    padding: 0 16px;
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .check-row button:hover { background: var(--ink); color: var(--bg); }
+  .check-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .check-result {
+    margin-top: 12px;
+    font-size: 14px;
+    line-height: 1.4;
+    min-height: 18px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .check-result.in    { color: var(--ok); }
+  .check-result.out   { color: var(--ink-3); }
+  .check-result.bad   { color: var(--bad); }
 
   /* === FOOTER (canonical) === */
   footer {
@@ -240,7 +304,26 @@
   </div>
 
   <div id="successPanel" class="success" hidden>
-    <div class="success-title">You're on the list.</div>
+    <div class="success-title" id="successTitle">You're on the list.</div>
+    <div class="success-sub" id="successSub" hidden></div>
+
+    <div class="check-block">
+      <div class="check-label">Check another address</div>
+      <form class="check-row" id="checkForm" novalidate>
+        <input
+          type="text"
+          id="checkInput"
+          placeholder="0x… or yourname.eth"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          aria-label="Address or ENS name to check"
+        />
+        <button type="submit" id="checkSubmit" disabled>Check</button>
+      </form>
+      <div class="check-result" id="checkResult"></div>
+    </div>
   </div>
 </main>
 
@@ -288,9 +371,29 @@ const submitBtn     = document.getElementById('reserveSubmit');
 const form          = document.getElementById('reserveForm');
 const formContainer = document.getElementById('formContainer');
 const successPanel  = document.getElementById('successPanel');
+const successTitle  = document.getElementById('successTitle');
+const successSub    = document.getElementById('successSub');
+const checkInput    = document.getElementById('checkInput');
+const checkSubmit   = document.getElementById('checkSubmit');
+const checkForm     = document.getElementById('checkForm');
+const checkResult   = document.getElementById('checkResult');
 
 const RE_ETH = /^0x[a-fA-F0-9]{40}$/;
 const RE_ENS = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.eth$/i;
+
+function shortDate(ms) {
+  if (typeof ms !== 'number') return '';
+  try {
+    return new Date(ms).toLocaleDateString(undefined, {
+      day: 'numeric', month: 'short', year: 'numeric'
+    });
+  } catch (_) { return ''; }
+}
+function shortAddr(s) {
+  if (!s) return '';
+  if (s.startsWith('0x') && s.length === 42) return s.slice(0, 6) + '…' + s.slice(-4);
+  return s;
+}
 
 function classify(v) {
   const trimmed = v.trim().toLowerCase();
@@ -334,9 +437,19 @@ async function submitReservation(value) {
   return r.json();
 }
 
-function showSuccess() {
+function showSuccess(resp) {
   formContainer.hidden = true;
   successPanel.hidden = false;
+  if (resp && resp.already_in_list) {
+    successTitle.textContent = "You were already in.";
+    if (resp.signed_up_ms) {
+      successSub.textContent = 'Saved on ' + shortDate(resp.signed_up_ms) + '.';
+      successSub.hidden = false;
+    }
+  } else {
+    successTitle.textContent = "You're on the list.";
+    successSub.hidden = true;
+  }
 }
 
 form.addEventListener('submit', async (e) => {
@@ -346,8 +459,8 @@ form.addEventListener('submit', async (e) => {
   submitBtn.disabled = true;
   submitBtn.textContent = 'Saving…';
   try {
-    await submitReservation(r.value);
-    showSuccess();
+    const resp = await submitReservation(r.value);
+    showSuccess(resp);
   } catch (err) {
     // Re-enable the button so the user can try again. Don't show a
     // wall of error text — most failures here are transient (network
@@ -357,8 +470,54 @@ form.addEventListener('submit', async (e) => {
   }
 });
 
+// === CHECK SUB-FORM ===
+// Lives on the success panel. Anyone can paste a wallet or ENS to see
+// if it's on the list. Defaults to the user's own input on first show
+// (so they can verify their own save with one tap).
+function updateCheckValidation() {
+  const r = classify(checkInput.value);
+  checkSubmit.disabled = !r.valid;
+}
+checkInput.addEventListener('input', updateCheckValidation);
+checkInput.addEventListener('blur', updateCheckValidation);
+
+checkForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const r = classify(checkInput.value);
+  if (!r.valid) return;
+  checkSubmit.disabled = true;
+  checkSubmit.textContent = '…';
+  checkResult.className = 'check-result';
+  checkResult.textContent = '';
+  try {
+    const url = `${WORKER_URL}/api/waitlist/check?address=${encodeURIComponent(r.value)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('http');
+    const data = await res.json();
+    if (data.ens_unresolvable) {
+      checkResult.className = 'check-result bad';
+      checkResult.textContent = "Couldn't resolve that ENS name.";
+    } else if (data.in_list) {
+      checkResult.className = 'check-result in';
+      const addr = shortAddr(data.resolved_address || r.value);
+      const when = data.signed_up_ms ? ' · saved ' + shortDate(data.signed_up_ms) : '';
+      checkResult.textContent = '✓ ' + addr + when;
+    } else {
+      checkResult.className = 'check-result out';
+      checkResult.textContent = 'Not on the list yet.';
+    }
+  } catch (err) {
+    checkResult.className = 'check-result bad';
+    checkResult.textContent = 'Check failed — try again.';
+  } finally {
+    checkSubmit.textContent = 'Check';
+    updateCheckValidation();
+  }
+});
+
 // Boot
 updateValidation();
+updateCheckValidation();
 </script>
 
 </body>

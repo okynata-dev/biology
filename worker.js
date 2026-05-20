@@ -595,30 +595,52 @@ const RE_EMAIL_LOOSE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // guard against homoglyph spoofing.
 const RE_ENS_NAME = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.eth$/;
 
-// ENS resolver — uses a free public RPC so this works without the
-// Alchemy key. Cloudflare's own eth gateway is rate-limited but
-// generous enough for waitlist-rate writes (one per signup, ~once
-// per minute at peak). Falls back to Alchemy if ALCHEMY_KEY is set
-// (faster + no shared rate limit).
+// ENS resolver — two-path:
+//
+//   1. If ALCHEMY_KEY is set, resolve via viem + Alchemy mainnet
+//      (private quota, fast, supports CCIP-read for wildcard
+//      resolvers like .base.eth / .uni.eth).
+//   2. Otherwise, fall back to ENSIdeas' public HTTP API. Simple
+//      GET with JSON response, no on-chain Universal-Resolver
+//      contract calls needed (the public Cloudflare RPC doesn't
+//      support CCIP-read so plain viem on it fails for many real
+//      names — including basenames and some primary records).
+//
+// Either way the return is a lowercased 0x address or null. We
+// normalize the input first so the lookup is canonical.
 async function resolveEnsName(env, name) {
   let normalized;
   try { normalized = normalize(name); }
   catch (_) { return null; }
-  const rpcUrl = env.ALCHEMY_KEY
-    ? `https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_KEY}`
-    : 'https://cloudflare-eth.com';
-  const client = createPublicClient({
-    chain: mainnet,
-    transport: http(rpcUrl, {
-      timeout: EXTERNAL_FETCH_TIMEOUT_MS,
-      retryCount: 1,
-    }),
-  });
+
+  if (env.ALCHEMY_KEY) {
+    try {
+      const client = createPublicClient({
+        chain: mainnet,
+        transport: http(`https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_KEY}`, {
+          timeout: EXTERNAL_FETCH_TIMEOUT_MS,
+          retryCount: 1,
+        }),
+      });
+      const addr = await client.getEnsAddress({ name: normalized });
+      if (addr) return addr.toLowerCase();
+    } catch (e) {
+      console.warn('ENS resolve via Alchemy failed, falling back:', name, e?.shortMessage || e?.message);
+    }
+  }
+
   try {
-    const addr = await client.getEnsAddress({ name: normalized });
-    return addr ? addr.toLowerCase() : null;
+    const r = await fetchWithTimeout(
+      `https://api.ensideas.com/ens/resolve/${encodeURIComponent(normalized)}`
+    );
+    if (!r.ok) return null;
+    const data = await r.json().catch(() => null);
+    if (data && typeof data.address === 'string' && data.address.startsWith('0x')) {
+      return data.address.toLowerCase();
+    }
+    return null;
   } catch (e) {
-    console.warn('ENS resolve failed:', name, e?.shortMessage || e?.message || String(e));
+    console.warn('ENS resolve via ENSIdeas failed:', name, e?.message || e);
     return null;
   }
 }
@@ -674,14 +696,57 @@ async function handleWaitlistAdd(req, env, origin) {
     return error('rate_limited', 429, origin);
   }
 
-  // INSERT OR IGNORE so a duplicate value silently succeeds — the user
-  // sees "you're on the list" either way. We don't leak whether they
-  // were already there.
+  // Look up first — if the value is already in, we report it back so
+  // the UI can show "you were already on the list (since X)". This
+  // is OK to disclose because the caller already knows their own
+  // address; they just hit submit and got a friendlier confirmation.
+  const existing = await env.DB.prepare(
+    'SELECT ts FROM waitlist WHERE value = ?'
+  ).bind(value).first();
+
+  if (existing) {
+    return json({ ok: true, already_in_list: true, signed_up_ms: existing.ts }, {}, origin);
+  }
+
   await env.DB.prepare(
     'INSERT OR IGNORE INTO waitlist (kind, value, ts, ip_hash) VALUES (?, ?, ?, ?)'
   ).bind(kind, value, nowMs, ipHash).run();
 
-  return json({ ok: true }, {}, origin);
+  return json({ ok: true, already_in_list: false, signed_up_ms: nowMs }, {}, origin);
+}
+
+// GET /api/waitlist/check?address=0x... | name.eth
+// Returns whether an address (or ENS-resolved address) is in the list.
+// Validates and resolves ENS the same way the POST does. Useful for the
+// "check another address" sub-form on /reserve — anyone can verify
+// whether a specific address is on the waitlist without re-signing them up.
+async function handleWaitlistCheck(req, env, origin) {
+  const url = new URL(req.url);
+  let q = (url.searchParams.get('address') || '').trim().toLowerCase();
+  if (!q) return error('bad_value', 400, origin);
+
+  let resolved = null;
+  if (RE_ETH_ADDR.test(q)) {
+    resolved = q;
+  } else if (RE_ENS_NAME.test(q)) {
+    resolved = await resolveEnsName(env, q);
+    if (!resolved) {
+      return json({ ok: true, in_list: false, resolved_address: null, ens_unresolvable: true }, {}, origin);
+    }
+  } else {
+    return error('bad_address', 400, origin);
+  }
+
+  const row = await env.DB.prepare(
+    'SELECT ts FROM waitlist WHERE value = ?'
+  ).bind(resolved).first();
+
+  return json({
+    ok: true,
+    in_list: !!row,
+    signed_up_ms: row ? row.ts : null,
+    resolved_address: resolved,
+  }, {}, origin);
 }
 
 async function handleWaitlistCount(env, origin) {
@@ -749,6 +814,9 @@ export default {
       }
       if (path === '/api/waitlist/count') {
         return await handleWaitlistCount(env, origin);
+      }
+      if (path === '/api/waitlist/check') {
+        return await handleWaitlistCheck(req, env, origin);
       }
       if (path === '/api/waitlist' && req.method === 'POST') {
         return await handleWaitlistAdd(req, env, origin);
