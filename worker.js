@@ -23,6 +23,7 @@
 
 import { recoverTypedDataAddress, createPublicClient, http, isAddress, getAddress } from 'viem';
 import { mainnet } from 'viem/chains';
+import { normalize } from 'viem/ens';
 
 // ----- CORS / utility -----
 const ALLOWED_ORIGINS = [
@@ -588,6 +589,39 @@ async function handleLog(env, url, origin) {
 // ============================================================
 const RE_ETH_ADDR = /^0x[a-fA-F0-9]{40}$/;
 const RE_EMAIL_LOOSE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// ENS names — at least one label, ending in .eth. Allows subdomains
+// like vitalik.base.eth, hot.box.eth, etc. ASCII-only for now; unicode
+// names exist but are rare and would need stricter normalization to
+// guard against homoglyph spoofing.
+const RE_ENS_NAME = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.eth$/;
+
+// ENS resolver — uses a free public RPC so this works without the
+// Alchemy key. Cloudflare's own eth gateway is rate-limited but
+// generous enough for waitlist-rate writes (one per signup, ~once
+// per minute at peak). Falls back to Alchemy if ALCHEMY_KEY is set
+// (faster + no shared rate limit).
+async function resolveEnsName(env, name) {
+  let normalized;
+  try { normalized = normalize(name); }
+  catch (_) { return null; }
+  const rpcUrl = env.ALCHEMY_KEY
+    ? `https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_KEY}`
+    : 'https://cloudflare-eth.com';
+  const client = createPublicClient({
+    chain: mainnet,
+    transport: http(rpcUrl, {
+      timeout: EXTERNAL_FETCH_TIMEOUT_MS,
+      retryCount: 1,
+    }),
+  });
+  try {
+    const addr = await client.getEnsAddress({ name: normalized });
+    return addr ? addr.toLowerCase() : null;
+  } catch (e) {
+    console.warn('ENS resolve failed:', name, e?.shortMessage || e?.message || String(e));
+    return null;
+  }
+}
 
 async function _sha256Hex(text) {
   const enc = new TextEncoder().encode(text);
@@ -605,7 +639,21 @@ async function handleWaitlistAdd(req, env, origin) {
   if (typeof value !== 'string') return error('bad_value', 400, origin);
   value = value.trim().toLowerCase();
   if (kind === 'address') {
-    if (!RE_ETH_ADDR.test(value)) return error('bad_address', 400, origin);
+    // Accept either a raw 0x address OR an ENS name. ENS gets
+    // resolved server-side and stored as the resolved address —
+    // the snapshot script then sees a clean list of 0x values
+    // ready for the allowlist Merkle tree.
+    if (RE_ETH_ADDR.test(value)) {
+      // Already a 0x address — keep as-is.
+    } else if (RE_ENS_NAME.test(value)) {
+      const resolved = await resolveEnsName(env, value);
+      if (!resolved) {
+        return error('ens_unresolvable', 400, origin);
+      }
+      value = resolved;
+    } else {
+      return error('bad_address', 400, origin);
+    }
   } else if (kind === 'email') {
     if (!RE_EMAIL_LOOSE.test(value) || value.length > 254) return error('bad_email', 400, origin);
   } else {

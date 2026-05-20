@@ -226,13 +226,13 @@
           type="text"
           id="reserveInput"
           name="value"
-          placeholder="0x… your wallet address"
+          placeholder="0x… or yourname.eth"
           autocomplete="off"
           autocapitalize="off"
           autocorrect="off"
           spellcheck="false"
           required
-          aria-label="Ethereum wallet address"
+          aria-label="Ethereum wallet address or ENS name"
         />
       </div>
       <button type="submit" class="btn" id="reserveSubmit" disabled>Save my spot</button>
@@ -290,11 +290,13 @@ const formContainer = document.getElementById('formContainer');
 const successPanel  = document.getElementById('successPanel');
 
 const RE_ETH = /^0x[a-fA-F0-9]{40}$/;
+const RE_ENS = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.eth$/i;
 
 function classify(v) {
-  const trimmed = v.trim();
+  const trimmed = v.trim().toLowerCase();
   if (!trimmed) return { valid: false, value: null };
-  if (RE_ETH.test(trimmed)) return { valid: true, value: trimmed.toLowerCase() };
+  if (RE_ETH.test(trimmed)) return { valid: true, value: trimmed };
+  if (RE_ENS.test(trimmed)) return { valid: true, value: trimmed };
   return { valid: false, value: null };
 }
 
