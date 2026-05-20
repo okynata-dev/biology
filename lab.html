@@ -914,6 +914,110 @@
   .burn-preview-card .outcome-name { font-size: 14px; font-weight: 500; color: var(--ink); margin-bottom: 4px; }
   .burn-preview-card .outcome-caption { font-size: 13px; color: var(--ink-2); line-height: 1.4; }
 
+  /* === Crossbreed dual-preview (both bioms shown after) ===
+     Burn destroys one biom so its result card shows ONE preview.
+     Crossbreed leaves BOTH alive — the user picked two, so the
+     result has to SHOW two, otherwise people ask "where did
+     the other one go?" (And they did. Repeatedly.)
+     Layout: two equal previews side-by-side on desktop, stacked
+     vertically on mobile. Each tagged "Stays" or "Becomes …" so
+     the eye lands on what changed without re-reading. */
+  .crossbreed-result-card {
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+    overflow: hidden;
+    max-width: 560px;
+    box-shadow: 0 0 0 4px rgba(28, 26, 22, 0.06);
+  }
+  .crossbreed-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);  /* shows through the gap as a hairline divider */
+  }
+  .crossbreed-half {
+    background: var(--paper);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .crossbreed-half .outcome-frame {
+    aspect-ratio: 1;
+    background: var(--paper);
+    position: relative;
+  }
+  .crossbreed-half .outcome-frame iframe {
+    width: 100%; height: 100%; border: 0; display: block;
+    pointer-events: none;
+  }
+  .crossbreed-half .half-label {
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--rule);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .crossbreed-half .half-name {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--ink-2);
+    margin-bottom: 2px;
+  }
+  .crossbreed-half .half-change {
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .crossbreed-half .half-change.stays {
+    color: var(--ink-3);
+    font-weight: 400;
+  }
+  /* The corner pill on each preview ("Stays" / "Gains pili") —
+     visible at a glance without reading the full label below. */
+  .crossbreed-half .half-pill {
+    position: absolute;
+    top: 8px; left: 8px;
+    background: var(--ink);
+    color: var(--bg);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    line-height: 1;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .crossbreed-half .half-pill.stays {
+    background: var(--paper);
+    color: var(--ink-3);
+    border: 1px solid var(--rule);
+  }
+  .crossbreed-result-card .outcome-meta {
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--rule);
+    background: var(--paper);
+  }
+  .crossbreed-result-card .outcome-name {
+    font-size: 14px; font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .crossbreed-result-card .outcome-caption {
+    font-size: 13px;
+    color: var(--ink-2);
+    line-height: 1.4;
+  }
+  /* Mobile: stack vertically so each preview keeps a usable size. */
+  @media (max-width: 600px) {
+    .crossbreed-pair {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 1fr;
+    }
+  }
+
   /* (trait-picker / change-preview CSS removed — replaced by outcomes gallery) */
 
   /* === CONJUGATE BUTTON === */
@@ -3502,19 +3606,23 @@ function renderOutcomes() {
     return;
   }
 
-  // --- CROSSBREED MODE: single big result card (mirror of burn UI) ---
+  // --- CROSSBREED MODE: dual-preview result card ---
   //
-  // v2 design (2026-05): the "pick which trait to share" gallery was
-  // confusing — too many cards, a 4th step in the flow, and the per-
-  // trait cooldown chip ("Axial filament · 44s") leaked internal game
-  // state to users who had no language for it. A 4-year-old test failed.
+  // v2.1 (2026-05): showing ONE preview after the user picked TWO
+  // bioms broke their mental model — they kept asking "where did the
+  // other one go?". Crossbreed leaves BOTH bioms alive (only burn kills
+  // a biom), so the result card now shows BOTH side-by-side in their
+  // post-crossbreed state. The one that changed gets a "Now …" pill,
+  // the unchanged one gets a softer "Stays" pill, so the eye lands
+  // on the change without reading.
   //
-  // New shape: same as burn. Pick A → Pick B → ONE result preview →
-  // Confirm. The system auto-picks the most-impactful eligible trait
-  // (priority: anomaly > organelle > palette > morphology > lifecycle >
-  // reserveGranule > cellCount), preferring outcomes that change B (the
-  // recipient) so the donor → recipient mental model matches burn.
+  // System still auto-picks the most-impactful eligible trait
+  // (anomaly > organelle > palette > morphology > scalars) to remove
+  // the "pick which" decision that was confusing 4-year-olds. The
+  // user just confirms.
   document.querySelector('.outcomes-head').textContent = 'After the crossbreed:';
+  outcomesHint.textContent = 'Crossbreed shares one trait between two Bioms. Both stay alive — only burn destroys.';
+  outcomesHint.hidden = false;
   const outcomes = crossbreedOutcomes(donorSeed, recipientSeed);
   if (outcomes.length === 0) {
     _outcomesEmpty = true;
@@ -3524,33 +3632,123 @@ function renderOutcomes() {
     return;
   }
   _outcomesEmpty = false;
-  outcomesHint.hidden = true;  // single card is self-explanatory; no extra hint
 
   // Auto-pick the most-impactful outcome.
   const auto = _autoPickCrossbreed(outcomes, donorSeed, recipientSeed);
   selectedTrait = auto.id;  // commit so performCrossbreed has a valid outcomeId
 
-  // Render: same layout as burn-preview-card. Live iframe for fidelity
-  // (one card, not seven — backdrop-filter is affordable here).
-  const url = previewUrlFor(auto.changedSeed, auto.previewState, { nointeract: true });
+  // Compute the post-crossbreed state for BOTH bioms. The outcome's
+  // `apply` payload is applied to both on commit (some are no-ops on
+  // the side that already has the trait — that's how organelles work).
+  // Reuse the engine's mutation-application by simulating it locally:
+  // we don't actually persist anything until performCrossbreed is called.
+  const aPostState = _simulatePostState(donorSeed, auto.apply);
+  const bPostState = _simulatePostState(recipientSeed, auto.apply);
+  const aUrl = previewUrlFor(donorSeed, aPostState, { nointeract: true });
+  const bUrl = previewUrlFor(recipientSeed, bPostState, { nointeract: true });
+
   const donorLabel = window.BiomEngine.label(donorSeed);
   const recipLabel = window.BiomEngine.label(recipientSeed);
-  const changedLabel = window.BiomEngine.label(auto.changedSeed);
-  const otherLabel = auto.changedSeed === donorSeed ? recipLabel : donorLabel;
-  // Human prose for the caption — replace "Share A's stain · B becomes pink"
-  // with one flowing sentence so users don't have to translate jargon.
+  // Per-side change description ("Stays" if visually unchanged, else
+  // a short noun phrase like "Now methylene blue" or "Gains pili").
+  const aDesc = _crossbreedSideDesc(donorSeed, aPostState, auto);
+  const bDesc = _crossbreedSideDesc(recipientSeed, bPostState, auto);
   const captionText = _crossbreedProse(auto, donorSeed, recipientSeed, donorLabel, recipLabel);
+
   outcomesGrid.innerHTML = `
-    <div class="burn-preview-card crossbreed-preview-card">
-      <div class="outcome-frame">
-        <iframe src="${url}" loading="eager" tabindex="-1" title="Crossbreed result preview"></iframe>
+    <div class="crossbreed-result-card">
+      <div class="crossbreed-pair">
+        <div class="crossbreed-half">
+          <div class="outcome-frame">
+            <span class="half-pill ${aDesc.stays ? 'stays' : ''}">${aDesc.pill}</span>
+            <iframe src="${aUrl}" loading="eager" tabindex="-1" title="${donorLabel} after crossbreed"></iframe>
+          </div>
+          <div class="half-label">
+            <div class="half-name">${donorLabel}</div>
+            <div class="half-change ${aDesc.stays ? 'stays' : ''}">${aDesc.text}</div>
+          </div>
+        </div>
+        <div class="crossbreed-half">
+          <div class="outcome-frame">
+            <span class="half-pill ${bDesc.stays ? 'stays' : ''}">${bDesc.pill}</span>
+            <iframe src="${bUrl}" loading="eager" tabindex="-1" title="${recipLabel} after crossbreed"></iframe>
+          </div>
+          <div class="half-label">
+            <div class="half-name">${recipLabel}</div>
+            <div class="half-change ${bDesc.stays ? 'stays' : ''}">${bDesc.text}</div>
+          </div>
+        </div>
       </div>
       <div class="outcome-meta">
-        <div class="outcome-name">${changedLabel} after sharing with ${otherLabel}</div>
+        <div class="outcome-name">Both Bioms keep existing — one changes</div>
         <div class="outcome-caption">${captionText}</div>
       </div>
     </div>
   `;
+}
+
+// === Simulate what a Biom looks like AFTER an outcome.apply ===
+// We don't mutate persistent state — just produce a previewState object
+// the renderer can use. Mirrors the logic in applyMutation but is pure.
+function _simulatePostState(seed, apply) {
+  const eff = effectiveState(seed);
+  // Clone deeply enough to render
+  const next = {
+    ...eff,
+    organelles: new Set(eff.organelles),
+  };
+  if (apply.palette) next.palette = apply.palette;
+  if (apply.addOrganelle) next.organelles.add(apply.addOrganelle);
+  if (apply.setAnomaly) next[apply.setAnomaly] = true;
+  if (apply.set_morphology) next.morphology = apply.set_morphology;
+  if (apply.set_lifecycle) next.lifecycle = apply.set_lifecycle;
+  if (apply.set_reserveGranule) next.reserveGranule = apply.set_reserveGranule;
+  if (apply.set_cellCount) next.cellCount = apply.set_cellCount;
+  return next;
+}
+
+// === Per-side description: did THIS biom visually change? ===
+// Returns { stays: bool, pill: short-label, text: full-phrase }
+// "stays" controls the gray tone treatment.
+function _crossbreedSideDesc(seed, postState, outcome) {
+  const eff = effectiveState(seed);
+  // Compare post vs current — same value means no visible change.
+  let changedField = null;
+  if (outcome.apply.palette && eff.palette !== outcome.apply.palette) changedField = 'palette';
+  else if (outcome.apply.addOrganelle && !eff.organelles.has(outcome.apply.addOrganelle)) changedField = 'organelle';
+  else if (outcome.apply.setAnomaly && !eff[outcome.apply.setAnomaly]) changedField = 'anomaly';
+  else if (outcome.apply.set_morphology && eff.morphology !== outcome.apply.set_morphology) changedField = 'morphology';
+  else if (outcome.apply.set_lifecycle && eff.lifecycle !== outcome.apply.set_lifecycle) changedField = 'lifecycle';
+  else if (outcome.apply.set_reserveGranule && eff.reserveGranule !== outcome.apply.set_reserveGranule) changedField = 'reserveGranule';
+  else if (outcome.apply.set_cellCount && eff.cellCount !== outcome.apply.set_cellCount) changedField = 'cellCount';
+
+  if (!changedField) {
+    return { stays: true, pill: 'Stays', text: 'Unchanged — its traits stay the same.' };
+  }
+  switch (changedField) {
+    case 'palette': {
+      const name = PALETTE_LABELS[outcome.apply.palette] || outcome.apply.palette;
+      return { stays: false, pill: 'New stain', text: `Now ${name}.` };
+    }
+    case 'organelle': {
+      const t = TRANSFERABLE_BY_ID[outcome.apply.addOrganelle];
+      return { stays: false, pill: 'Gains', text: `Gains ${(t?.label || outcome.apply.addOrganelle).toLowerCase()}.` };
+    }
+    case 'anomaly': {
+      const t = TRANSFERABLE_BY_ID[outcome.apply.setAnomaly];
+      return { stays: false, pill: 'Gains (rare)', text: `Gains ${(t?.label || outcome.apply.setAnomaly).toLowerCase()}.` };
+    }
+    case 'morphology':
+      return { stays: false, pill: 'New shape', text: 'Takes on a new body shape.' };
+    case 'lifecycle':
+      return { stays: false, pill: 'New state', text: 'Shifts to a new lifecycle state.' };
+    case 'reserveGranule':
+      return { stays: false, pill: 'New reserve', text: 'Gains a different reserve granule.' };
+    case 'cellCount':
+      return { stays: false, pill: 'New colony', text: `Becomes a ${outcome.apply.set_cellCount}-cell colony.` };
+    default:
+      return { stays: false, pill: 'Changes', text: 'Gains a new trait.' };
+  }
 }
 
 // === Auto-pick the most impactful crossbreed outcome ===
@@ -3577,40 +3775,38 @@ function _autoPickCrossbreed(outcomes, donorSeed, recipientSeed) {
   return scored[0].o;
 }
 
-// === Caption prose for the single crossbreed result card ===
-// Goal: natural-language sentence about what's happening. No jargon
-// like "Share A's stain" or "B gains pili" — those were internal labels.
+// === Caption prose for the dual-preview crossbreed card ===
+// Goal: one sentence that explains the mechanic to a first-time user.
+// Sits under the two side-by-side previews and ties them together.
 function _crossbreedProse(outcome, donorSeed, recipientSeed, donorLabel, recipLabel) {
   const isDonorChanging = outcome.changedSeed === donorSeed;
-  const recipient = isDonorChanging ? donorLabel : recipLabel;
-  const giver     = isDonorChanging ? recipLabel : donorLabel;
+  const receiver = isDonorChanging ? donorLabel : recipLabel;
+  const giver    = isDonorChanging ? recipLabel : donorLabel;
+  let traitPhrase;
   switch (outcome.kind) {
     case 'palette': {
       const next = outcome.previewState.palette;
       const colorName = PALETTE_LABELS[next] || next;
-      return `${recipient} takes on ${giver}'s <strong>${colorName}</strong> stain. About 15% of crossbreeds are rejected.`;
+      traitPhrase = `the <strong>${colorName}</strong> stain`;
+      break;
     }
     case 'organelle': {
       const trait = TRANSFERABLE_BY_ID[outcome.sharedTraitId];
-      const label = (trait?.label || outcome.sharedTraitId).toLowerCase();
-      return `${recipient} gains <strong>${label}</strong> from ${giver}. About 15% of crossbreeds are rejected.`;
+      traitPhrase = `<strong>${(trait?.label || outcome.sharedTraitId).toLowerCase()}</strong>`;
+      break;
     }
     case 'anomaly': {
       const trait = TRANSFERABLE_BY_ID[outcome.sharedTraitId];
-      const label = (trait?.label || outcome.sharedTraitId).toLowerCase();
-      return `${recipient} gains <strong>${label}</strong> (rare) from ${giver}. About 15% of crossbreeds are rejected.`;
+      traitPhrase = `<strong>${(trait?.label || outcome.sharedTraitId).toLowerCase()}</strong> (a rare anomaly)`;
+      break;
     }
-    case 'morphology': {
-      return `${recipient} takes on ${giver}'s <strong>body shape</strong>. About 15% of crossbreeds are rejected.`;
-    }
-    case 'lifecycle':
-    case 'reserveGranule':
-    case 'cellCount': {
-      return `${recipient} adopts a trait from ${giver}. About 15% of crossbreeds are rejected.`;
-    }
-    default:
-      return `Both Bioms share a trait. About 15% of crossbreeds are rejected.`;
+    case 'morphology': traitPhrase = `a new <strong>body shape</strong>`; break;
+    case 'lifecycle':  traitPhrase = `a <strong>lifecycle state</strong>`; break;
+    case 'reserveGranule': traitPhrase = `a <strong>reserve granule</strong>`; break;
+    case 'cellCount':  traitPhrase = `a <strong>colony size</strong>`; break;
+    default: traitPhrase = `a trait`;
   }
+  return `${giver} lends ${traitPhrase} to ${receiver}. About 15% of crossbreeds are rejected.`;
 }
 
 // Look up a crossbreed outcome object by id (used by the commit function).
