@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bioms — Admin</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ece9e0;
+    --paper: #f4f1e8;
+    --ink: #1c1a16;
+    --ink-2: #5b554a;
+    --ink-3: #6f6a5c;
+    --rule: rgba(28, 26, 22, 0.12);
+    --ok: #2d6a4f;
+    --bad: #9a4a2e;
+  }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    line-height: 1.5;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* === HEADER === */
+  header {
+    padding: 24px 32px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 10px;
+    text-decoration: none;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .brand img { width: 20px; height: 20px; }
+  .brand .label { font-size: 16px; }
+  .brand .sep { color: var(--ink-3); font-weight: 400; margin: 0 4px; }
+
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .btn:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .btn.danger:hover { background: var(--bad); border-color: var(--bad); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* === MAIN === */
+  main {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 32px;
+  }
+
+  /* === AUTH GATE === */
+  .auth {
+    max-width: 420px;
+    margin: 80px auto 0;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    padding: 32px;
+    text-align: center;
+  }
+  .auth h2 {
+    font-size: 22px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    letter-spacing: -0.015em;
+  }
+  .auth p {
+    color: var(--ink-2);
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+  .auth input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  .auth input:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 3px rgba(28,26,22,0.08); }
+  .auth .btn-primary {
+    width: 100%;
+    background: var(--ink);
+    color: var(--bg);
+    padding: 12px;
+    border-radius: 8px;
+    border: 0;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .auth .btn-primary:hover { opacity: 0.92; }
+  .auth .error {
+    color: var(--bad);
+    font-size: 13px;
+    margin-top: 12px;
+    min-height: 18px;
+  }
+
+  /* === STATS BAR === */
+  .stats {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .stats strong {
+    color: var(--ink);
+    font-weight: 500;
+    font-size: 16px;
+    margin-right: 6px;
+  }
+
+  /* === SEARCH === */
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .search {
+    flex: 1;
+    min-width: 200px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .search:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 2px rgba(28,26,22,0.08); }
+
+  /* === TABLE === */
+  .wrap-table {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead {
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+  }
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-weight: 500;
+    color: var(--ink-3);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--rule);
+    transition: background 0.1s;
+  }
+  tbody tr:last-child { border-bottom: 0; }
+  tbody tr:hover { background: rgba(28, 26, 22, 0.03); }
+  td {
+    padding: 12px 16px;
+    vertical-align: middle;
+  }
+  td.id { color: var(--ink-3); font-variant-numeric: tabular-nums; width: 60px; }
+  td.addr {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--ink);
+  }
+  td.addr a { color: inherit; text-decoration: none; }
+  td.addr a:hover { color: var(--bad); text-decoration: underline; text-underline-offset: 3px; }
+  td.copy-cell { width: 50px; }
+  .copy-btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--ink-3);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font: inherit;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .copy-btn:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+  td.date {
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    width: 200px;
+    white-space: nowrap;
+  }
+
+  .empty {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--ink-3);
+  }
+  .loading {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--ink-3);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+  }
+
+  /* === MOBILE === */
+  @media (max-width: 700px) {
+    header { padding: 16px 18px; }
+    main { padding: 18px; }
+    td.id, td.copy-cell, th:nth-child(1), th:nth-child(4) { display: none; }
+    td.addr { word-break: break-all; }
+    td.date { width: auto; font-size: 11px; }
+    .auth { margin: 32px auto; padding: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <img src="/favicon.svg" alt="">
+    <span class="label">Bioms</span>
+    <span class="sep">·</span>
+    <span class="label">Waitlist</span>
+  </a>
+  <div class="actions" id="actions" hidden>
+    <button class="btn" id="refresh-btn">Refresh</button>
+    <button class="btn" id="download-btn">Download CSV</button>
+    <button class="btn danger" id="logout-btn">Forget token</button>
+  </div>
+</header>
+
+<main>
+  <!-- AUTH GATE — visible if no token in localStorage and none in URL hash -->
+  <div class="auth" id="auth-screen" hidden>
+    <h2>Enter admin token</h2>
+    <p>Paste the value you set via <code>wrangler secret put ADMIN_TOKEN</code>. It stays in this browser only — never sent in a URL.</p>
+    <input type="password" id="token-input" placeholder="64 hex characters…" autocomplete="off">
+    <button class="btn-primary" id="auth-submit">Continue</button>
+    <div class="error" id="auth-error"></div>
+  </div>
+
+  <!-- CONTENT — visible when authenticated -->
+  <div id="content" hidden>
+    <div class="stats">
+      <span><strong id="total">—</strong>signups</span>
+      <span>last <strong id="last-ago">—</strong></span>
+    </div>
+
+    <div class="toolbar">
+      <input class="search" id="search" placeholder="Filter by address…" autocomplete="off">
+    </div>
+
+    <div class="wrap-table">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Address</th>
+            <th></th>
+            <th>Saved</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="4" class="loading">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+// =============================================================
+// Bioms admin — waitlist viewer
+//
+// Token flow:
+//   1. URL hash (#token=…) — bookmark format. Read on load, copy to
+//      localStorage, then clean the hash so it doesn't show in the
+//      browser address bar after page settles.
+//   2. localStorage — persistent across sessions for this browser.
+//   3. Auth gate — if neither, ask for paste once.
+//
+// Token never appears in:
+//   - HTTP Referer (meta name=referrer set to no-referrer)
+//   - URL after first load (hash cleared via history.replaceState)
+//   - Server access logs from THIS page (we use query-string only on
+//     the fetch, not on the HTML URL)
+//
+// Token DOES appear in:
+//   - This browser's localStorage (use "Forget token" to wipe)
+//   - The fetch URL to /api/admin/waitlist (HTTPS, but visible in
+//     CF Worker logs if those are enabled — that's the same account
+//     that owns the token, so not a leak)
+// =============================================================
+const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:8787'
+  : 'https://api.thebioms.com';
+
+const LS_KEY = 'bioms-admin-token';
+
+const authScreen  = document.getElementById('auth-screen');
+const contentEl   = document.getElementById('content');
+const actionsEl   = document.getElementById('actions');
+const tokenInput  = document.getElementById('token-input');
+const authSubmit  = document.getElementById('auth-submit');
+const authError   = document.getElementById('auth-error');
+const totalEl     = document.getElementById('total');
+const lastAgoEl   = document.getElementById('last-ago');
+const searchEl    = document.getElementById('search');
+const rowsEl      = document.getElementById('rows');
+const refreshBtn  = document.getElementById('refresh-btn');
+const downloadBtn = document.getElementById('download-btn');
+const logoutBtn   = document.getElementById('logout-btn');
+
+let allRows = [];
+
+// ===== Token handling =====
+function getToken() {
+  // Check URL hash first (bookmark format)
+  if (location.hash.startsWith('#token=')) {
+    const t = decodeURIComponent(location.hash.slice('#token='.length));
+    if (t) {
+      try { localStorage.setItem(LS_KEY, t); } catch (_) {}
+      // Clean URL — drop the hash so future copies of the URL bar
+      // don't expose the token
+      history.replaceState(null, '', location.pathname);
+      return t;
+    }
+  }
+  try { return localStorage.getItem(LS_KEY) || ''; } catch (_) { return ''; }
+}
+
+function setToken(t) {
+  try { localStorage.setItem(LS_KEY, t); } catch (_) {}
+}
+
+function clearToken() {
+  try { localStorage.removeItem(LS_KEY); } catch (_) {}
+}
+
+// ===== Formatting helpers =====
+function shortAddr(s) {
+  if (!s || s.length < 12) return s || '';
+  return s.slice(0, 6) + '…' + s.slice(-4);
+}
+function timeAgo(ms) {
+  const sec = Math.floor((Date.now() - ms) / 1000);
+  if (sec < 60) return sec + 's ago';
+  if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+  if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+  return Math.floor(sec / 86400) + 'd ago';
+}
+function fmtDate(ms) {
+  if (!ms) return '—';
+  try {
+    const d = new Date(ms);
+    const dateStr = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return dateStr + ' · ' + timeStr;
+  } catch (_) { return String(ms); }
+}
+
+// ===== Render =====
+function renderRows(rows) {
+  if (rows.length === 0) {
+    rowsEl.innerHTML = '<tr><td colspan="4" class="empty">No signups yet.</td></tr>';
+    return;
+  }
+  const html = rows.map(r => `
+    <tr>
+      <td class="id">#${r.id}</td>
+      <td class="addr">
+        <a href="https://etherscan.io/address/${r.value}" target="_blank" rel="noopener" title="View on Etherscan">${r.value}</a>
+      </td>
+      <td class="copy-cell">
+        <button class="copy-btn" data-value="${r.value}">Copy</button>
+      </td>
+      <td class="date" title="${new Date(r.signedUpMs).toISOString()}">${fmtDate(r.signedUpMs)}</td>
+    </tr>
+  `).join('');
+  rowsEl.innerHTML = html;
+  // Wire copy buttons
+  rowsEl.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const v = btn.dataset.value;
+      try {
+        await navigator.clipboard.writeText(v);
+        const orig = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1400);
+      } catch (_) {}
+    });
+  });
+}
+
+function applyFilter() {
+  const q = (searchEl.value || '').trim().toLowerCase();
+  if (!q) return renderRows(allRows);
+  const filtered = allRows.filter(r => r.value.toLowerCase().includes(q));
+  renderRows(filtered);
+}
+
+// ===== Fetch =====
+async function loadList() {
+  const token = getToken();
+  if (!token) return showAuth();
+  rowsEl.innerHTML = '<tr><td colspan="4" class="loading">Loading…</td></tr>';
+  try {
+    const r = await fetch(`${WORKER_URL}/api/admin/waitlist?token=${encodeURIComponent(token)}`);
+    if (r.status === 403 || r.status === 401) {
+      clearToken();
+      showAuth('Wrong token. Try again.');
+      return;
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    allRows = data.waitlist || [];
+    totalEl.textContent = String(data.total || 0);
+    lastAgoEl.textContent = allRows.length > 0 ? timeAgo(allRows[0].signedUpMs) : '—';
+    applyFilter();
+    showContent();
+  } catch (err) {
+    rowsEl.innerHTML = `<tr><td colspan="4" class="empty">Failed to load: ${err.message || err}</td></tr>`;
+  }
+}
+
+function showAuth(msg) {
+  authScreen.hidden = false;
+  contentEl.hidden = true;
+  actionsEl.hidden = true;
+  if (msg) authError.textContent = msg;
+  setTimeout(() => tokenInput.focus(), 50);
+}
+function showContent() {
+  authScreen.hidden = true;
+  contentEl.hidden = false;
+  actionsEl.hidden = false;
+}
+
+// ===== Wiring =====
+authSubmit.addEventListener('click', () => {
+  const t = (tokenInput.value || '').trim();
+  if (!t) { authError.textContent = 'Token required.'; return; }
+  setToken(t);
+  authError.textContent = '';
+  tokenInput.value = '';
+  loadList();
+});
+tokenInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') authSubmit.click(); });
+
+refreshBtn.addEventListener('click', loadList);
+
+downloadBtn.addEventListener('click', async () => {
+  const token = getToken();
+  if (!token) return showAuth();
+  // Open in a new tab so the browser handles the download via the
+  // Content-Disposition header. Filename comes from the worker.
+  const url = `${WORKER_URL}/api/admin/waitlist?token=${encodeURIComponent(token)}&format=csv`;
+  // Use a temporary anchor to trigger download without leaving this tab
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+});
+
+logoutBtn.addEventListener('click', () => {
+  if (confirm('Forget the saved admin token? You will need to paste it again next time.')) {
+    clearToken();
+    showAuth('Token cleared.');
+  }
+});
+
+searchEl.addEventListener('input', applyFilter);
+
+// Boot
+loadList();
+</script>
+</body>
+</html>
