@@ -76,6 +76,12 @@
 /reserve.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
+/list
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/list.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
 /404
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY

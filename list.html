@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- REVEAL gate — see specimen-engine.js → _resolveReveal().
+     Pre-mint / pre-reveal: content="false" (snipe-proof).
+     On reveal day: flip to content="true" in every HTML file. -->
+<meta name="bioms-reveal" content="false">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bioms — The waitlist</title>
+<meta name="description" content="The public Bioms mint waitlist. Every wallet that has reserved a spot.">
+<meta name="theme-color" content="#ece9e0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/favicon.svg">
+<link rel="canonical" href="https://thebioms.com/list">
+
+<meta property="og:title" content="Bioms — The waitlist">
+<meta property="og:description" content="Every wallet reserved for the Bioms mint, public.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://thebioms.com/list">
+<meta property="og:image" content="https://thebioms.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ece9e0;
+    --paper: #f4f1e8;
+    --ink: #1c1a16;
+    --ink-2: #5b554a;
+    --ink-3: #6f6a5c;
+    --rule: rgba(28, 26, 22, 0.12);
+    --ok: #2d6a4f;
+    --bad: #9a4a2e;
+  }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    line-height: 1.55;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.012 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    z-index: 1;
+  }
+
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+  a:hover { text-decoration-color: var(--ink); }
+
+  /* Skip-link — WCAG 2.4.1, hidden until keyboard-focused */
+  .skip-link {
+    position: absolute; left: -9999px; top: 0;
+    background: var(--ink); color: var(--bg);
+    padding: 12px 18px; border-radius: 0 0 8px 0;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    z-index: 9999;
+  }
+  .skip-link:focus { left: 0; outline: 2px solid var(--bg); outline-offset: -2px; }
+
+  /* === NAV === */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    padding: 18px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(236, 233, 224, 0.94);
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 17px; font-weight: 500; letter-spacing: -0.005em;
+    color: var(--ink); text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .brand:hover { opacity: 0.65; text-decoration: none; }
+  .brand-mark { width: 18px; height: 18px; display: block; }
+  .nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
+  .nav-links a {
+    color: var(--ink-3); text-decoration: none;
+    transition: color 0.15s;
+    padding: 12px 6px;
+    margin: -12px -6px;
+  }
+  .nav-links a:hover { color: var(--ink); text-decoration: none; }
+  .nav-x { display: inline-flex; align-items: center; color: var(--ink-3); transition: color 0.15s; margin-left: 4px; }
+  .nav-x:hover { color: var(--ink); }
+  .x-icon { width: 15px; height: 15px; display: block; }
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px;
+  }
+  @media (max-width: 600px) {
+    nav { padding: 14px 18px; }
+    .nav-links { gap: 14px; font-size: 13px; }
+  }
+
+  /* === MAIN === */
+  .wrap {
+    position: relative; z-index: 2;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: clamp(48px, 8vh, 80px) 28px 64px;
+  }
+
+  h1 {
+    font-size: clamp(38px, 5.2vw, 56px);
+    letter-spacing: -0.025em;
+    font-weight: 500;
+    line-height: 1.05;
+    margin-bottom: 14px;
+  }
+  .lede {
+    font-size: clamp(15px, 1.4vw, 17px);
+    line-height: 1.5;
+    color: var(--ink-2);
+    margin-bottom: 36px;
+    max-width: 44em;
+  }
+
+  /* === STATS + TOOLBAR === */
+  .stats {
+    display: flex;
+    gap: 22px;
+    align-items: baseline;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    color: var(--ink-3);
+  }
+  .stats strong {
+    color: var(--ink);
+    font-weight: 500;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    margin-right: 6px;
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+  .search {
+    flex: 1;
+    min-width: 200px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .search:focus { border-color: var(--ink); outline: none; box-shadow: 0 0 0 2px rgba(28,26,22,0.08); }
+
+  .btn {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    padding: 10px 16px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    display: inline-flex; align-items: center;
+  }
+  .btn:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); text-decoration: none; }
+
+  .btn-primary {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+  }
+  .btn-primary:hover { opacity: 0.92; background: var(--ink); color: var(--bg); }
+
+  /* === TABLE === */
+  .wrap-table {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead {
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+  }
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-weight: 500;
+    color: var(--ink-3);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--rule);
+  }
+  tbody tr:last-child { border-bottom: 0; }
+  tbody tr:hover { background: rgba(28, 26, 22, 0.03); }
+  td {
+    padding: 12px 16px;
+    vertical-align: middle;
+  }
+  td.id { color: var(--ink-3); font-variant-numeric: tabular-nums; width: 60px; }
+  td.addr {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--ink);
+  }
+  td.addr a { color: inherit; text-decoration: none; }
+  td.addr a:hover { color: var(--bad); text-decoration: underline; text-underline-offset: 3px; }
+  td.date {
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    width: 200px;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  .empty, .loading {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--ink-3);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+  }
+
+  /* === CTA === */
+  .cta {
+    margin-top: 48px;
+    padding: 32px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    text-align: center;
+  }
+  .cta h2 {
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    margin-bottom: 8px;
+  }
+  .cta p { color: var(--ink-2); margin-bottom: 22px; font-size: 14px; }
+
+  /* === FOOTER === */
+  footer {
+    padding: 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px;
+    font-size: 13px; color: var(--ink-3);
+    border-top: 1px solid var(--rule);
+    position: relative; z-index: 2;
+  }
+  footer a { color: inherit; text-decoration: none; transition: color 0.15s; }
+  footer a:hover { color: var(--ink); }
+  .footer-meta { display: flex; align-items: center; gap: 14px; }
+  .footer-meta .sep { opacity: 0.4; }
+  @media (max-width: 600px) {
+    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 12px; }
+    .footer-meta { flex-wrap: wrap; justify-content: center; gap: 8px 14px; }
+    .footer-meta > span:not(.sep), .footer-meta > a { white-space: nowrap; }
+  }
+
+  /* === MOBILE === */
+  @media (max-width: 700px) {
+    .wrap { padding: 36px 18px 48px; }
+    td.id, th:nth-child(1) { display: none; }
+    td.addr { word-break: break-all; }
+    td.date { width: auto; font-size: 11px; text-align: right; }
+  }
+
+  /* Accessibility — and a free perf win on low-end devices. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+<nav>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <img class="brand-mark" src="/favicon.svg" alt="" width="18" height="18" decoding="async">
+    <span>Bioms</span>
+  </a>
+  <div class="nav-links">
+    <a href="/lab">Lab</a>
+    <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
+      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<main class="wrap" id="main">
+  <h1>The waitlist.</h1>
+  <p class="lede">Every wallet reserved for the Bioms mint. Public on purpose — addresses are on-chain anyway, and a list you can see is a list you can trust.</p>
+
+  <div class="stats">
+    <span><strong id="total">—</strong>signups</span>
+    <span>· last <strong id="last-ago" style="font-size:14px;font-weight:500;color:var(--ink-2);">—</strong></span>
+  </div>
+
+  <div class="toolbar">
+    <input class="search" id="search" placeholder="Filter by address…" autocomplete="off">
+    <button class="btn" id="download-btn" type="button">Download CSV</button>
+    <button class="btn" id="refresh-btn" type="button">Refresh</button>
+  </div>
+
+  <div class="wrap-table">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Wallet</th>
+          <th>Saved</th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+        <tr><td colspan="3" class="loading">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cta">
+    <h2>Not on the list yet?</h2>
+    <p>Drop your wallet. We'll snapshot for the mint allowlist from this same list.</p>
+    <a class="btn btn-primary" href="/reserve">Reserve your spot →</a>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-meta">
+    <span>© 2026 Bioms</span>
+    <span class="sep">·</span>
+    <a href="/lab">Lab</a>
+    <span class="sep">·</span>
+    <a href="/explore">Traits</a>
+    <span class="sep">·</span>
+    <a href="/make">Banners</a>
+    <span class="sep">·</span>
+    <a href="/reserve">Reserve</a>
+    <span class="sep">·</span>
+    <a href="/manifesto">Manifesto</a>
+  </div>
+  <div class="footer-meta">
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
+    <span class="sep">·</span>
+    <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">by @timsouw</a>
+  </div>
+</footer>
+
+<script>
+// =============================================================
+// Public waitlist viewer — no auth, anyone can browse + download
+// =============================================================
+const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:8787'
+  : 'https://api.thebioms.com';
+
+const totalEl     = document.getElementById('total');
+const lastAgoEl   = document.getElementById('last-ago');
+const searchEl    = document.getElementById('search');
+const rowsEl      = document.getElementById('rows');
+const refreshBtn  = document.getElementById('refresh-btn');
+const downloadBtn = document.getElementById('download-btn');
+
+let allRows = [];
+
+function shortAddr(s) {
+  if (!s || s.length < 12) return s || '';
+  return s.slice(0, 6) + '…' + s.slice(-4);
+}
+function timeAgo(ms) {
+  const sec = Math.floor((Date.now() - ms) / 1000);
+  if (sec < 60) return sec + 's ago';
+  if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+  if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+  return Math.floor(sec / 86400) + 'd ago';
+}
+function fmtDate(ms) {
+  if (!ms) return '—';
+  try {
+    const d = new Date(ms);
+    const dateStr = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return dateStr + ' · ' + timeStr;
+  } catch (_) { return String(ms); }
+}
+
+function renderRows(rows) {
+  if (rows.length === 0) {
+    rowsEl.innerHTML = '<tr><td colspan="3" class="empty">No signups yet. Be the first?</td></tr>';
+    return;
+  }
+  // Use position-from-top as "#" since we don't expose internal id
+  const html = rows.map((r, i) => `
+    <tr>
+      <td class="id">${i + 1}</td>
+      <td class="addr">
+        <a href="https://etherscan.io/address/${r.value}" target="_blank" rel="noopener" title="View on Etherscan">${r.value}</a>
+      </td>
+      <td class="date" title="${new Date(r.signedUpMs).toISOString()}">${fmtDate(r.signedUpMs)}</td>
+    </tr>
+  `).join('');
+  rowsEl.innerHTML = html;
+}
+
+function applyFilter() {
+  const q = (searchEl.value || '').trim().toLowerCase();
+  if (!q) return renderRows(allRows);
+  const filtered = allRows.filter(r => r.value.toLowerCase().includes(q));
+  renderRows(filtered);
+}
+
+async function loadList() {
+  rowsEl.innerHTML = '<tr><td colspan="3" class="loading">Loading…</td></tr>';
+  try {
+    const r = await fetch(`${WORKER_URL}/api/waitlist/list`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    allRows = data.list || [];
+    totalEl.textContent = String(data.total || 0);
+    lastAgoEl.textContent = allRows.length > 0 ? timeAgo(allRows[0].signedUpMs) : '—';
+    applyFilter();
+  } catch (err) {
+    rowsEl.innerHTML = `<tr><td colspan="3" class="empty">Failed to load: ${err.message || err}</td></tr>`;
+  }
+}
+
+// CSV download — client-side, no server endpoint needed
+downloadBtn.addEventListener('click', () => {
+  if (allRows.length === 0) return;
+  const header = 'wallet,signed_up_iso\n';
+  const body = allRows.map(r => {
+    const iso = new Date(r.signedUpMs).toISOString();
+    return `${r.value},${iso}`;
+  }).join('\n');
+  const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bioms-waitlist-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+refreshBtn.addEventListener('click', loadList);
+searchEl.addEventListener('input', applyFilter);
+
+// Boot
+loadList();
+</script>
+</body>
+</html>

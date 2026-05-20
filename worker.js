@@ -1114,6 +1114,32 @@ async function handleAdminWaitlist(req, env, origin) {
   }, { headers: { 'cache-control': 'no-store' } }, origin);
 }
 
+// Public list of all signups — wallet addresses + timestamps.
+// Open by design: addresses are on-chain anyway, transparency
+// matches the project identity, and a visible list creates social
+// proof (potential collectors see who else is in).
+//
+// Returns ONLY value + signedUpMs — no ip_hash, no kind enum,
+// no internal ids. Cached at edge for 60s so a viral spike doesn't
+// hit D1 on every refresh.
+async function handleWaitlistList(env, origin) {
+  const limit = 10000;
+  const { results } = await env.DB.prepare(
+    'SELECT value, ts FROM waitlist ORDER BY ts DESC LIMIT ?'
+  ).bind(limit).all();
+  const rows = results || [];
+  return json({
+    ok: true,
+    total: rows.length,
+    list: rows.map(r => ({
+      value: r.value,
+      signedUpMs: r.ts,
+    })),
+  }, {
+    headers: { 'cache-control': 'public, max-age=60, s-maxage=60' },
+  }, origin);
+}
+
 async function handleWaitlistCount(env, origin) {
   const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM waitlist').first();
   const count = row ? row.n : 0;
@@ -1188,6 +1214,9 @@ export default {
       }
       if (path === '/api/log') {
         return await handleLog(env, url, origin);
+      }
+      if (path === '/api/waitlist/list') {
+        return await handleWaitlistList(env, origin);
       }
       if (path === '/api/waitlist/count') {
         return await handleWaitlistCount(env, origin);
