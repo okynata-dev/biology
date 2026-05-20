@@ -970,7 +970,9 @@
   .footer-meta { display: flex; align-items: center; gap: 14px; }
   .footer-meta .sep { opacity: 0.4; }
   @media (max-width: 600px) {
-    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
+    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 12px; }
+    .footer-meta { flex-wrap: wrap; justify-content: center; gap: 8px 14px; }
+    .footer-meta > span:not(.sep), .footer-meta > a { white-space: nowrap; }
   }
 
   /* === ANIMATION (success flash, etc) === */
@@ -1531,11 +1533,41 @@
   }
 
   @media (max-width: 600px) {
-    .ritual-pair { grid-template-columns: 1fr auto 1fr; gap: 14px; }
-    .ritual-render { width: 32vw; }
-    .ritual-title { margin-bottom: 32px; font-size: 17px; }
+    /* Mobile: stack burner above absorber instead of side-by-side.
+       Side-by-side at 1fr/auto/1fr with 32vw renders was clipping
+       the burner off-screen on narrower phones (Safari measured it
+       further than the viewport's actual usable width). Stacking
+       always fits, and the arrow rotates 90° to keep the visual
+       "donor → absorber" flow intact. */
+    .ritual-pair {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto auto;
+      gap: 16px;
+      justify-items: center;
+      margin-bottom: 32px;
+    }
+    .ritual-render { width: min(56vw, 220px); }
+    .ritual-arrow { transform: rotate(90deg); font-size: 26px; }
+    .ritual-title { margin-bottom: 24px; font-size: 17px; }
     .ritual-commit { gap: 12px; }
     .ritual-result { margin-top: 28px; }
+  }
+  /* Hide the small monospace name UNDER the absorber on the
+     committed (survivor) screen — the big ritual-result-name below
+     the visual already displays it, no need to repeat. Applies on
+     desktop and mobile (the visual was duplicated everywhere). */
+  .burn-ritual.committed .ritual-specimen.absorber .ritual-name { display: none; }
+
+  /* Reduce-motion users still need to see the burn happening (it's
+     the central feedback of the action). Override the global a11y
+     "kill all animation" rule for these two specific keyframes —
+     the user has explicitly opted into the destructive flow by
+     pressing-and-holding, so a brief 800ms visual is appropriate. */
+  @media (prefers-reduced-motion: reduce) {
+    .burn-ritual.holding .ritual-specimen.burner .ritual-render,
+    .burn-ritual.committed .ritual-specimen.absorber .ritual-render {
+      animation-duration: 800ms !important;
+    }
   }
 
   /* ============================================================

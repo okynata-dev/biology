@@ -163,7 +163,9 @@
   .footer-meta { display: flex; align-items: center; gap: 14px; }
   .footer-meta .sep { opacity: 0.4; }
   @media (max-width: 600px) {
-    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
+    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 12px; }
+    .footer-meta { flex-wrap: wrap; justify-content: center; gap: 8px 14px; }
+    .footer-meta > span:not(.sep), .footer-meta > a { white-space: nowrap; }
   }
 </style>
 </head>
