@@ -51,8 +51,13 @@ fi
 
 # 4. Secrets — wrangler can list the *names* of bound secrets without
 #    leaking values. Required for prod; optional ones get a soft note.
-if command -v wrangler >/dev/null 2>&1; then
-  secrets=$(wrangler secret list 2>/dev/null || echo '[]')
+#    Use whichever wrangler is available (global or via npx).
+wrangler_cmd=""
+if command -v wrangler >/dev/null 2>&1; then wrangler_cmd="wrangler"
+elif command -v npx >/dev/null 2>&1; then wrangler_cmd="npx wrangler"
+fi
+if [ -n "$wrangler_cmd" ]; then
+  secrets=$($wrangler_cmd secret list 2>/dev/null || echo '[]')
   required_missing=()
   for k in ALCHEMY_KEY; do
     if ! echo "$secrets" | grep -q "\"$k\""; then required_missing+=("$k"); fi
@@ -72,7 +77,7 @@ if command -v wrangler >/dev/null 2>&1; then
     yellow "ℹ Optional secrets not set (OK pre-mint): ${optional_missing[*]}"
   fi
 else
-  yellow "ℹ wrangler not on PATH; skipping secret check"
+  yellow "ℹ Neither wrangler nor npx on PATH; skipping secret check"
 fi
 
 if [ $fail -ne 0 ]; then
@@ -82,6 +87,14 @@ fi
 green "Preflight OK."
 
 if [ "${1:-}" = "--deploy" ]; then
-  yellow "Running: wrangler deploy"
-  wrangler deploy
+  # Prefer global wrangler if installed; otherwise fall back to npx
+  # (which works without a global install). Most contributors won't
+  # have wrangler on PATH globally.
+  if command -v wrangler >/dev/null 2>&1; then
+    yellow "Running: wrangler deploy"
+    wrangler deploy
+  else
+    yellow "Running: npx wrangler deploy"
+    npx wrangler deploy
+  fi
 fi
