@@ -222,6 +222,20 @@
   }
   .copy-btn:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
   .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+  .delete-btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--ink-3);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font: inherit;
+    margin-left: 6px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .delete-btn:hover { background: var(--bad); color: var(--bg); border-color: var(--bad); }
+  .delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   td.date {
     color: var(--ink-2);
     font-variant-numeric: tabular-nums;
@@ -413,6 +427,7 @@ function renderRows(rows) {
       </td>
       <td class="copy-cell">
         <button class="copy-btn" data-value="${r.value}">Copy</button>
+        <button class="delete-btn" data-value="${r.value}" title="Delete this signup">Del</button>
       </td>
       <td class="date" title="${new Date(r.signedUpMs).toISOString()}">${fmtDate(r.signedUpMs)}</td>
     </tr>
@@ -429,6 +444,38 @@ function renderRows(rows) {
         btn.classList.add('copied');
         setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1400);
       } catch (_) {}
+    });
+  });
+  // Wire delete buttons — confirm, send to worker, reload list
+  rowsEl.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const v = btn.dataset.value;
+      if (!confirm(`Delete ${v} from the waitlist? This cannot be undone.`)) return;
+      const token = getToken();
+      if (!token) return showAuth();
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        const r = await fetch(`${WORKER_URL}/api/admin/waitlist/delete`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token, value: v }),
+        });
+        if (r.status === 403 || r.status === 401) {
+          clearToken();
+          showAuth('Wrong token. Try again.');
+          return;
+        }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        // Optimistically remove from local list + re-render
+        allRows = allRows.filter(row => row.value !== v);
+        totalEl.textContent = String(allRows.length);
+        applyFilter();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Del';
+        alert('Delete failed: ' + (err.message || err));
+      }
     });
   });
 }

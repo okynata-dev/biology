@@ -1057,6 +1057,30 @@ async function handleWaitlistCheck(req, env, origin) {
   }, {}, origin);
 }
 
+// POST /api/admin/waitlist/delete  body: { token, value }
+//
+// Owner-only delete of a single waitlist entry. Same token-gate as
+// the dump endpoint. value must match exactly (already-lowercased
+// 0x form in our DB, so input is normalized).
+async function handleAdminDelete(req, env, origin) {
+  if (!env.ADMIN_TOKEN) return error('admin_token_not_set', 503, origin);
+  let body;
+  try { body = await req.json(); }
+  catch { return error('invalid_json', 400, origin); }
+  const { token, value } = body || {};
+  if (!token || token !== env.ADMIN_TOKEN) return error('forbidden', 403, origin);
+  if (typeof value !== 'string' || !value.trim()) return error('bad_value', 400, origin);
+  const v = value.trim().toLowerCase();
+  const result = await env.DB.prepare(
+    'DELETE FROM waitlist WHERE value = ?'
+  ).bind(v).run();
+  return json({
+    ok: true,
+    deleted: result.meta?.changes ?? 0,
+    value: v,
+  }, { headers: { 'cache-control': 'no-store' } }, origin);
+}
+
 // GET /api/admin/waitlist?token=<secret>&format=json|csv
 //
 // Owner-only dump of the waitlist. Secret-token gate (compared with
@@ -1226,6 +1250,9 @@ export default {
       }
       if (path === '/api/admin/waitlist') {
         return await handleAdminWaitlist(req, env, origin);
+      }
+      if (path === '/api/admin/waitlist/delete' && req.method === 'POST') {
+        return await handleAdminDelete(req, env, origin);
       }
       if (path === '/api/waitlist' && req.method === 'POST') {
         return await handleWaitlistAdd(req, env, origin);
