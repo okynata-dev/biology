@@ -495,7 +495,13 @@
      monochrome — prestige through restraint, not rainbow. */
   .biom-card .gen-badge.high { background: var(--paper); color: var(--ink); border: 1px solid var(--ink); }
   .biom-card .gen-badge.epic { background: var(--ink); color: var(--paper); box-shadow: 0 0 0 2px var(--ink-3), 0 2px 6px rgba(0,0,0,0.18); }
+  /* Cooldown chip — was visible as "Axial filament · 44s" but that surfaced
+     internal game state (which trait was on cooldown) in jargon no user
+     could parse. Hidden in v2 — the cooldown still runs server-side and
+     the system auto-skips that trait when picking the next crossbreed
+     outcome, so the user never even encounters it. */
   .cooldown-tag {
+    display: none;
     position: absolute;
     bottom: 56px; left: 8px;
     background: rgba(154, 91, 61, 0.9);
@@ -3266,10 +3272,10 @@ function renderCollection() {
 function currentStep() {
   if (donorSeed === null) return 'donor';
   if (recipientSeed === null) return 'recipient';
-  // Burn mode auto-selects (only one possible outcome: absorb everything),
-  // so picking the recipient is enough — go straight to 'ready'.
-  if (arenaMode === 'burn') return 'ready';
-  if (selectedTrait === null) return 'trait';
+  // Both modes now auto-pick the outcome — burn merges everything, and
+  // crossbreed picks the most-impactful eligible trait. So once both
+  // bioms are selected, we go straight to 'ready'. (v2: trait picker
+  // removed from the user flow — was too confusing.)
   return 'ready';
 }
 
@@ -3280,9 +3286,11 @@ function currentStep() {
 const STEP_COPY = {
   crossbreed: {
     donor:     { num: '1', label: 'Pick first Biom',  sub: 'Tap any Biom in your collection above.' },
-    recipient: { num: '2', label: 'Pick second Biom', sub: 'Tap another Biom — they\'ll share a trait between them.' },
-    trait:     { num: '3', label: 'Pick what to share', sub: 'Each preview is a possible result. Pick the one you like.' },
-    ready:     { num: '4', label: 'Tap Crossbreed',  sub: 'Both Bioms gain the trait. About 15% of crossbreeds are rejected.' },
+    recipient: { num: '2', label: 'Pick second Biom', sub: 'They will share one trait — preview shows up below.' },
+    // 'trait' step kept for back-compat with any older call sites, but
+    // the new currentStep() never returns it.
+    trait:     { num: '3', label: 'Tap Crossbreed',  sub: 'Review the preview below — this is what changes.' },
+    ready:     { num: '3', label: 'Tap Crossbreed',  sub: 'Review the preview below. About 15% of crossbreeds are rejected.' },
   },
   burn: {
     donor:     { num: '1', label: 'Pick a Biom to burn', sub: 'This one will be permanently destroyed — pick wisely.' },
@@ -3494,91 +3502,115 @@ function renderOutcomes() {
     return;
   }
 
-  // --- CROSSBREED MODE: gallery of share-options ---
-  document.querySelector('.outcomes-head').textContent = 'Pick what to share';
-  outcomesHint.textContent = 'Each preview is one Biom transformed. The other one of the pair stays as it is.';
-  outcomesHint.hidden = false;
+  // --- CROSSBREED MODE: single big result card (mirror of burn UI) ---
+  //
+  // v2 design (2026-05): the "pick which trait to share" gallery was
+  // confusing — too many cards, a 4th step in the flow, and the per-
+  // trait cooldown chip ("Axial filament · 44s") leaked internal game
+  // state to users who had no language for it. A 4-year-old test failed.
+  //
+  // New shape: same as burn. Pick A → Pick B → ONE result preview →
+  // Confirm. The system auto-picks the most-impactful eligible trait
+  // (priority: anomaly > organelle > palette > morphology > lifecycle >
+  // reserveGranule > cellCount), preferring outcomes that change B (the
+  // recipient) so the donor → recipient mental model matches burn.
+  document.querySelector('.outcomes-head').textContent = 'After the crossbreed:';
   const outcomes = crossbreedOutcomes(donorSeed, recipientSeed);
   if (outcomes.length === 0) {
     _outcomesEmpty = true;
     outcomesHint.hidden = true;
     outcomesGrid.innerHTML = `<div class="outcomes-empty">These two share every trait already — try a different pair.</div>`;
+    selectedTrait = null;
     return;
   }
   _outcomesEmpty = false;
-  // Outcomes were 11 iframes — each one a full preview.html document
-  // load with its own JS context. That meant 11× parse + 11× render
-  // + 11× memory footprint, even with loading=lazy and static=1.
-  // Switched to canvas snapshots: BiomEngine.renderSpecimenToCanvas
-  // paints the outcome ONCE per card into a hidden canvas, we encode
-  // to a data URL, and inline it as <img>. After that point the GPU
-  // sees plain bitmaps — no DOM nodes, no script contexts, no anim.
-  //
-  // Trade-off documented in CLAUDE.md §5: the canvas renderer doesn't
-  // produce the backdrop-filter glass effect, only the multi-layer
-  // shadow approximation. For comparison cards (where you're picking
-  // ONE of N) the trade is right — fidelity comes back the moment
-  // the user clicks a card and that outcome promotes to the slot's
-  // live iframe.
-  //
-  // CHUNKED RENDER — painting 7+ canvases synchronously inside one
-  // microtask blocks the main thread for ~80-120ms on mid-tier mobile,
-  // which the user feels as a "freeze" the moment they pick a recipient.
-  // We commit the DOM scaffold immediately (skeleton pulse in each
-  // frame) and fill in the snapshots one-per-rAF so paint and input
-  // stay responsive.
-  const renderToken = ++_outcomeRenderToken;  // cancel any in-flight chunk loop from a previous pair
-  outcomesGrid.innerHTML = outcomes.map(opt => {
-    // Which selected biom does this option transform? changedSeed === donor → "A", else "B".
-    const who = opt.changedSeed === donorSeed ? 'A' : 'B';
-    return `
-      <button type="button" class="outcome-card" data-trait="${opt.id}" aria-label="${opt.label}: ${opt.caption}">
-        <div class="outcome-frame pending" data-seed="${opt.changedSeed}">
-          <span class="who-tag" aria-hidden="true">${who}</span>
-        </div>
-        <div class="outcome-meta">
-          <div class="outcome-name">${opt.label}</div>
-          <div class="outcome-caption">${opt.caption}</div>
-        </div>
-      </button>
-    `;
-  }).join('');
-  // Paint snapshots one-by-one via rAF so the main thread breathes.
-  // Cache hits return instantly; cache misses cost one renderSpecimenToCanvas
-  // (~10-20ms each on a modern machine) — spread out so input stays smooth.
-  const frames = outcomesGrid.querySelectorAll('.outcome-frame');
-  let idx = 0;
-  const paintNext = () => {
-    if (renderToken !== _outcomeRenderToken) return;  // pair changed, abandon
-    if (idx >= outcomes.length) return;
-    const opt = outcomes[idx];
-    const frame = frames[idx];
-    idx++;
-    if (frame) {
-      const dataUrl = _renderOutcomeSnapshot(opt.changedSeed, opt.previewState);
-      const img = document.createElement('img');
-      img.src = dataUrl;
-      img.alt = '';
-      img.decoding = 'async';
-      // Insert BEFORE the who-tag so the tag stays on top
-      frame.insertBefore(img, frame.firstChild);
-      frame.classList.remove('pending');
-    }
-    requestAnimationFrame(paintNext);
-  };
-  requestAnimationFrame(paintNext);
+  outcomesHint.hidden = true;  // single card is self-explanatory; no extra hint
 
-  outcomesGrid.querySelectorAll('.outcome-card').forEach(card => {
-    card.addEventListener('click', () => {
-      if (isAnimating) return;
-      selectedTrait = card.dataset.trait;
-      renderArenaAll();
-    });
-  });
-  // Apply current selection state after rebuild
-  outcomesGrid.querySelectorAll('.outcome-card').forEach(card => {
-    card.classList.toggle('active', card.dataset.trait === selectedTrait);
-  });
+  // Auto-pick the most-impactful outcome.
+  const auto = _autoPickCrossbreed(outcomes, donorSeed, recipientSeed);
+  selectedTrait = auto.id;  // commit so performCrossbreed has a valid outcomeId
+
+  // Render: same layout as burn-preview-card. Live iframe for fidelity
+  // (one card, not seven — backdrop-filter is affordable here).
+  const url = previewUrlFor(auto.changedSeed, auto.previewState, { nointeract: true });
+  const donorLabel = window.BiomEngine.label(donorSeed);
+  const recipLabel = window.BiomEngine.label(recipientSeed);
+  const changedLabel = window.BiomEngine.label(auto.changedSeed);
+  const otherLabel = auto.changedSeed === donorSeed ? recipLabel : donorLabel;
+  // Human prose for the caption — replace "Share A's stain · B becomes pink"
+  // with one flowing sentence so users don't have to translate jargon.
+  const captionText = _crossbreedProse(auto, donorSeed, recipientSeed, donorLabel, recipLabel);
+  outcomesGrid.innerHTML = `
+    <div class="burn-preview-card crossbreed-preview-card">
+      <div class="outcome-frame">
+        <iframe src="${url}" loading="eager" tabindex="-1" title="Crossbreed result preview"></iframe>
+      </div>
+      <div class="outcome-meta">
+        <div class="outcome-name">${changedLabel} after sharing with ${otherLabel}</div>
+        <div class="outcome-caption">${captionText}</div>
+      </div>
+    </div>
+  `;
+}
+
+// === Auto-pick the most impactful crossbreed outcome ===
+// Priority by `kind` (higher = more visible/dramatic change). Then
+// prefer outcomes where the RECIPIENT changes, matching the donor→
+// recipient flow direction (burn mirror).
+function _autoPickCrossbreed(outcomes, donorSeed, recipientSeed) {
+  const PRIORITY = {
+    anomaly: 60,        // rare, dramatic
+    organelle: 50,      // visible addition
+    palette: 40,        // big visual shift
+    morphology: 30,     // body shape change
+    lifecycle: 20,
+    reserveGranule: 15,
+    cellCount: 10,
+  };
+  // Score: kind-priority + 1 bonus point if changedSeed is the recipient
+  // (so the donor → recipient direction reads naturally).
+  const scored = outcomes.map(o => ({
+    o,
+    score: (PRIORITY[o.kind] || 0) + (o.changedSeed === recipientSeed ? 1 : 0),
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0].o;
+}
+
+// === Caption prose for the single crossbreed result card ===
+// Goal: natural-language sentence about what's happening. No jargon
+// like "Share A's stain" or "B gains pili" — those were internal labels.
+function _crossbreedProse(outcome, donorSeed, recipientSeed, donorLabel, recipLabel) {
+  const isDonorChanging = outcome.changedSeed === donorSeed;
+  const recipient = isDonorChanging ? donorLabel : recipLabel;
+  const giver     = isDonorChanging ? recipLabel : donorLabel;
+  switch (outcome.kind) {
+    case 'palette': {
+      const next = outcome.previewState.palette;
+      const colorName = PALETTE_LABELS[next] || next;
+      return `${recipient} takes on ${giver}'s <strong>${colorName}</strong> stain. About 15% of crossbreeds are rejected.`;
+    }
+    case 'organelle': {
+      const trait = TRANSFERABLE_BY_ID[outcome.sharedTraitId];
+      const label = (trait?.label || outcome.sharedTraitId).toLowerCase();
+      return `${recipient} gains <strong>${label}</strong> from ${giver}. About 15% of crossbreeds are rejected.`;
+    }
+    case 'anomaly': {
+      const trait = TRANSFERABLE_BY_ID[outcome.sharedTraitId];
+      const label = (trait?.label || outcome.sharedTraitId).toLowerCase();
+      return `${recipient} gains <strong>${label}</strong> (rare) from ${giver}. About 15% of crossbreeds are rejected.`;
+    }
+    case 'morphology': {
+      return `${recipient} takes on ${giver}'s <strong>body shape</strong>. About 15% of crossbreeds are rejected.`;
+    }
+    case 'lifecycle':
+    case 'reserveGranule':
+    case 'cellCount': {
+      return `${recipient} adopts a trait from ${giver}. About 15% of crossbreeds are rejected.`;
+    }
+    default:
+      return `Both Bioms share a trait. About 15% of crossbreeds are rejected.`;
+  }
 }
 
 // Look up a crossbreed outcome object by id (used by the commit function).
