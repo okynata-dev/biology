@@ -449,11 +449,32 @@
     color: var(--ink-3);
     text-align: right;
   }
-  /* Role tag is hidden — border colour already tells you which card
-     is the donor/burner (orange in burn mode, ink elsewhere). The
-     element itself stays in the DOM so the JS that toggles its text
-     content doesn't have to special-case its absence. */
-  .biom-card .role-tag { display: none; }
+  /* Role tag — A/B (crossbreed) or BURN/KEEP (burn) chip in the
+     top-right of the thumbnail when the card is selected. We tried
+     hiding it (border alone) but without an identifier, the outcome
+     gallery's "Share A's stain / B gains pili" copy was untethered
+     from the selected cards. The chip is monochrome ink-on-paper —
+     same restraint as the gen-badge. Burn-donor swaps to rust. */
+  .biom-card .role-tag {
+    position: absolute;
+    top: 10px; right: 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--bg);
+    line-height: 1;
+    z-index: 2;
+    pointer-events: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  }
+  body.mode-burn .biom-card.selected-donor .role-tag {
+    background: #9a4a2e;
+  }
+  .biom-card .role-tag[hidden] { display: none; }
   /* Generation badge — small chip in top-left for tokens that have
      survived at least one burn. Visual rarity ladder: higher-gen
      tokens stand out, originals (G0 = no badge) become collector items. */
@@ -784,6 +805,68 @@
     width: 100%; height: 100%; border: 0; display: block;
     /* Pointer-events off — clicks pass through to the button parent */
     pointer-events: none;
+  }
+  /* Canvas-snapshot path (crossbreed gallery): img must fill the frame.
+     Without explicit sizing, browsers fall back to the canvas's intrinsic
+     600×600 — overflow:hidden then clips to top-left and the visible 1/9
+     happens to land where the specimen ISN'T, so the card looks empty.
+     This was the "белые карточки" bug. */
+  .outcome-frame img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+    pointer-events: none;
+    /* Slight fade-in so the rAF-chunked render reads as motion, not pop. */
+    animation: outcome-fade-in 0.28s ease-out both;
+  }
+  @keyframes outcome-fade-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  /* Skeleton — while a card is waiting for its canvas snapshot to be
+     painted (rAF queue), show a soft pulsing placeholder so the gallery
+     doesn't flash empty white squares. */
+  .outcome-frame.pending {
+    background: linear-gradient(90deg,
+      var(--paper) 0%,
+      rgba(28, 26, 22, 0.04) 50%,
+      var(--paper) 100%);
+    background-size: 200% 100%;
+    animation: outcome-skeleton 1.1s ease-in-out infinite;
+  }
+  @keyframes outcome-skeleton {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .outcome-frame.pending { animation: none; opacity: 0.7; }
+    .outcome-frame img { animation: none; }
+  }
+  /* A→/B→ direction badge on outcome cards — single character pill at
+     top-left of the snapshot so the user instantly sees which selected
+     biom (A or B) is the one being transformed by this option. */
+  .outcome-frame .who-tag {
+    position: absolute;
+    top: 8px; left: 8px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 3px 8px 3px 7px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--bg);
+    line-height: 1;
+    z-index: 2;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .outcome-frame .who-tag::after {
+    content: "→";
+    opacity: 0.7;
+    font-size: 10px;
+    margin-left: 1px;
   }
   .outcome-meta {
     padding: 7px 9px 9px;
@@ -3292,6 +3375,10 @@ let _outcomesEmpty = false;        // remember if we're showing the empty-state 
 // memo cache keyed on (seed + serialized state) — if the user
 // thrashes between recipients the same outcome doesn't re-render.
 const _outcomeSnapshotCache = new Map();
+// Monotonic token — if the user switches pairs while a chunked render
+// loop is still painting, the loop checks this on every rAF tick and
+// bails out instead of writing stale snapshots into the new gallery.
+let _outcomeRenderToken = 0;
 function _outcomeCacheKey(seed, state) {
   // organelles is a Set in some paths — normalize for stable key
   const org = state && state.organelles
@@ -3409,7 +3496,7 @@ function renderOutcomes() {
 
   // --- CROSSBREED MODE: gallery of share-options ---
   document.querySelector('.outcomes-head').textContent = 'Pick what to share';
-  outcomesHint.textContent = 'Each preview shows what one Biom becomes after the crossbreed. The other stays as it is.';
+  outcomesHint.textContent = 'Each preview is one Biom transformed. The other one of the pair stays as it is.';
   outcomesHint.hidden = false;
   const outcomes = crossbreedOutcomes(donorSeed, recipientSeed);
   if (outcomes.length === 0) {
@@ -3433,12 +3520,21 @@ function renderOutcomes() {
   // ONE of N) the trade is right — fidelity comes back the moment
   // the user clicks a card and that outcome promotes to the slot's
   // live iframe.
+  //
+  // CHUNKED RENDER — painting 7+ canvases synchronously inside one
+  // microtask blocks the main thread for ~80-120ms on mid-tier mobile,
+  // which the user feels as a "freeze" the moment they pick a recipient.
+  // We commit the DOM scaffold immediately (skeleton pulse in each
+  // frame) and fill in the snapshots one-per-rAF so paint and input
+  // stay responsive.
+  const renderToken = ++_outcomeRenderToken;  // cancel any in-flight chunk loop from a previous pair
   outcomesGrid.innerHTML = outcomes.map(opt => {
-    const dataUrl = _renderOutcomeSnapshot(opt.changedSeed, opt.previewState);
+    // Which selected biom does this option transform? changedSeed === donor → "A", else "B".
+    const who = opt.changedSeed === donorSeed ? 'A' : 'B';
     return `
       <button type="button" class="outcome-card" data-trait="${opt.id}" aria-label="${opt.label}: ${opt.caption}">
-        <div class="outcome-frame">
-          <img src="${dataUrl}" alt="" decoding="async">
+        <div class="outcome-frame pending" data-seed="${opt.changedSeed}">
+          <span class="who-tag" aria-hidden="true">${who}</span>
         </div>
         <div class="outcome-meta">
           <div class="outcome-name">${opt.label}</div>
@@ -3447,6 +3543,31 @@ function renderOutcomes() {
       </button>
     `;
   }).join('');
+  // Paint snapshots one-by-one via rAF so the main thread breathes.
+  // Cache hits return instantly; cache misses cost one renderSpecimenToCanvas
+  // (~10-20ms each on a modern machine) — spread out so input stays smooth.
+  const frames = outcomesGrid.querySelectorAll('.outcome-frame');
+  let idx = 0;
+  const paintNext = () => {
+    if (renderToken !== _outcomeRenderToken) return;  // pair changed, abandon
+    if (idx >= outcomes.length) return;
+    const opt = outcomes[idx];
+    const frame = frames[idx];
+    idx++;
+    if (frame) {
+      const dataUrl = _renderOutcomeSnapshot(opt.changedSeed, opt.previewState);
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.alt = '';
+      img.decoding = 'async';
+      // Insert BEFORE the who-tag so the tag stays on top
+      frame.insertBefore(img, frame.firstChild);
+      frame.classList.remove('pending');
+    }
+    requestAnimationFrame(paintNext);
+  };
+  requestAnimationFrame(paintNext);
+
   outcomesGrid.querySelectorAll('.outcome-card').forEach(card => {
     card.addEventListener('click', () => {
       if (isAnimating) return;
