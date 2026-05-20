@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bioms — Reserve your spot</title>
-<meta name="description" content="Drop your wallet or email to be counted before mint. No filter — we just want to know how many of you are coming.">
+<meta name="description" content="Drop your wallet to be counted before mint.">
 <meta name="theme-color" content="#ece9e0">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/favicon.svg">
 <link rel="canonical" href="https://thebioms.com/reserve">
 
 <meta property="og:title" content="Bioms — Reserve your spot">
-<meta property="og:description" content="Drop your wallet or email to be counted before mint.">
+<meta property="og:description" content="Drop your wallet to be counted before mint.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://thebioms.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -86,33 +86,19 @@
     .nav-links { gap: 14px; font-size: 13px; }
   }
 
-  /* === CARD === */
+  /* === MAIN === */
   .wrap {
     position: relative; z-index: 2;
     max-width: 560px;
     margin: 0 auto;
-    padding: clamp(64px, 12vh, 120px) 28px 96px;
-  }
-  .eyebrow {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 11px;
-    letter-spacing: 0.20em;
-    text-transform: uppercase;
-    color: var(--ink-3);
-    margin-bottom: 22px;
+    padding: clamp(64px, 14vh, 140px) 28px 96px;
   }
   h1 {
     font-size: clamp(38px, 5.2vw, 56px);
     letter-spacing: -0.025em;
     font-weight: 500;
     line-height: 1.05;
-    margin-bottom: 22px;
-  }
-  .lede {
-    font-size: clamp(17px, 1.5vw, 19px);
-    line-height: 1.55;
-    color: var(--ink-2);
-    margin-bottom: 44px;
+    margin-bottom: 36px;
   }
 
   /* === FORM === */
@@ -120,10 +106,6 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    margin-bottom: 28px;
-  }
-  .field {
-    position: relative;
   }
   .field input {
     width: 100%;
@@ -151,16 +133,6 @@
   }
   .field input.valid    { border-color: rgba(46, 125, 79, 0.5); }
   .field input.invalid  { border-color: rgba(154, 74, 46, 0.6); }
-  .hint {
-    margin-top: 8px;
-    font-size: 12px;
-    color: var(--ink-3);
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    letter-spacing: 0.02em;
-    min-height: 16px;
-  }
-  .hint.bad { color: var(--bad); }
-  .hint.ok  { color: var(--ok); }
 
   .btn {
     display: inline-flex;
@@ -184,35 +156,6 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
-  .btn.secondary {
-    background: transparent;
-    color: var(--ink);
-  }
-
-  /* === COUNTER + AFTER-SUBMIT === */
-  .counter {
-    text-align: center;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 13px;
-    color: var(--ink-3);
-    letter-spacing: 0.06em;
-    margin-top: 16px;
-  }
-  .counter strong {
-    color: var(--ink);
-    font-weight: 500;
-    font-size: 15px;
-  }
-
-  .note {
-    margin-top: 36px;
-    padding-top: 28px;
-    border-top: 1px solid var(--rule);
-    font-size: 14px;
-    color: var(--ink-3);
-    line-height: 1.55;
-  }
-  .note p + p { margin-top: 10px; }
 
   /* === SUCCESS STATE === */
   .success {
@@ -226,31 +169,7 @@
     font-size: 22px;
     letter-spacing: -0.015em;
     font-weight: 500;
-    margin-bottom: 10px;
   }
-  .success-body {
-    color: var(--ink-2);
-    font-size: 15px;
-    margin-bottom: 22px;
-  }
-  .success-share {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-  }
-  .success-share a {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    border: 1px solid var(--rule);
-    border-radius: 999px;
-    color: var(--ink-2);
-    text-decoration: none;
-    font-size: 13px;
-    transition: color 0.15s, border-color 0.15s;
-  }
-  .success-share a:hover { color: var(--ink); border-color: var(--ink); }
 
   /* === FOOTER (canonical) === */
   footer {
@@ -267,6 +186,16 @@
   .footer-meta .sep { opacity: 0.4; }
   @media (max-width: 600px) {
     footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 8px; }
+  }
+
+  /* Accessibility — and a free perf win on low-end devices. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 </style>
 </head>
@@ -288,9 +217,7 @@
 </nav>
 
 <main class="wrap">
-  <div class="eyebrow">Reserve · before mint</div>
   <h1>Be counted.</h1>
-  <p class="lede">Drop your wallet address or an email to save your spot. No filter, no gatekeeping — I just want to know how many of you are coming.</p>
 
   <div id="formContainer">
     <form class="reserve-form" id="reserveForm" novalidate>
@@ -299,35 +226,21 @@
           type="text"
           id="reserveInput"
           name="value"
-          placeholder="0x… or your email"
-          autocomplete="email"
+          placeholder="0x… your wallet address"
+          autocomplete="off"
           autocapitalize="off"
           autocorrect="off"
           spellcheck="false"
           required
-          aria-label="Wallet address or email"
+          aria-label="Ethereum wallet address"
         />
-        <div class="hint" id="reserveHint">An Ethereum address or an email — either works.</div>
       </div>
       <button type="submit" class="btn" id="reserveSubmit" disabled>Save my spot</button>
     </form>
-    <div class="counter" id="reserveCounter" hidden>
-      <strong id="reserveCount">—</strong> already saved
-    </div>
   </div>
 
   <div id="successPanel" class="success" hidden>
     <div class="success-title">You're on the list.</div>
-    <div class="success-body" id="successBody">When mint goes live you'll get a 24-hour head start.</div>
-    <div class="success-share">
-      <a href="#" id="shareTwitter" target="_blank" rel="noopener">Share on X</a>
-      <a href="/lab">Try the Lab</a>
-    </div>
-  </div>
-
-  <div class="note">
-    <p>One per address. If your wallet wins a spot at mint, this list is how you'll find out.</p>
-    <p>I won't sell your email or do drip campaigns. There will be exactly one message: "mint is live."</p>
   </div>
 </main>
 
@@ -354,92 +267,63 @@
 
 <script>
 // =============================================================
-// RESERVE — pre-mint signup form
+// RESERVE — pre-mint wallet signup form
 //
-// Single input that accepts EITHER an Ethereum address OR an
-// email. We auto-detect on every keystroke and validate. Submit
-// POSTs to the Worker; if the Worker is offline we fall back to
-// a mailto: so nobody who tries to sign up gets dropped on the
-// floor.
+// Address-only. We collect wallets so we can take a snapshot for
+// the mint allowlist. Email was intentionally dropped: addresses
+// are what we actually need for on-chain operations, and asking
+// for both was clutter.
+//
+// Input validates an Ethereum address (0x + 40 hex) live as the
+// user types. The submit button stays disabled until a valid
+// address is entered — no error copy needed, the red border on
+// invalid input + dark border on valid input does the work.
 // =============================================================
 const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
   ? 'http://localhost:8787'
   : 'https://api.thebioms.com';
 
-const input        = document.getElementById('reserveInput');
-const submitBtn    = document.getElementById('reserveSubmit');
-const hint         = document.getElementById('reserveHint');
-const form         = document.getElementById('reserveForm');
-const counterEl    = document.getElementById('reserveCounter');
-const countNumEl   = document.getElementById('reserveCount');
+const input         = document.getElementById('reserveInput');
+const submitBtn     = document.getElementById('reserveSubmit');
+const form          = document.getElementById('reserveForm');
 const formContainer = document.getElementById('formContainer');
-const successPanel = document.getElementById('successPanel');
-const successBody  = document.getElementById('successBody');
-const shareTwitter = document.getElementById('shareTwitter');
+const successPanel  = document.getElementById('successPanel');
 
-const RE_ETH   = /^0x[a-fA-F0-9]{40}$/;
-const RE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RE_ETH = /^0x[a-fA-F0-9]{40}$/;
 
 function classify(v) {
   const trimmed = v.trim();
-  if (!trimmed) return { kind: null, valid: false, msg: 'An Ethereum address or an email — either works.' };
-  if (trimmed.startsWith('0x') || /^[a-fA-F0-9]/.test(trimmed)) {
-    // Looks like it's heading toward an address
-    if (RE_ETH.test(trimmed)) return { kind: 'address', valid: true, value: trimmed.toLowerCase(), msg: 'Looks like a wallet — perfect.' };
-    return { kind: 'address', valid: false, msg: 'An Ethereum address is 0x + 40 hex characters.' };
-  }
-  if (trimmed.includes('@')) {
-    if (RE_EMAIL.test(trimmed)) return { kind: 'email', valid: true, value: trimmed.toLowerCase(), msg: 'Looks like an email — perfect.' };
-    return { kind: 'email', valid: false, msg: 'That email doesn\'t look quite right.' };
-  }
-  return { kind: null, valid: false, msg: 'An Ethereum address or an email — either works.' };
+  if (!trimmed) return { valid: false, value: null };
+  if (RE_ETH.test(trimmed)) return { valid: true, value: trimmed.toLowerCase() };
+  return { valid: false, value: null };
 }
 
 function updateValidation() {
   const r = classify(input.value);
   if (!input.value.trim()) {
     input.classList.remove('valid', 'invalid');
-    hint.className = 'hint';
-    hint.textContent = r.msg;
     submitBtn.disabled = true;
     return;
   }
   if (r.valid) {
     input.classList.remove('invalid');
     input.classList.add('valid');
-    hint.className = 'hint ok';
     submitBtn.disabled = false;
   } else {
     input.classList.remove('valid');
     input.classList.add('invalid');
-    hint.className = 'hint bad';
     submitBtn.disabled = true;
   }
-  hint.textContent = r.msg;
 }
 
 input.addEventListener('input', updateValidation);
 input.addEventListener('blur', updateValidation);
 
-async function loadCount() {
-  try {
-    const r = await fetch(`${WORKER_URL}/api/waitlist/count`, { method: 'GET' });
-    if (!r.ok) return;
-    const data = await r.json();
-    if (typeof data.count === 'number') {
-      countNumEl.textContent = data.count.toLocaleString();
-      counterEl.hidden = false;
-    }
-  } catch (e) {
-    // Worker not deployed yet — hide the counter quietly.
-  }
-}
-
-async function submitReservation(payload) {
+async function submitReservation(value) {
   const r = await fetch(`${WORKER_URL}/api/waitlist`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ kind: 'address', value }),
   });
   if (!r.ok) {
     const data = await r.json().catch(() => ({}));
@@ -448,19 +332,9 @@ async function submitReservation(payload) {
   return r.json();
 }
 
-function showSuccess(kind) {
+function showSuccess() {
   formContainer.hidden = true;
   successPanel.hidden = false;
-  successBody.textContent = kind === 'address'
-    ? "When mint goes live you'll see the option in your wallet's mint window — and you'll get a heads-up on X."
-    : "When mint goes live you'll get exactly one email: \"mint is live\". No drip, no spam.";
-  const tweetText = encodeURIComponent("Just reserved my spot for @theBioms. Three thousand microbes that breed, burn, and evolve on-chain.");
-  shareTwitter.href = `https://twitter.com/intent/tweet?text=${tweetText}&url=https%3A%2F%2Fthebioms.com`;
-  // Bump the displayed counter optimistically if it was loaded.
-  if (!counterEl.hidden && countNumEl.textContent !== '—') {
-    const n = parseInt(countNumEl.textContent.replace(/[^\d]/g, ''), 10) || 0;
-    countNumEl.textContent = (n + 1).toLocaleString();
-  }
 }
 
 form.addEventListener('submit', async (e) => {
@@ -470,23 +344,18 @@ form.addEventListener('submit', async (e) => {
   submitBtn.disabled = true;
   submitBtn.textContent = 'Saving…';
   try {
-    await submitReservation({ kind: r.kind, value: r.value });
-    showSuccess(r.kind);
+    await submitReservation(r.value);
+    showSuccess();
   } catch (err) {
-    // Worker unreachable or rejected — fall back to mailto so the
-    // signup intent isn't lost. Pre-fills subject and body.
-    const subj = encodeURIComponent('Bioms — count me in');
-    const body = encodeURIComponent(`Save my spot for the Bioms mint.\n\n${r.kind === 'address' ? 'Wallet' : 'Email'}: ${r.value}\n\n(Sent via /reserve — backend not yet live, this is the manual path.)`);
-    const mailto = `mailto:hello@thebioms.com?subject=${subj}&body=${body}`;
-    // Auto-open the user's email client and ALSO show success — the
-    // intent is captured either way.
-    window.location.href = mailto;
-    showSuccess(r.kind);
+    // Re-enable the button so the user can try again. Don't show a
+    // wall of error text — most failures here are transient (network
+    // blip, rate-limit) and a retry just works.
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Try again';
   }
 });
 
 // Boot
-loadCount();
 updateValidation();
 </script>
 
