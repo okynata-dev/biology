@@ -7,7 +7,7 @@
      On reveal day: flip to content="true" in every HTML file. -->
 <meta name="bioms-reveal" content="false">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bioms</title>
+<title>Bioms — 3 000 living microbes on Ethereum</title>
 <meta name="description" content="A generative archive of microbial specimens. Each one generated live from a seed in your browser. On Ethereum.">
 <meta name="theme-color" content="#ece9e0">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -37,7 +37,7 @@
     --paper: #f4f1e8;
     --ink: #1c1a16;
     --ink-2: #5b554a;
-    --ink-3: #8b8576;
+    --ink-3: #6f6a5c;   /* contrast 4.6:1 on --bg (WCAG AA) */
     --rule: rgba(28, 26, 22, 0.12);
   }
 
@@ -58,8 +58,10 @@
     position: fixed;
     inset: 0;
     pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
-
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.012 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    /* Noise opacity halved (0.025 → 0.012) — was reading as visual noise
+       on a paper-and-ink palette. Still present for analog texture, no
+       longer competing for attention. */
     z-index: 1;
   }
 
@@ -129,6 +131,11 @@
     color: var(--ink-3);
     text-decoration: none;
     transition: color 0.15s;
+    /* Extend hit area to ≥ 44×38 touch target without shifting
+       visible layout (negative margin compensates the padding).
+       WCAG 2.5.5 / Apple HIG. */
+    padding: 12px 6px;
+    margin: -12px -6px;
   }
   .nav-links a:hover { color: var(--ink); text-decoration: none; }
   .nav-links a.active { color: var(--ink); font-weight: 500; }
@@ -174,7 +181,9 @@
     content-visibility: auto;
     contain-intrinsic-size: 1px 800px;
   }
-  section + section { border-top: 1px solid var(--rule); }
+  /* Section borders removed — padding (96-140px) already does the
+     work of separating sections; the line was redundant noise on a
+     paper-ink palette. */
   @media (max-width: 600px) { section { padding: 64px 20px; } }
 
   .wrap {
@@ -655,9 +664,10 @@
 </head>
 <body>
 
-<div class="scroll-progress" aria-hidden="true">
-  <div class="scroll-progress-fill" id="scrollProgressFill"></div>
-</div>
+<!-- scroll-progress removed for the landing — only 4 sections, no
+     long-form content, the bar was decoration without function. The
+     original 2px bar markup is in git history if anyone wants it back. -->
+
 
 <nav>
   <a class="brand" href="/" aria-label="Bioms — home">
@@ -806,6 +816,10 @@ function mountHero(el, seed) {
   const iframe = document.createElement('iframe');
   iframe.className = 'specimen';
   iframe.loading = 'eager';
+  // WCAG 4.1.2 — iframes need a label, otherwise screen readers say
+  // "untitled frame". The hero specimen is the main visual block so
+  // it needs to identify itself.
+  iframe.title = 'Live Biom specimen';
   iframe.style.cssText = 'width:100%;height:100%;border:0;display:block;';
   // bare=1 strips the inner card frame so the specimen sits on the
   // hero-stage paper background directly.
@@ -817,9 +831,32 @@ const heroEl = document.getElementById('heroSpecimen');
 const seedDisplay = document.getElementById('seedDisplay');
 const seedChip = document.getElementById('seedChip');
 const seedChipSep = document.getElementById('seedChipSep');
-// Don't hardcode a seed in the HTML source — view-source would leak it
-// and snipers would screenshot the "hero". Pick fresh each pageload.
-let currentSeed = Math.floor(Math.random() * 3000);
+// Hero seed priority:
+//   1. ?seed=N in URL — shareable: someone tweets the URL and the
+//      recipient sees the exact same specimen.
+//   2. sessionStorage "bioms-hero-seed" — sticky within a tab/session
+//      so a hard reload doesn't yank the user's current specimen.
+//   3. Fresh random — first visit of the session.
+// Don't hardcode in HTML source: view-source would leak it and
+// snipers would screenshot the "hero".
+function _readUrlSeed() {
+  const u = new URLSearchParams(location.search).get('seed');
+  const n = parseInt(u || '', 10);
+  return Number.isFinite(n) && n >= 0 && n <= 2999 ? n : null;
+}
+function _readStoredSeed() {
+  try {
+    const n = parseInt(sessionStorage.getItem('bioms-hero-seed') || '', 10);
+    return Number.isFinite(n) && n >= 0 && n <= 2999 ? n : null;
+  } catch (_) { return null; }
+}
+function _storeSeed(n) {
+  try { sessionStorage.setItem('bioms-hero-seed', String(n)); } catch (_) {}
+}
+let currentSeed = _readUrlSeed();
+if (currentSeed === null) currentSeed = _readStoredSeed();
+if (currentSeed === null) currentSeed = Math.floor(Math.random() * 3000);
+_storeSeed(currentSeed);
 mountHero(heroEl, currentSeed);
 // Pre-reveal: hide just the "BIOM #N" chip + separator (no number, no
 // leak vector). The Next button stays so users can still roll the hero.
@@ -836,6 +873,7 @@ document.getElementById('rollBtn').addEventListener('click', () => {
   let next;
   do { next = Math.floor(Math.random() * 3000); } while (next === currentSeed);
   currentSeed = next;
+  _storeSeed(currentSeed);
   mountHero(heroEl, currentSeed);
   if (REVEAL) seedDisplay.textContent = String(currentSeed);
 });
@@ -870,10 +908,11 @@ const PHOENIX_SHOWCASE = {
   organelles: new Set(['capsule','nucleoid','ribosomes','pili','flagellum','plasmid','inclusion']),
   phageAttached: true,
 };
-const labSeeds = {
-  genesis: REVEAL ? 247  : Math.floor(Math.random() * 3000),
-  phoenix: REVEAL ? 1900 : Math.floor(Math.random() * 3000),
-};
+// Lab diptych seeds — fixed even pre-reveal. Used to vary by random
+// per pageload, which broke continuity (same visit two days apart
+// would show different specimens). The brand promise is "your Biom
+// is yours forever" — its showcase should reflect that.
+const labSeeds = { genesis: 247, phoenix: 1900 };
 document.querySelectorAll('[data-lab-seed]').forEach(el => {
   const k = el.dataset.labSeed;
   if (k === 'genesis') _renderLabPane(el, labSeeds.genesis, GENESIS_SHOWCASE);
@@ -886,9 +925,24 @@ document.querySelectorAll('[data-lab-seed]').forEach(el => {
 // Pre-reveal: twelve random seeds picked at pageload, inline-rendered
 // via BiomEngine (no R2 dependency, no per-cell iframe overhead).
 const CATALOG_SEEDS_CURATED = [44, 132, 2, 176, 5, 247, 38, 64, 156, 109, 1500, 2222];
-const CATALOG_SEEDS = REVEAL
-  ? CATALOG_SEEDS_CURATED
-  : Array.from({ length: 12 }, () => Math.floor(Math.random() * 3000));
+// Pre-reveal: 12 random seeds, but sticky for the session so a
+// page reload doesn't replace the whole grid. Returns the same 12
+// across nav-back and Cmd+R within the same tab session.
+function _catalogSeedsPreReveal() {
+  try {
+    const cached = sessionStorage.getItem('bioms-catalog-seeds');
+    if (cached) {
+      const arr = JSON.parse(cached);
+      if (Array.isArray(arr) && arr.length === 12 && arr.every(n => Number.isFinite(n))) {
+        return arr;
+      }
+    }
+  } catch (_) {}
+  const fresh = Array.from({ length: 12 }, () => Math.floor(Math.random() * 3000));
+  try { sessionStorage.setItem('bioms-catalog-seeds', JSON.stringify(fresh)); } catch (_) {}
+  return fresh;
+}
+const CATALOG_SEEDS = REVEAL ? CATALOG_SEEDS_CURATED : _catalogSeedsPreReveal();
 const catalogGrid = document.getElementById('catalogGrid');
 if (catalogGrid) {
   // Each cell uses a <picture> with WebP thumb first, PNG thumb second,
@@ -934,26 +988,8 @@ if (catalogGrid) {
   }
 }
 
-// === SCROLL PROGRESS ===
-// rAF-coalesced scroll handler — one frame per actual scroll event,
-// no thrash. Transform on the fill avoids layout/paint; the
-// compositor handles it on the GPU.
-(function setupScrollProgress() {
-  const fill = document.getElementById('scrollProgressFill');
-  if (!fill) return;
-  let ticking = false;
-  function update() {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    const pct = max > 0 ? Math.min(1, window.scrollY / max) : 0;
-    fill.style.transform = `scaleX(${pct})`;
-    ticking = false;
-  }
-  window.addEventListener('scroll', () => {
-    if (!ticking) { requestAnimationFrame(update); ticking = true; }
-  }, { passive: true });
-  window.addEventListener('resize', update, { passive: true });
-  update();
-})();
+// (Former scroll-progress IIFE removed — bar markup is gone, the
+// JS would have been a no-op.)
 
 // ============================================================
 // IFRAME RAF GOVERNOR — pause off-screen preview.html liveLoops.

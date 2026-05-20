@@ -24,7 +24,7 @@
     --paper: #f4f1e8;
     --ink: #1c1a16;
     --ink-2: #5b554a;
-    --ink-3: #8b8576;
+    --ink-3: #6f6a5c;   /* contrast 4.6:1 on --bg (WCAG AA) */
     --rule: rgba(28, 26, 22, 0.12);
     --ok: #2e7d4f;
     --bad: #9a4a2e;
@@ -73,6 +73,8 @@
   .nav-links a {
     color: var(--ink-3); text-decoration: none;
     transition: color 0.15s;
+    padding: 12px 6px;
+    margin: -12px -6px;
   }
   .nav-links a:hover { color: var(--ink); text-decoration: none; }
   .nav-x { display: inline-flex; align-items: center; color: var(--ink-3); transition: color 0.15s; margin-left: 4px; }
@@ -98,8 +100,24 @@
     letter-spacing: -0.025em;
     font-weight: 500;
     line-height: 1.05;
-    margin-bottom: 36px;
+    margin-bottom: 14px;
   }
+  .h1-sub {
+    font-size: clamp(15px, 1.4vw, 17px);
+    line-height: 1.5;
+    color: var(--ink-2);
+    margin-bottom: 48px;
+    max-width: 32em;
+  }
+  .live-counter {
+    margin-top: 18px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
+    text-align: center;
+  }
+  .live-counter strong { color: var(--ink-2); font-weight: 500; }
 
   /* === FORM === */
   form.reserve-form {
@@ -171,11 +189,29 @@
     font-weight: 500;
   }
   .success-sub {
-    color: var(--ink-3);
+    color: var(--ink-2);
     font-size: 14px;
-    margin-top: 6px;
-    font-variant-numeric: tabular-nums;
+    margin-top: 10px;
+    line-height: 1.5;
+    max-width: 32em;
+    margin-left: auto;
+    margin-right: auto;
   }
+  .success-cta {
+    margin-top: 18px;
+  }
+  .success-cta-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px;
+    border: 1px solid var(--ink);
+    color: var(--ink);
+    border-radius: 999px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+  }
+  .success-cta-btn:hover { background: var(--ink); color: var(--bg); }
 
   /* === CHECK SUB-FORM (lives on success panel) === */
   .check-block {
@@ -282,6 +318,7 @@
 
 <main class="wrap">
   <h1>Be counted.</h1>
+  <p class="h1-sub">Three thousand microbes on Ethereum. Drop your wallet — the snapshot for mint pulls from this list.</p>
 
   <div id="formContainer">
     <form class="reserve-form" id="reserveForm" novalidate>
@@ -295,17 +332,24 @@
           autocapitalize="off"
           autocorrect="off"
           spellcheck="false"
+          autofocus
           required
           aria-label="Ethereum wallet address or ENS name"
         />
       </div>
       <button type="submit" class="btn" id="reserveSubmit" disabled>Save my spot</button>
     </form>
+    <div class="live-counter" id="liveCounter" hidden>
+      <strong id="liveCount">—</strong> already in
+    </div>
   </div>
 
   <div id="successPanel" class="success" hidden>
     <div class="success-title" id="successTitle">You're on the list.</div>
-    <div class="success-sub" id="successSub" hidden></div>
+    <div class="success-sub" id="successSub">Mint announcement will go up on X. Follow to know first.</div>
+    <div class="success-cta">
+      <a class="success-cta-btn" href="https://twitter.com/theBioms" target="_blank" rel="noopener">Follow @theBioms</a>
+    </div>
 
     <div class="check-block">
       <div class="check-label">Check another address</div>
@@ -442,14 +486,11 @@ function showSuccess(resp) {
   successPanel.hidden = false;
   if (resp && resp.already_in_list) {
     successTitle.textContent = "You were already in.";
-    if (resp.signed_up_ms) {
-      successSub.textContent = 'Saved on ' + shortDate(resp.signed_up_ms) + '.';
-      successSub.hidden = false;
-    }
   } else {
     successTitle.textContent = "You're on the list.";
-    successSub.hidden = true;
   }
+  // success-sub stays as the "follow @theBioms" line — that's what
+  // users want next regardless of first vs returning signup.
 }
 
 form.addEventListener('submit', async (e) => {
@@ -515,9 +556,22 @@ checkForm.addEventListener('submit', async (e) => {
   }
 });
 
+async function loadCount() {
+  try {
+    const r = await fetch(`${WORKER_URL}/api/waitlist/count`, { method: 'GET' });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (typeof data.count === 'number' && data.count > 0) {
+      document.getElementById('liveCount').textContent = data.count.toLocaleString();
+      document.getElementById('liveCounter').hidden = false;
+    }
+  } catch (_) { /* quiet — counter is decorative */ }
+}
+
 // Boot
 updateValidation();
 updateCheckValidation();
+loadCount();
 </script>
 
 </body>

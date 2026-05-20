@@ -587,8 +587,10 @@ async function handleLog(env, url, origin) {
 // Soft rate limit via ip_hash so a single client can't spam-add
 // thousands of fake addresses.
 // ============================================================
+// Frontend lowercases before sending, but stay defensive — accept
+// either case for the address (typed by hand) and case-insensitive
+// for ENS names. Worker still stores the lowercased canonical form.
 const RE_ETH_ADDR = /^0x[a-fA-F0-9]{40}$/;
-const RE_EMAIL_LOOSE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // ENS names — at least one label, ending in .eth. Allows subdomains
 // like vitalik.base.eth, hot.box.eth, etc. ASCII-only for now; unicode
 // names exist but are rare and would need stricter normalization to
@@ -656,31 +658,31 @@ async function handleWaitlistAdd(req, env, origin) {
   try { body = await req.json(); }
   catch { return error('invalid_json', 400, origin); }
 
-  const kind = body && body.kind;
+  // Address-only intake. Email collection was dropped — the snapshot
+  // pipeline only needs wallets. `kind` is still accepted as 'address'
+  // for backwards-compat with the previous frontend, but anything else
+  // bounces.
   let value = body && body.value;
   if (typeof value !== 'string') return error('bad_value', 400, origin);
   value = value.trim().toLowerCase();
-  if (kind === 'address') {
-    // Accept either a raw 0x address OR an ENS name. ENS gets
-    // resolved server-side and stored as the resolved address —
-    // the snapshot script then sees a clean list of 0x values
-    // ready for the allowlist Merkle tree.
-    if (RE_ETH_ADDR.test(value)) {
-      // Already a 0x address — keep as-is.
-    } else if (RE_ENS_NAME.test(value)) {
-      const resolved = await resolveEnsName(env, value);
-      if (!resolved) {
-        return error('ens_unresolvable', 400, origin);
-      }
-      value = resolved;
-    } else {
-      return error('bad_address', 400, origin);
-    }
-  } else if (kind === 'email') {
-    if (!RE_EMAIL_LOOSE.test(value) || value.length > 254) return error('bad_email', 400, origin);
-  } else {
+  if (body && body.kind && body.kind !== 'address') {
     return error('bad_kind', 400, origin);
   }
+  if (RE_ETH_ADDR.test(value)) {
+    // Already a 0x address — keep as-is.
+  } else if (RE_ENS_NAME.test(value)) {
+    // ENS gets resolved server-side and stored as the resolved 0x —
+    // the snapshot script then sees a uniform list ready for the
+    // allowlist Merkle tree.
+    const resolved = await resolveEnsName(env, value);
+    if (!resolved) {
+      return error('ens_unresolvable', 400, origin);
+    }
+    value = resolved;
+  } else {
+    return error('bad_address', 400, origin);
+  }
+  const kind = 'address';
 
   // Soft rate-limit: at most 30 signups per IP per hour. Cheap counter
   // against the existing rows by ip_hash. Reasonable for a sign-up form.

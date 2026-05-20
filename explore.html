@@ -37,7 +37,7 @@
     --paper: #f4f1e8;
     --ink: #1c1a16;
     --ink-2: #5b554a;
-    --ink-3: #8b8576;
+    --ink-3: #6f6a5c;   /* contrast 4.6:1 on --bg (WCAG AA) */
     --rule: rgba(28, 26, 22, 0.12);
   }
 
@@ -96,6 +96,8 @@
     color: var(--ink-3);
     text-decoration: none;
     transition: color 0.15s;
+    padding: 12px 6px;
+    margin: -12px -6px;
   }
   .nav-links a:hover { color: var(--ink); text-decoration: none; }
   .nav-links a.active { color: var(--ink); font-weight: 500; }

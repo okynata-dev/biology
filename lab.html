@@ -37,7 +37,7 @@
     --paper: #f4f1e8;
     --ink: #1c1a16;
     --ink-2: #5b554a;
-    --ink-3: #8b8576;
+    --ink-3: #6f6a5c;   /* contrast 4.6:1 on --bg (WCAG AA) */
     --rule: rgba(28, 26, 22, 0.12);
     --ok: #4a7c4a;
     --bad: #9a5b3d;
@@ -85,7 +85,7 @@
   .nav-links {
     display: flex; align-items: center; gap: 22px; font-size: 14px;
   }
-  .nav-links a { color: var(--ink-3); transition: color 0.15s; }
+  .nav-links a { color: var(--ink-3); transition: color 0.15s; padding: 12px 6px; margin: -12px -6px; }
   .nav-links a:hover { color: var(--ink); }
   .nav-links a.active { color: var(--ink); font-weight: 500; }
   .nav-x {
