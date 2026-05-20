@@ -310,6 +310,18 @@
     position: relative;
     display: flex;
     flex-direction: column;
+    /* Each card is a self-contained tile. `contain: layout style paint`
+       tells the browser that nothing inside affects layout/style/paint
+       outside the card — so a hover-lift or selection-border change on
+       one card doesn't reflow the whole grid. Combined with
+       content-visibility: auto on .collection-grid, scrolling stays
+       smooth even when 50+ cards are mounted. */
+    contain: layout style paint;
+    /* content-visibility: auto would let the browser skip painting
+       cards off-screen entirely. Browsers respect it inside grids; the
+       intrinsic size hint keeps scrollbar accurate. */
+    content-visibility: auto;
+    contain-intrinsic-size: 220px 280px;
   }
   @media (hover: hover) {
     .biom-card:hover {
@@ -2889,10 +2901,31 @@ function _buildCardElement(seed) {
     ? `${tier.name} — Rank ${eff.rank}, survived ${eff.burnsAbsorbed} burn${eff.burnsAbsorbed === 1 ? '' : 's'}${lineage ? '. ' + lineage : ''}`
     : '';
 
-  // Inline render via BiomEngine — replaces the per-card iframe (each
-  // iframe was a full preview.html document load, which is what made
-  // the lab thrash). Now every card shares the lab's JS context and
-  // contributes only ~30 DOM nodes for the specimen panels.
+  // Two render paths — picked by mutation status:
+  //
+  //   ISBASE (no mutations, default state — most cards in a default
+  //   collection): use the pre-rendered PNG thumb from R2 as a
+  //   single <img>. ~1 DOM node per biom. Browser caches the image.
+  //   Zero backdrop-filter work for the GPU compositor when scrolling.
+  //
+  //   MUTATED (post-burn/crossbreed survivors with non-base traits):
+  //   we don't have a pre-rendered PNG for "vegetative + acid_fast +
+  //   phage_attached + 6 organelles" — that's a unique state. Fall
+  //   back to the inline DOM render (~30-40 backdrop-filter panels).
+  //   This is the heavy path, but it only fires for bioms that
+  //   actually had something happen to them.
+  //
+  // On a fresh Demo collection of 10 random bioms, this drops the
+  // GPU load by ~10× (was 300-400 blurred panels, now 0-30
+  // depending on how many have been mutated).
+  const t = LabState.tokens[seed] || {};
+  const isBase = !t.receivedPalette
+    && !(t.receivedOrganelles && t.receivedOrganelles.length)
+    && !(t.receivedAnomalies && t.receivedAnomalies.length)
+    && !t.receivedMorphology && !t.receivedCellCount
+    && !t.receivedLifecycle && !t.receivedReserve
+    && (eff.rank || 1) === 1;
+
   const card = document.createElement('div');
   card.className = 'biom-card';
   card.dataset.seed = String(seed);
@@ -2900,17 +2933,25 @@ function _buildCardElement(seed) {
   card.setAttribute('role', 'button');
   card.setAttribute('aria-label',
     `${window.BiomEngine.label(seed)}${eff.rank > 1 ? ` (Rank ${eff.rank})` : ''} — click to pick`);
-  // Traits row gets a second piece of info when the Biom has burned
-  // others: "7 traits · 3 absorbed". Subtle but visible — collectors
-  // can spot which of their tokens carry the most history at a glance.
   const traitsText = eff.burnsAbsorbed > 0
     ? `${traitCount} traits · ${eff.burnsAbsorbed} absorbed`
     : `${traitCount} traits`;
+
+  const padded = String(seed).padStart(5, '0');
+  const thumbInner = isBase
+    ? `<picture>
+         <source type="image/webp" srcset="https://pngs.thebioms.com/thumb/${padded}.webp">
+         <img src="https://pngs.thebioms.com/thumb/${padded}.png"
+              alt="" loading="lazy" decoding="async"
+              width="600" height="600">
+       </picture>`
+    : `<div class="biom-thumb-inline ${thumbCls}">
+         <div class="scene"><div class="composition"></div></div>
+       </div>`;
+
   card.innerHTML = `
     <div class="biom-thumb">
-      <div class="biom-thumb-inline ${thumbCls}">
-        <div class="scene"><div class="composition"></div></div>
-      </div>
+      ${thumbInner}
       ${tier ? `<span class="gen-badge ${tier.cls}" title="${badgeTitle}">${tier.name}</span>` : ''}
       <span class="role-tag" hidden></span>
       <span class="cooldown-tag" hidden></span>
@@ -2920,33 +2961,32 @@ function _buildCardElement(seed) {
       <span class="biom-traits">${traitsText}</span>
     </div>
   `;
-  // Inline-render via BiomEngine into the .composition slot.
-  // Canvas snapshots were tried but they lost the glass effect —
-  // the DOM render preserves backdrop-filter, multi-layer shadows,
-  // and the sheen pseudo-elements that make the specimen look
-  // luminous instead of flat.
-  try {
-    let resolvedPalette = eff.palette;
-    if (typeof resolvedPalette === 'string' && resolvedPalette.includes('+')) {
-      const parts = resolvedPalette.split('+').filter(Boolean);
-      resolvedPalette = window.BiomEngine.mixPalettes(...parts);
+
+  // Inline DOM render only for mutated bioms — the heavy path.
+  if (!isBase) {
+    try {
+      let resolvedPalette = eff.palette;
+      if (typeof resolvedPalette === 'string' && resolvedPalette.includes('+')) {
+        const parts = resolvedPalette.split('+').filter(Boolean);
+        resolvedPalette = window.BiomEngine.mixPalettes(...parts);
+      }
+      const comp = card.querySelector('.composition');
+      window.BiomEngine.renderSpecimen(comp, seed, {
+        state: {
+          morphology: eff.morphology,
+          cellCount: eff.cellCount,
+          palette: resolvedPalette,
+          organelles: eff.organelles,
+          lifecycle: eff.lifecycle,
+          reserveGranule: eff.reserveGranule,
+          phageAttached: eff.phageAttached,
+          endosymbiont: eff.endosymbiont,
+          biofilmHalo: eff.biofilmHalo,
+        },
+      });
+    } catch (err) {
+      console.warn(`[lab] thumb render failed for #${seed}`, err);
     }
-    const comp = card.querySelector('.composition');
-    window.BiomEngine.renderSpecimen(comp, seed, {
-      state: {
-        morphology: eff.morphology,
-        cellCount: eff.cellCount,
-        palette: resolvedPalette,
-        organelles: eff.organelles,
-        lifecycle: eff.lifecycle,
-        reserveGranule: eff.reserveGranule,
-        phageAttached: eff.phageAttached,
-        endosymbiont: eff.endosymbiont,
-        biofilmHalo: eff.biofilmHalo,
-      },
-    });
-  } catch (err) {
-    console.warn(`[lab] thumb render failed for #${seed}`, err);
   }
   const activate = () => onBiomClick(seed);
   card.addEventListener('click', activate);
