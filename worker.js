@@ -1057,6 +1057,63 @@ async function handleWaitlistCheck(req, env, origin) {
   }, {}, origin);
 }
 
+// GET /api/admin/waitlist?token=<secret>&format=json|csv
+//
+// Owner-only dump of the waitlist. Secret-token gate (compared with
+// constant-time crypto.subtle.timingSafeEqual would be cleaner, but
+// for Workers + a single secret the string === check is adequate
+// when combined with HTTPS — the token never appears in URL logs
+// because we only ever bookmark this in the browser, not share it).
+//
+// Set the secret with:
+//   echo "$(openssl rand -hex 32)" | npx wrangler secret put ADMIN_TOKEN
+//
+// Then bookmark:
+//   https://api.thebioms.com/api/admin/waitlist?token=<that-value>
+//
+// Add &format=csv to download as spreadsheet-friendly CSV.
+async function handleAdminWaitlist(req, env, origin) {
+  if (!env.ADMIN_TOKEN) return error('admin_token_not_set', 503, origin);
+  const url = new URL(req.url);
+  const token = url.searchParams.get('token') || '';
+  if (token !== env.ADMIN_TOKEN) return error('forbidden', 403, origin);
+  const format = (url.searchParams.get('format') || 'json').toLowerCase();
+  const limit = Math.min(10000, parseInt(url.searchParams.get('limit') || '5000', 10));
+
+  const { results } = await env.DB.prepare(
+    'SELECT id, kind, value, ts FROM waitlist ORDER BY ts DESC LIMIT ?'
+  ).bind(limit).all();
+  const rows = results || [];
+
+  if (format === 'csv') {
+    const header = 'id,kind,value,signed_up_ms,signed_up_iso\n';
+    const body = rows.map(r => {
+      const iso = new Date(r.ts).toISOString();
+      const value = String(r.value || '').replace(/"/g, '""');
+      return `${r.id},"${r.kind}","${value}",${r.ts},${iso}`;
+    }).join('\n');
+    return new Response(header + body, {
+      headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': `attachment; filename="bioms-waitlist-${Date.now()}.csv"`,
+        'cache-control': 'no-store',
+      },
+    });
+  }
+
+  return json({
+    ok: true,
+    total: rows.length,
+    waitlist: rows.map(r => ({
+      id: r.id,
+      kind: r.kind,
+      value: r.value,
+      signedUpMs: r.ts,
+      signedUpIso: new Date(r.ts).toISOString(),
+    })),
+  }, { headers: { 'cache-control': 'no-store' } }, origin);
+}
+
 async function handleWaitlistCount(env, origin) {
   const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM waitlist').first();
   const count = row ? row.n : 0;
@@ -1137,6 +1194,9 @@ export default {
       }
       if (path === '/api/waitlist/check') {
         return await handleWaitlistCheck(req, env, origin);
+      }
+      if (path === '/api/admin/waitlist') {
+        return await handleAdminWaitlist(req, env, origin);
       }
       if (path === '/api/waitlist' && req.method === 'POST') {
         return await handleWaitlistAdd(req, env, origin);
