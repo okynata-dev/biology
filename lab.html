@@ -357,7 +357,10 @@
   .biom-card.in-use { opacity: 0.4; pointer-events: none; }
   .biom-thumb {
     aspect-ratio: 1;
-    background: #fff;
+    /* Match the card background — was #fff which created a visible
+       seam where the biom's top whitespace met the card's paper edge,
+       especially obvious on selected cards with their darker border. */
+    background: var(--paper);
     position: relative;
     overflow: hidden;
   }
@@ -3280,6 +3283,62 @@ const outcomesHint = document.getElementById('outcomesHint');
 let _outcomesPairKey = null;       // cache key: rebuild only when pair changes
 let _outcomesEmpty = false;        // remember if we're showing the empty-state placeholder
 
+// Canvas snapshot for an outcome card — replaces what used to be
+// 11 live iframes. We render once into an offscreen canvas at 2×
+// resolution for crispness, encode as PNG, and the caller drops
+// the data URL into a plain <img>. The browser then treats it
+// like any other image: cached, lazy-decoded, no JS context.
+//
+// memo cache keyed on (seed + serialized state) — if the user
+// thrashes between recipients the same outcome doesn't re-render.
+const _outcomeSnapshotCache = new Map();
+function _outcomeCacheKey(seed, state) {
+  // organelles is a Set in some paths — normalize for stable key
+  const org = state && state.organelles
+    ? (state.organelles instanceof Set ? [...state.organelles] : state.organelles).slice().sort()
+    : [];
+  return [
+    seed,
+    state?.morphology || '',
+    state?.cellCount || '',
+    state?.palette || '',
+    org.join(','),
+    state?.lifecycle || '',
+    state?.reserveGranule || '',
+    state?.phageAttached ? '1' : '0',
+    state?.endosymbiont ? '1' : '0',
+    state?.biofilmHalo ? '1' : '0',
+  ].join('|');
+}
+function _renderOutcomeSnapshot(seed, state) {
+  const key = _outcomeCacheKey(seed, state);
+  if (_outcomeSnapshotCache.has(key)) return _outcomeSnapshotCache.get(key);
+  let palette = state && state.palette;
+  if (typeof palette === 'string' && palette.includes('+')) {
+    const parts = palette.split('+').filter(Boolean);
+    palette = window.BiomEngine.mixPalettes(...parts);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 600;
+  canvas.height = 600;
+  try {
+    window.BiomEngine.renderSpecimenToCanvas(canvas, seed, {
+      state: state ? { ...state, palette } : null,
+    });
+  } catch (err) {
+    console.warn('outcome snapshot failed for', seed, err);
+  }
+  const url = canvas.toDataURL('image/png');
+  // Cache cap — drop oldest at 100 entries so memory doesn't grow
+  // unbounded across long sessions
+  if (_outcomeSnapshotCache.size >= 100) {
+    const firstKey = _outcomeSnapshotCache.keys().next().value;
+    _outcomeSnapshotCache.delete(firstKey);
+  }
+  _outcomeSnapshotCache.set(key, url);
+  return url;
+}
+
 function renderOutcomes() {
   // Hide entirely until both slots are filled
   if (donorSeed === null || recipientSeed === null) {
@@ -3360,17 +3419,26 @@ function renderOutcomes() {
     return;
   }
   _outcomesEmpty = false;
+  // Outcomes were 11 iframes — each one a full preview.html document
+  // load with its own JS context. That meant 11× parse + 11× render
+  // + 11× memory footprint, even with loading=lazy and static=1.
+  // Switched to canvas snapshots: BiomEngine.renderSpecimenToCanvas
+  // paints the outcome ONCE per card into a hidden canvas, we encode
+  // to a data URL, and inline it as <img>. After that point the GPU
+  // sees plain bitmaps — no DOM nodes, no script contexts, no anim.
+  //
+  // Trade-off documented in CLAUDE.md §5: the canvas renderer doesn't
+  // produce the backdrop-filter glass effect, only the multi-layer
+  // shadow approximation. For comparison cards (where you're picking
+  // ONE of N) the trade is right — fidelity comes back the moment
+  // the user clicks a card and that outcome promotes to the slot's
+  // live iframe.
   outcomesGrid.innerHTML = outcomes.map(opt => {
-    // static=1 — engine inits + renders ONCE, no continuous animation.
-    // Big perf win: N cards × no animation loops = laptop survives.
-    // When user selects a card, the recipient slot swaps to a LIVE
-    // (animated) preview of that same outcome — one heavy iframe instead
-    // of N. See renderSlot.
-    const url = previewUrlFor(opt.changedSeed, opt.previewState, { nointeract: true, static: true });
+    const dataUrl = _renderOutcomeSnapshot(opt.changedSeed, opt.previewState);
     return `
       <button type="button" class="outcome-card" data-trait="${opt.id}" aria-label="${opt.label}: ${opt.caption}">
         <div class="outcome-frame">
-          <iframe src="${url}" loading="lazy" tabindex="-1"></iframe>
+          <img src="${dataUrl}" alt="" decoding="async">
         </div>
         <div class="outcome-meta">
           <div class="outcome-name">${opt.label}</div>
