@@ -340,11 +340,9 @@
     return false;  // FAIL-SECURE: hide seed numbers when in doubt
   }
   const REVEAL = _resolveReveal();
-  if (REVEAL && typeof window !== 'undefined' && window.location &&
-      (window.location.hostname === 'thebioms.com' || window.location.hostname === 'www.thebioms.com')) {
-    // Loud warning so a forgotten reveal=true on prod doesn't ship silently.
-    try { console.warn('[Bioms] REVEAL=true on production — verify contract setBaseURI is updated.'); } catch (_) {}
-  }
+  // Note: the historical "REVEAL=true on prod" warning was removed in
+  // 2026-05 when the project switched to instant reveal — seed numbers
+  // are visible from day one, so no surprise here.
   function label(seed) {
     const name = pickName(seed);
     if (!REVEAL) return name;
