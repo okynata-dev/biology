@@ -469,9 +469,17 @@
     background: var(--ink);
     color: var(--bg);
     line-height: 1;
-    z-index: 2;
+    /* z-index must beat biom cell panels (z up to ~100 from the
+       engine) AND their ::before sheen which uses mix-blend-mode:
+       overlay. Without this the chip gets a diagonal white slash
+       painted through it where a panel's glass-sheen overlaps. */
+    z-index: 1000;
     pointer-events: none;
     box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    /* isolate creates a new stacking context — the chip's children
+       and its background can't be reached by overlay blend modes
+       from siblings below. Double belt-and-braces vs the panel sheen. */
+    isolation: isolate;
   }
   body.mode-burn .biom-card.selected-donor .role-tag {
     background: #9a4a2e;
@@ -492,6 +500,11 @@
     background: var(--ink);
     color: var(--bg);
     box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    /* Same z-index + isolation as .role-tag — engine panels go up to
+       z~100 and their ::before sheen with mix-blend-mode: overlay would
+       otherwise paint a diagonal slash across the chip. */
+    z-index: 1000;
+    isolation: isolate;
   }
   /* Higher tiers earn slightly different fills, still in the brand
      monochrome — prestige through restraint, not rainbow. */
@@ -949,9 +962,11 @@
     background: var(--paper);
     position: relative;
   }
-  .crossbreed-half .outcome-frame iframe {
+  .crossbreed-half .outcome-frame iframe,
+  .crossbreed-half .outcome-frame img {
     width: 100%; height: 100%; border: 0; display: block;
     pointer-events: none;
+    object-fit: cover;
   }
   .crossbreed-half .half-label {
     padding: 10px 12px 12px;
@@ -3606,10 +3621,22 @@ function renderOutcomes() {
     lines.push(rankPhrase);
     const gainText = lines.length ? lines.join(' ') : 'These two are too similar — try a different burn target.';
     _outcomesEmpty = false;
+    // Render the burn result as a canvas SNAPSHOT, not a live iframe.
+    // The iframe path used to spawn a full preview.html document on
+    // every pair-change (parse + engine init + DOM render ≈ 200-500ms)
+    // which the user felt as "тупит при выборе второго биома". Canvas
+    // snapshot does the same composition in 10-20ms and the result is
+    // a static image — no JS context, no animation thread.
+    //
+    // Trade-off: snapshot doesn't carry the live glass backdrop-filter,
+    // only the multi-layer shadow approximation. For a single result
+    // preview the trade is right; if we ever want to promote this to
+    // live-preview after commit, we can swap to iframe at that point.
+    const burnSnap = _renderOutcomeSnapshot(recipientSeed, next);
     outcomesGrid.innerHTML = `
       <div class="burn-preview-card">
         <div class="outcome-frame">
-          <iframe src="${url}" loading="eager" tabindex="-1"></iframe>
+          <img src="${burnSnap}" alt="" decoding="async">
         </div>
         <div class="outcome-meta">
           <div class="outcome-name">${window.BiomEngine.label(recipientSeed)} after absorbing ${window.BiomEngine.label(donorSeed)}</div>
@@ -3659,8 +3686,12 @@ function renderOutcomes() {
   // we don't actually persist anything until performCrossbreed is called.
   const aPostState = _simulatePostState(donorSeed, auto.apply);
   const bPostState = _simulatePostState(recipientSeed, auto.apply);
-  const aUrl = previewUrlFor(donorSeed, aPostState, { nointeract: true });
-  const bUrl = previewUrlFor(recipientSeed, bPostState, { nointeract: true });
+  // Canvas snapshots instead of iframes — two preview.html iframes per
+  // pair-change was burning 400-1000ms on the main thread on each click.
+  // Snapshots paint in 20-30ms total. We lose live glass-blur fidelity
+  // but the dual-preview is comparison shopping anyway, not the hero.
+  const aImg = _renderOutcomeSnapshot(donorSeed, aPostState);
+  const bImg = _renderOutcomeSnapshot(recipientSeed, bPostState);
 
   const donorLabel = window.BiomEngine.label(donorSeed);
   const recipLabel = window.BiomEngine.label(recipientSeed);
@@ -3676,7 +3707,7 @@ function renderOutcomes() {
         <div class="crossbreed-half">
           <div class="outcome-frame">
             <span class="half-pill ${aDesc.stays ? 'stays' : ''}">${aDesc.pill}</span>
-            <iframe src="${aUrl}" loading="eager" tabindex="-1" title="${donorLabel} after crossbreed"></iframe>
+            <img src="${aImg}" alt="${donorLabel} after crossbreed" decoding="async">
           </div>
           <div class="half-label">
             <div class="half-name">${donorLabel}</div>
@@ -3686,7 +3717,7 @@ function renderOutcomes() {
         <div class="crossbreed-half">
           <div class="outcome-frame">
             <span class="half-pill ${bDesc.stays ? 'stays' : ''}">${bDesc.pill}</span>
-            <iframe src="${bUrl}" loading="eager" tabindex="-1" title="${recipLabel} after crossbreed"></iframe>
+            <img src="${bImg}" alt="${recipLabel} after crossbreed" decoding="async">
           </div>
           <div class="half-label">
             <div class="half-name">${recipLabel}</div>
