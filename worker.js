@@ -240,6 +240,14 @@ function getMainnetClient(env) {
   });
 }
 
+// OpenSea API key — tolerant of both canonical name OPENSEA_API_KEY and
+// the shorter OPENSEA_KEY that operators sometimes use when setting the
+// secret (the OpenSea dashboard itself calls it "API key"). Whichever
+// is set wins; if both are set, OPENSEA_API_KEY takes precedence.
+function openseaKey(env) {
+  return env.OPENSEA_API_KEY || env.OPENSEA_KEY || '';
+}
+
 // ERC-721 Transfer event signature — used to detect a burn from a tx
 // receipt. The topic hash is keccak256("Transfer(address,address,uint256)").
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
@@ -742,13 +750,14 @@ async function handleConjugate(req, env, ctx, origin) {
 // the log table so a rotated/expired API key surfaces in operations
 // review instead of dying silently.
 async function refreshOpenSeaMetadata(env, ...tokenIds) {
-  if (!env.OPENSEA_API_KEY || !env.CONTRACT_ADDRESS) return;
+  const apiKey = openseaKey(env);
+  if (!apiKey || !env.CONTRACT_ADDRESS) return;
   const chain = env.CHAIN_ID === '1' ? 'ethereum' : 'sepolia';
   const ts = Date.now();
   const settled = await Promise.allSettled(tokenIds.map(id =>
     fetchWithTimeout(
       `https://api.opensea.io/api/v2/chain/${chain}/contract/${env.CONTRACT_ADDRESS}/nfts/${id}/refresh`,
-      { method: 'POST', headers: { 'X-API-KEY': env.OPENSEA_API_KEY } },
+      { method: 'POST', headers: { 'X-API-KEY': apiKey } },
     ).then(r => ({ id, ok: r.ok, status: r.status }))
   ));
   const failures = settled
@@ -1392,7 +1401,7 @@ async function handleAdminRegen(req, env, tokenIdStr, origin) {
     return error(result.reason || 'render_failed', 502, origin);
   }
   // Best-effort OpenSea refresh — the new image URL has bumped ?v=N
-  if (env.CONTRACT_ADDRESS && env.OPENSEA_API_KEY) {
+  if (env.CONTRACT_ADDRESS && openseaKey(env)) {
     try { await refreshOpenSeaMetadata(env, tokenId); } catch (_) {}
   }
   return json({ ok: true, tokenId, version: result.version }, {}, origin);
@@ -1765,6 +1774,50 @@ export default {
         // Frontend uses this to flip burn UI between "Demo only" and
         // "wallet burn is live."
         const burnEnabled = deployed && !!env.ALCHEMY_KEY;
+        // Optional ?probe=1 — ping Alchemy + OpenSea with trivial GETs
+        // so an operator can verify both keys are alive end-to-end
+        // without triggering a real burn or paying the OpenSea refresh
+        // cost. Each probe times out fast and returns the upstream
+        // status code, never the key itself.
+        let probe = undefined;
+        if (url.searchParams.get('probe') === '1') {
+          probe = { alchemy: null, opensea: null };
+          // Alchemy probe — JSON-RPC eth_chainId is the cheapest call,
+          // no NFT-API quota usage.
+          if (env.ALCHEMY_KEY) {
+            try {
+              const r = await fetchWithTimeout(
+                `https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_KEY}`,
+                { method: 'POST', headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId' }) }
+              );
+              probe.alchemy = { ok: r.ok, status: r.status };
+            } catch (e) {
+              probe.alchemy = { ok: false, error: e?.name === 'AbortError' ? 'timeout' : (e?.message || 'fetch_failed') };
+            }
+          } else {
+            probe.alchemy = { ok: false, error: 'no_key' };
+          }
+          // OpenSea probe — GET the collection-by-contract endpoint
+          // (read-only, no side-effects). 401/403 means key is wrong.
+          const osKey = openseaKey(env);
+          if (osKey && deployed) {
+            const chain = env.CHAIN_ID === '1' ? 'ethereum' : 'sepolia';
+            try {
+              const r = await fetchWithTimeout(
+                `https://api.opensea.io/api/v2/chain/${chain}/contract/${env.CONTRACT_ADDRESS}`,
+                { headers: { 'X-API-KEY': osKey, 'accept': 'application/json' } }
+              );
+              probe.opensea = { ok: r.ok, status: r.status };
+            } catch (e) {
+              probe.opensea = { ok: false, error: e?.name === 'AbortError' ? 'timeout' : (e?.message || 'fetch_failed') };
+            }
+          } else if (!osKey) {
+            probe.opensea = { ok: false, error: 'no_key' };
+          } else {
+            probe.opensea = { ok: false, error: 'no_contract' };
+          }
+        }
         return json({
           ok: dbOk,
           db: { ok: dbOk, error: dbError },
@@ -1779,6 +1832,7 @@ export default {
             walletBurn: burnEnabled,
             walletCrossbreed: deployed,
           },
+          ...(probe ? { probe } : {}),
         }, { status: dbOk ? 200 : 503 }, origin);
       }
 
