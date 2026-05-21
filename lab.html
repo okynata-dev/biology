@@ -346,22 +346,28 @@
       border-color: var(--ink-3);
     }
   }
-  /* Selection — Ive-pass refinement. Was border-width 3px ink which
-     felt like a heavy frame around the specimen. New approach: keep
-     the hairline AT 1px (no thickness jump), just swap the colour
-     from --rule to --ink, and lift the card +3px. The deeper
-     drop-shadow confirms the elevation; no rim, no ring, no chunky
-     border. Selection is communicated by colour-tone change + lift —
-     same signal language Apple uses for selected list rows. */
+  /* Selection — sweet spot between the original 3px (chunky frame)
+     and the v1 fix at 1px (invisible at a glance). 2px gives a
+     clearly-visible contour around the entire card without reading
+     as a heavy frame, and stays narrow enough that the corner clip
+     math for chips still works (chip inset 24px ≥ 14 + 14/√2 with
+     a 2px border eats 1px of effective clearance, still ≥ threshold). */
   .biom-card.selected-donor,
   .biom-card.selected-recipient {
     transform: translateY(-3px);
-    border-color: var(--ink);
-    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.10);
+    border: 2px solid var(--ink);
+    /* Two-layer shadow: ambient (low spread, no offset) wraps every
+       edge equally so the bottom of the border isn't visually "cut
+       off" by an asymmetric drop; the main drop adds the lift cue. */
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.02),
+      0 14px 28px rgba(0, 0, 0, 0.10);
   }
   body.mode-burn .biom-card.selected-donor {
     border-color: var(--burn);
-    box-shadow: 0 14px 28px rgba(184, 73, 44, 0.18);
+    box-shadow:
+      0 0 0 1px rgba(184, 73, 44, 0.06),
+      0 14px 28px rgba(184, 73, 44, 0.18);
   }
   .biom-card.in-use { opacity: 0.4; pointer-events: none; }
   .biom-thumb {
