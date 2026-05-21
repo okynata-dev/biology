@@ -14,6 +14,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
 <link rel="stylesheet" href="/nav-wallet.css?v=9">
+<link rel="stylesheet" href="/design.css?v=1">
 <link rel="canonical" href="https://thebioms.com/">
 
 <meta property="og:type" content="website">
@@ -53,21 +54,21 @@
     -moz-osx-font-smoothing: grayscale;
   }
   html { scroll-behavior: smooth; }
-  ::selection { background: rgba(140, 90, 180, 0.25); color: var(--ink); }
+  ::selection { background: rgba(28, 26, 22, 0.12); color: var(--ink); }
 
   body::before {
     content: "";
     position: fixed;
     inset: 0;
     pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.012 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
-    /* Noise opacity halved (0.025 → 0.012) — was reading as visual noise
-       on a paper-and-ink palette. Still present for analog texture, no
-       longer competing for attention. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.014 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    /* Analog grain at 0.014 — same value site-wide. Sub-perceptible at
+       a distance but stops the cream paper from reading as a flat web
+       colour. Material honesty. */
     z-index: 1;
   }
 
-  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px; }
   a:hover { text-decoration-color: var(--ink); }
 
   /* Skip-link — hidden until keyboard-focused. Lets screen-reader and
@@ -254,27 +255,37 @@
     /* On wide screens cap stage height so it stays inside the viewport. */
     max-height: 76vh;
     margin: 0 auto;
-    border-radius: 22px;
+    border-radius: var(--r-lg);
     overflow: hidden;
     background: var(--paper);
-    box-shadow:
-      0 1px 1px rgba(0,0,0,0.04),
-      0 24px 56px rgba(28,26,22,0.10),
-      0 8px 14px rgba(28,26,22,0.05);
+    /* Hero is the only feature-level surface on the landing — pulls
+       the deepest shadow token from the system. */
+    box-shadow: var(--shadow-feature);
   }
   .hero-text { max-width: 460px; }
+  /* Hero title — the word IS the brand mark. Slightly tighter tracking
+     (-0.03em vs the old -0.025em) and a half-step heavier optical
+     weight via font-feature-settings + a hairline text-stroke that
+     SF Pro picks up on retina. The result reads as a sculpted glyph,
+     not a web headline. */
   .hero-title {
     font-size: clamp(40px, 5.2vw, 68px);
-    letter-spacing: -0.025em;
+    letter-spacing: -0.030em;
     font-weight: 500;
-    line-height: 0.98;
+    line-height: 0.96;
     margin: 0 0 22px;
+    font-feature-settings: "ss01", "ss02", "kern";
   }
   .hero-tag {
     margin: 0 0 32px;
     font-size: clamp(17px, 1.4vw, 19px);
     color: var(--ink-2);
     line-height: 1.5;
+    /* Hanging punctuation tightens the optical edge; balance prevents
+       a lone short word on the last line. Two small details that
+       compound with the title's sculpted feel. */
+    hanging-punctuation: first;
+    text-wrap: pretty;
   }
   .hero-caption {
     display: inline-flex;
@@ -313,20 +324,23 @@
 
   /* === PULL QUOTE — the line from the manifesto, lifted up because
      it's the single sentence that captures the whole project.
-     Quiet section: full-width centered, italic-light type, generous
-     vertical space so the eye rests on it. */
+     Quiet section: full-width centered, generous vertical space so the
+     eye rests on it. The two lines now use measured tracking + a
+     smaller break gap so they read as one sentence with a beat, not
+     two paragraphs glued together. */
   .pull-quote {
-    padding: clamp(80px, 12vh, 140px) 32px;
+    padding: clamp(96px, 14vh, 160px) 32px;
   }
   .pull-quote blockquote {
-    max-width: 720px;
+    max-width: 740px;
     margin: 0 auto;
     text-align: center;
-    font-size: clamp(20px, 2.2vw, 28px);
-    line-height: 1.4;
-    letter-spacing: -0.01em;
+    font-size: clamp(21px, 2.3vw, 30px);
+    line-height: 1.36;
+    letter-spacing: -0.014em;
     font-weight: 400;
     color: var(--ink);
+    text-wrap: balance;
   }
   @media (max-width: 600px) {
     .pull-quote { padding: 56px 22px; }
@@ -354,13 +368,16 @@
   .catalog-cell {
     aspect-ratio: 1;
     position: relative;
-    border-radius: 12px;
+    border-radius: var(--r-md);
     overflow: hidden;
     background: var(--paper);
     display: block;
     text-decoration: none;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.03), 0 4px 14px rgba(0,0,0,0.04);
-    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: var(--shadow-rest);
+    /* Use the global easing curve so every card on every page lifts
+       with the same gesture. */
+    transition: transform var(--t-base) var(--ease),
+                box-shadow var(--t-base) var(--ease);
   }
   .catalog-cell picture {
     display: block;
@@ -428,8 +445,8 @@
   }
   @media (hover: hover) {
     .catalog-cell:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 1px 1px rgba(0,0,0,0.04), 0 12px 28px rgba(0,0,0,0.08);
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-hover);
       text-decoration: none;
     }
     .catalog-cell:hover .seed-tag { opacity: 1; }
@@ -476,7 +493,7 @@
     width: 38%;
     aspect-ratio: 1;
     z-index: 1;
-    box-shadow: 0 1px 1px rgba(0,0,0,0.03), 0 4px 14px rgba(0,0,0,0.05);
+    box-shadow: var(--shadow-rest);
   }
   .lab-pane-phoenix {
     bottom: 0; right: 0;
@@ -485,10 +502,7 @@
     z-index: 2;
     background:
       radial-gradient(circle at 50% 50%, #fff5e6 0%, #f4ead4 45%, #efebe2 100%);
-    box-shadow:
-      0 1px 1px rgba(0,0,0,0.04),
-      0 16px 36px rgba(28,26,22,0.10),
-      0 6px 14px rgba(28,26,22,0.06);
+    box-shadow: var(--shadow-hover);
   }
   /* Inline render slot — DOM panels (preserves glass effect). */
   .lab-pane-render {
@@ -546,15 +560,16 @@
 
   /* Tier ladder — text scale. Genesis quiet (small + low opacity),
      Phoenix loud (larger + full ink + weight). Reads as a literal
-     ascending bar, not four equal chips. */
+     ascending bar, not four equal chips. Tracking matches the global
+     eyebrow recipe (0.14em) for typographic consistency. */
   .lab-ladder {
     margin: 48px 0 0;
     display: flex;
     align-items: baseline;
-    gap: 10px;
+    gap: 12px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.14em;
   }
   .lab-ladder .step {
     color: var(--ink);
@@ -591,7 +606,9 @@
   }
 
   /* === DROP — closing block. Centered, quiet, simple. No info-list
-       grid, no asymmetric layout — just title + one line + two CTAs. === */
+       grid, no asymmetric layout — just title + one line + two CTAs.
+       text-wrap: balance keeps the two-CTA row + paragraph from
+       breaking awkwardly at narrow viewports. === */
   .drop { padding: 120px 32px 140px; }
   .drop-block {
     max-width: 540px;
@@ -601,14 +618,16 @@
   .drop-block h2 {
     margin: 0 0 16px;
     font-size: clamp(40px, 4.5vw, 56px);
-    letter-spacing: -0.025em;
+    letter-spacing: -0.028em;
     line-height: 1;
+    text-wrap: balance;
   }
   .drop-block p {
     margin: 0 auto;
     font-size: clamp(16px, 1.4vw, 18px);
     line-height: 1.5;
     color: var(--ink-2);
+    text-wrap: balance;
   }
   .drop-cta {
     justify-content: center;
@@ -618,22 +637,10 @@
     .drop { padding: 72px 18px 88px; }
   }
 
-  .btn {
-    align-self: flex-start;
-    display: inline-block;
-    background: var(--ink);
-    color: var(--bg);
-    border: 1px solid var(--ink);
-    padding: 11px 22px;
-    border-radius: 6px;
-    font-family: inherit;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-  }
-  .btn:hover { background: #000; border-color: #000; text-decoration: none; }
+  /* .btn primitive owned by /design.css (solid ink pill, --r-pill,
+     unified easing). Page-local overrides below preserve marketing-row
+     self-alignment and the legacy .btn-ghost alias. */
+  .btn { align-self: flex-start; }
   .btn-ghost {
     background: transparent;
     color: var(--ink);

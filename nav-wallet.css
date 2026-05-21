@@ -41,11 +41,14 @@
   border-color: var(--rule);
 }
 .nav-wallet.connected:hover { border-color: var(--ink); opacity: 1; }
+/* Connected dot — quiet ok-green (matches the global --ok token from
+   design.css). The halo is the same hue at 18% alpha so it reads as a
+   soft glow without a second colour. */
 .nav-wallet-dot {
   width: 7px; height: 7px;
   border-radius: 50%;
-  background: #4a7c4a;
-  box-shadow: 0 0 0 2px rgba(74, 124, 74, 0.18);
+  background: var(--ok, #4a6b4a);
+  box-shadow: 0 0 0 2px rgba(74, 107, 74, 0.18);
   flex: 0 0 auto;
 }
 
@@ -90,8 +93,10 @@
 .nav-wallet-dropdown button:hover {
   background: rgba(28, 26, 22, 0.05);
 }
+/* Disconnect action — burn-rust to signal "destructive, intentional".
+   Inherits --burn from design.css; fallback hex matches the global token. */
 .nav-wallet-dd-disconnect {
-  color: #9a4a2e !important;
+  color: var(--burn, #b8492c) !important;
 }
 
 /* ===========================================================

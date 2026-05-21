@@ -1,0 +1,171 @@
+/* =========================================================================
+   Bioms — design system tokens (shared across every page)
+
+   This file is the single source of truth for spacing, radii, shadows,
+   easing, motion, and the palette beyond the bg/ink basics. Pages still
+   carry their layout-specific styles inline, but they MUST consume these
+   tokens — never hardcode magic values.
+
+   Loaded as <link rel="stylesheet" href="/design.css?v=N"> on the very
+   first line after nav-wallet.css. Any page-local <style> block comes
+   AFTER and may override sparingly with a justification comment.
+
+   When you bump anything here, bump the ?v= cache-buster on every <link>.
+   ========================================================================= */
+
+:root {
+  /* ---- Surface palette (unchanged baseline; here so design.css alone
+     can render an MVP page without inline overrides) ---- */
+  --bg: #ece9e0;
+  --paper: #f4f1e8;
+  --ink: #1c1a16;
+  --ink-2: #5b554a;
+  --ink-3: #686356;
+  --rule: rgba(28, 26, 22, 0.12);
+
+  /* ---- One destructive accent. Used wherever the act is permanent
+     (burn rituals, irreversible CTAs, disconnect, validation-fail).
+     Refined from the previous trio (#9a4a2e / #c45a3a / #c8826a) into
+     a single ember-rust that reads as warm-decisive, not cautionary. ---- */
+  --burn: #b8492c;
+  --burn-soft: rgba(184, 73, 44, 0.10);
+  --burn-glow: rgba(184, 73, 44, 0.32);
+
+  /* ---- Quiet success tone. No bright green — we want a paper-ink
+     world. This sits in the ink family with a faint warmth, so a
+     "completed" state reads as the system confirming, not celebrating. ---- */
+  --ok: #4a6b4a;
+
+  /* ---- Radius scale (used to be 6/8/10/12/14/18/20/22 ad-hoc).
+     Strict stair-step. Anything outside this scale needs justification. ---- */
+  --r-xs: 8px;     /* small controls — input chips, mini-buttons */
+  --r-sm: 10px;    /* form inputs, inline pills, small cards */
+  --r-md: 14px;    /* normal cards, modal sections */
+  --r-lg: 22px;    /* hero stages, feature cards, big modals */
+  --r-pill: 999px;
+
+  /* ---- Shadow vocabulary. Three semantic levels. ---- */
+  --shadow-rest:    0 1px 1px rgba(0,0,0,0.04);
+  --shadow-hover:   0 1px 1px rgba(0,0,0,0.04), 0 12px 28px rgba(0,0,0,0.08);
+  --shadow-feature: 0 1px 1px rgba(0,0,0,0.04),
+                    0 24px 56px rgba(28,26,22,0.10),
+                    0 8px 14px rgba(28,26,22,0.05);
+
+  /* ---- Easing & timing. One curve, three speeds.
+     Curve is the same ease-out-quart Apple uses in macOS — fast off the
+     line, settles soft. Pages should pick the speed semantically:
+       fast  — chrome that should feel instant (hovers, focus rings)
+       base  — cards, lists, dropdowns
+       slow  — modal overlays, large state transitions ---- */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --t-fast: 120ms;
+  --t-base: 200ms;
+  --t-slow: 320ms;
+
+  /* ---- Section rhythm. Vertical pads scale with viewport; horizontal
+     pads are tighter on mobile, breathing room on desktop. ---- */
+  --pad-y: clamp(64px, 9vw, 112px);
+  --pad-x: clamp(20px, 4vw, 32px);
+}
+
+/* ---- Global motion baseline ---- */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---- Selection — paper-ink, no off-palette purple ---- */
+::selection { background: rgba(28, 26, 22, 0.14); color: var(--ink); }
+
+/* ---- Focus ring — keyboard only, Apple-style soft offset ---- */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* =========================================================================
+   Button system
+   .btn          — primary, solid ink pill
+   .btn.ghost    — secondary, hairline pill
+   .btn.warn     — destructive, ember-rust pill (use sparingly)
+   .btn.tight    — for form submits where pill feels too loud
+   ========================================================================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--ink);
+  color: var(--bg);
+  border: 1px solid var(--ink);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1;
+  padding: 13px 22px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover { background: #000; border-color: #000; text-decoration: none; }
+.btn:active { transform: scale(0.985); }
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: var(--ink-3);
+  border-color: var(--ink-3);
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--rule);
+}
+.btn.ghost:hover {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.btn.warn {
+  background: var(--burn);
+  border-color: var(--burn);
+  color: #fff5ee;
+}
+.btn.warn:hover { background: #a23f24; border-color: #a23f24; }
+.btn.tight {
+  border-radius: var(--r-sm);
+  padding: 12px 18px;
+}
+.btn.lg {
+  font-size: 16px;
+  padding: 15px 28px;
+}
+
+/* =========================================================================
+   Eyebrow — the small-caps monospace label used over headings, section
+   counts, signoffs, and similar. One recipe, one letter-spacing.
+   ========================================================================= */
+.eyebrow,
+.group-label {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}

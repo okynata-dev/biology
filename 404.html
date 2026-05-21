@@ -10,6 +10,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
 <link rel="stylesheet" href="/nav-wallet.css?v=9">
+<link rel="stylesheet" href="/design.css?v=1">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -37,12 +38,12 @@
     position: fixed;
     inset: 0;
     pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.014 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
 
     z-index: 1;
   }
 
-  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px; }
   a:hover { text-decoration-color: var(--ink); }
 
   /* === NAV (canonical — must match index.html, make.html, explore.html) === */
@@ -201,21 +202,7 @@
     margin-bottom: 8px;
   }
 
-  .btn {
-    display: inline-block;
-    background: var(--ink);
-    color: var(--bg);
-    border: 1px solid var(--ink);
-    padding: 11px 22px;
-    border-radius: 6px;
-    font-family: inherit;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-  }
-  .btn:hover { background: #000; border-color: #000; text-decoration: none; }
+  /* .btn primitive owned by /design.css (solid ink pill, --r-pill). */
 </style>
 </head>
 <body>

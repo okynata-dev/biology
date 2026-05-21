@@ -10,6 +10,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
 <link rel="stylesheet" href="/nav-wallet.css?v=9">
+<link rel="stylesheet" href="/design.css?v=1">
 <link rel="canonical" href="https://thebioms.com/reserve">
 
 <meta property="og:title" content="Bioms — Reserve your spot">
@@ -21,15 +22,12 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Surface palette + radius/shadow/easing tokens come from /design.css.
+     This page used to declare its own --ok / --bad — both now map to
+     the canonical --ok (quiet green) and --burn (ember-rust) tokens
+     defined globally so the validation states match the rest of the site. */
   :root {
-    --bg: #ece9e0;
-    --paper: #f4f1e8;
-    --ink: #1c1a16;
-    --ink-2: #5b554a;
-    --ink-3: #686356;   /* contrast 4.6:1 on --bg (WCAG AA) */
-    --rule: rgba(28, 26, 22, 0.12);
-    --ok: #2e7d4f;
-    --bad: #9a4a2e;
+    --bad: var(--burn);
   }
 
   html, body {
@@ -47,11 +45,11 @@
     position: fixed;
     inset: 0;
     pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.014 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
     z-index: 1;
   }
 
-  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px; }
 
   /* Skip-link — WCAG 2.4.1, hidden until keyboard-focused */
   .skip-link {
@@ -141,7 +139,7 @@
     width: 100%;
     background: var(--paper);
     border: 1px solid var(--rule);
-    border-radius: 10px;
+    border-radius: var(--r-sm);
     padding: 16px 18px;
     font-family: inherit;
     font-size: 16px;
@@ -161,37 +159,25 @@
     outline: none;
     box-shadow: 0 0 0 3px rgba(28,26,22,0.08);
   }
-  .field input.valid    { border-color: rgba(46, 125, 79, 0.5); }
-  .field input.invalid  { border-color: rgba(154, 74, 46, 0.6); }
+  /* Validation borders — quiet ink for valid, burn-rust for invalid.
+     The colours are PURPOSELY low-saturation so a typing user is never
+     punished by a red flash; the cue is information, not alarm. */
+  .field input.valid    { border-color: var(--ink); }
+  .field input.invalid  { border-color: rgba(184, 73, 44, 0.55); }
 
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  /* .btn primitive comes from /design.css. Reserve form needs the
+     button to stretch full-width — that's the only deviation. */
+  form.reserve-form .btn {
     width: 100%;
-    background: var(--ink);
-    color: var(--bg);
-    border: 1px solid var(--ink);
     padding: 16px 22px;
-    border-radius: 10px;
-    font-family: inherit;
     font-size: 16px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: opacity 0.15s, transform 0.05s;
-  }
-  .btn:hover { opacity: 0.92; }
-  .btn:active { transform: scale(0.997); }
-  .btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
   }
 
   /* === SUCCESS STATE === */
   .success {
     background: var(--paper);
     border: 1px solid var(--rule);
-    border-radius: 14px;
+    border-radius: var(--r-md);
     padding: 28px 22px;
     text-align: center;
   }
@@ -212,16 +198,19 @@
   .success-cta {
     margin-top: 18px;
   }
+  /* Success CTA — paper-fill outline pill that inverts on hover.
+     Same chip language as the rest of the site (paper + ink-hairline). */
   .success-cta-btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 10px 18px;
     border: 1px solid var(--ink);
+    background: transparent;
     color: var(--ink);
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     text-decoration: none;
     font-size: 14px;
     font-weight: 500;
-    transition: background 0.15s, color 0.15s;
+    transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
   }
   .success-cta-btn:hover { background: var(--ink); color: var(--bg); }
 

@@ -119,6 +119,11 @@
 /nav-wallet.js
   Cache-Control: public, max-age=86400, must-revalidate
 
+# Design tokens (radii/shadows/easing/button system) — cache like nav-wallet.
+# Version-bust via ?v= query param when contents change.
+/design.css
+  Cache-Control: public, max-age=86400, must-revalidate
+
 # HTML — cache for an hour
 /*.html
   Cache-Control: public, max-age=3600, must-revalidate

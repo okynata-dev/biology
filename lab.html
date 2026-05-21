@@ -14,6 +14,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
 <link rel="stylesheet" href="/nav-wallet.css?v=9">
+<link rel="stylesheet" href="/design.css?v=1">
 <link rel="canonical" href="https://thebioms.com/lab">
 
 <meta property="og:type" content="website">
@@ -34,15 +35,13 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Surface palette + radius/shadow/easing/button tokens come from
+     /design.css (loaded above). Anything declared in this file is a
+     justified page-local override. */
   :root {
-    --bg: #ece9e0;
-    --paper: #f4f1e8;
-    --ink: #1c1a16;
-    --ink-2: #5b554a;
-    --ink-3: #686356;   /* contrast 4.6:1 on --bg (WCAG AA) */
-    --rule: rgba(28, 26, 22, 0.12);
-    --ok: #4a7c4a;
-    --bad: #9a5b3d;
+    /* Back-compat alias — legacy lab rules referenced --bad. The new
+       --burn token from design.css is the canonical destructive accent. */
+    --bad: var(--burn);
   }
 
   html, body {
@@ -55,13 +54,13 @@
     -moz-osx-font-smoothing: grayscale;
   }
   html { scroll-behavior: smooth; }
-  ::selection { background: rgba(140, 90, 180, 0.25); color: var(--ink); }
+  ::selection { background: rgba(28, 26, 22, 0.12); color: var(--ink); }
 
   body::before {
     content: "";
     position: fixed; inset: 0;
     pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.025 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.014 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
 
     z-index: 1;
   }
@@ -117,8 +116,9 @@
     border-radius: 4px;
   }
 
+  /* Sections — generous padding does the separation; the old border-top
+     hairline between sections competed with the chip + card hairlines. */
   section { padding: 56px 32px; position: relative; z-index: 2; }
-  section + section { border-top: 1px solid var(--rule); }
   @media (max-width: 600px) { section { padding: 40px 18px; } }
 
   .wrap { max-width: 1240px; margin: 0 auto; }
@@ -236,7 +236,7 @@
   .wallet-status .addr {
     background: var(--bg);
     border: 1px solid var(--rule);
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     padding: 3px 10px;
     margin-right: 8px;
     font-size: 12px;
@@ -247,7 +247,7 @@
     color: var(--bg);
     border: 1px solid var(--ink);
     padding: 8px 16px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     font: inherit;
     font-size: 13px;
     font-weight: 500;
@@ -308,14 +308,14 @@
     text-align: center;
     background: var(--paper);
     border: 1px dashed var(--rule);
-    border-radius: 14px;
+    border-radius: var(--r-md);
     color: var(--ink-3);
     font-size: 15px;
   }
   .biom-card {
     background: var(--paper);
     border: 1px solid var(--rule);
-    border-radius: 12px;
+    border-radius: var(--r-md);
     overflow: hidden;
     cursor: pointer;
     transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
@@ -355,7 +355,7 @@
      the sacrifice slot's tone to a warm rust to signal destruction. */
   .biom-card.selected-donor,
   .biom-card.selected-recipient { border-color: var(--ink); }
-  body.mode-burn .biom-card.selected-donor { border-color: #9a4a2e; }
+  body.mode-burn .biom-card.selected-donor { border-color: var(--burn); }
   .biom-card.in-use { opacity: 0.4; pointer-events: none; }
   .biom-thumb {
     aspect-ratio: 1;
@@ -452,83 +452,90 @@
     text-align: right;
   }
   /* Role tag — A/B (crossbreed) or BURN/KEEP (burn) chip in the
-     top-right of the thumbnail when the card is selected. We tried
-     hiding it (border alone) but without an identifier, the outcome
-     gallery's "Share A's stain / B gains pili" copy was untethered
-     from the selected cards. The chip is monochrome ink-on-paper —
-     same restraint as the gen-badge. Burn-donor swaps to rust. */
+     top-right of the thumbnail when the card is selected.
+
+     Ive-pass redesign: previously ink-fill with a triple paper-halo
+     to fight visual merging with the card's selected-state ink border.
+     The fix was always cosmetic; the design itself was wrong.
+
+     New chip language across the entire site:
+       — paper fill (cream from the card surface) +
+         ink hairline (1px) + ink text
+     The chip now reads as a label that sits ON the card, in the same
+     material family. Against any border (rule, ink-3, ink, burn) it
+     stays unambiguous because the contrast is INK-on-CREAM rather than
+     INK-on-INK. No halos needed, no isolation hacks, fewer pixels. */
   .biom-card .role-tag {
     position: absolute;
-    /* Moved further inset (14px from edges, was 10px) so there's
-       visibly clear paper between the card border and the chip top.
-       Even at low device-pixel-ratio / 80% browser zoom the gap reads
-       as deliberate space, not as the chip being clipped against the
-       card's top edge. */
-    top: 14px; right: 14px;
+    top: 12px; right: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    line-height: 1;
+    /* z-index must beat biom cell panels (z up to ~100 from the
+       engine) AND their ::before sheen which uses mix-blend-mode:
+       overlay. Without this the chip gets a diagonal slash painted
+       through it where a panel's glass-sheen overlaps. */
+    z-index: 1000;
+    pointer-events: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    /* isolate creates a new stacking context — siblings' overlay
+       blend modes can't reach the chip's interior. */
+    isolation: isolate;
+  }
+  /* Burn-donor: swap the inversion so the chip turns warm-rust against
+     the same paper field. Still INK text → CREAM background → BURN border,
+     i.e. three layers of contrast that can never visually collapse. */
+  body.mode-burn .biom-card.selected-donor .role-tag {
+    border-color: var(--burn);
+    color: var(--burn);
+  }
+  .biom-card .role-tag[hidden] { display: none; }
+  /* Generation badge — small chip in top-left for tokens that have
+     survived at least one burn. Visual rarity ladder: higher-gen
+     tokens stand out, originals (G0 = no badge) become collector items.
+
+     Same paper-fill + ink-hairline recipe as the role-tag — they're
+     siblings, they read as one chip language. */
+  .biom-card .gen-badge {
+    position: absolute;
+    top: 12px; left: 12px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.06em;
     padding: 4px 10px;
-    border-radius: 999px;
-    background: var(--ink);
-    color: var(--bg);
+    border-radius: var(--r-pill);
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--ink);
     line-height: 1;
-    /* z-index must beat biom cell panels (z up to ~100 from the
-       engine) AND their ::before sheen which uses mix-blend-mode:
-       overlay. Without this the chip gets a diagonal white slash
-       painted through it where a panel's glass-sheen overlaps. */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
     z-index: 1000;
-    pointer-events: none;
-    /* THREE-layer shadow stack solves the real "обрезанность" the
-       user kept flagging — the chip's ink fill was merging visually
-       with the card's 3px ink border when selected (same colour →
-       anti-alias blurs them into one shape → top half of chip
-       "disappears" into the border).
-         1+2. Inner + outer paper rings — unambiguous gap between the
-              chip's ink edge and any nearby card border, regardless
-              of zoom level or DPI.
-         3. Drop shadow — keeps the lifted-pill affordance. */
-    box-shadow:
-      0 0 0 2px var(--paper),
-      0 0 0 3px rgba(28, 26, 22, 0.08),
-      0 3px 8px rgba(0, 0, 0, 0.22);
-    /* isolate creates a new stacking context — the chip's children
-       and its background can't be reached by overlay blend modes
-       from siblings below. Double belt-and-braces vs the panel sheen. */
     isolation: isolate;
   }
-  body.mode-burn .biom-card.selected-donor .role-tag {
-    background: #9a4a2e;
+  /* Higher tiers earn graduated fills — paper still wins over ink to
+     keep the chip readable against any selection border, but the
+     hairline thickens / interior darkens to signal rank. */
+  .biom-card .gen-badge.high {
+    background: var(--paper);
+    color: var(--ink);
+    border-width: 1px;
   }
-  .biom-card .role-tag[hidden] { display: none; }
-  /* Generation badge — small chip in top-left for tokens that have
-     survived at least one burn. Visual rarity ladder: higher-gen
-     tokens stand out, originals (G0 = no badge) become collector items. */
-  .biom-card .gen-badge {
-    position: absolute;
-    top: 14px; left: 14px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    padding: 4px 10px;
-    border-radius: 999px;
+  .biom-card .gen-badge.epic {
     background: var(--ink);
-    color: var(--bg);
-    /* Paper halo — see .role-tag for the rationale. Prevents the chip's
-       dark fill from merging with the card's selected-state border. */
+    color: var(--paper);
+    border-color: var(--ink);
     box-shadow:
       0 0 0 2px var(--paper),
-      0 0 0 3px rgba(28, 26, 22, 0.08),
-      0 3px 8px rgba(0, 0, 0, 0.22);
-    z-index: 1000;
-    isolation: isolate;
+      0 1px 2px rgba(0, 0, 0, 0.18);
   }
-  /* Higher tiers earn slightly different fills, still in the brand
-     monochrome — prestige through restraint, not rainbow. */
-  .biom-card .gen-badge.high { background: var(--paper); color: var(--ink); border: 1px solid var(--ink); }
-  .biom-card .gen-badge.epic { background: var(--ink); color: var(--paper); box-shadow: 0 0 0 2px var(--ink-3), 0 2px 6px rgba(0,0,0,0.18); }
   /* Cooldown chip — was visible as "Axial filament · 44s" but that surfaced
      internal game state (which trait was on cooldown) in jargon no user
      could parse. Hidden in v2 — the cooldown still runs server-side and
@@ -550,42 +557,47 @@
   /* === ARENA === */
   .arena-section { padding-top: 64px; padding-bottom: 64px; }
 
-  /* Step banner — the one source of truth for "what to do next". The
-     entire flow is donor → recipient → trait → conjugate, and at any
-     moment this banner tells the user which step they're on. */
+  /* Step banner — the one source of truth for "what to do next".
+     The entire flow is donor → recipient → trait → conjugate, and at
+     any moment this banner tells the user which step they're on.
+
+     Ive-pass refinement: removed the dot, lifted the number into the
+     left margin as a monospace cardinal, kept everything in one line
+     of text. The banner now reads as a numbered instruction rather
+     than a multi-chip control. Background goes paper-on-paper with
+     just a hairline so it sits inside the page rhythm. */
   .step-banner {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 14px;
     padding: 16px 22px;
     background: var(--paper);
     border: 1px solid var(--rule);
-    border-radius: 14px;
+    border-radius: var(--r-md);
     margin-bottom: 28px;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color var(--t-base) var(--ease);
   }
-  /* Single visual state for all steps — colour was carrying three
-     overlapping meanings (slot identity, step progress, mode). Now
-     progress is communicated by the number alone; colour belongs to
-     other UI signals. */
   .step-banner[data-step="ready"] { border-color: var(--ink); }
-  .step-banner .step-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--ink-3);
-    flex-shrink: 0;
-  }
-  .step-banner[data-step="ready"] .step-dot { background: var(--ink); }
+  /* The "dot" is gone — kept the selector so any leftover markup
+     renders nothing instead of crashing layout. */
+  .step-banner .step-dot { display: none; }
   .step-banner .step-number {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 12px;
+    font-size: 11px;
     color: var(--ink-3);
-    letter-spacing: 0.06em;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
     flex-shrink: 0;
+    /* Numerals tabular so 1/4, 2/4 etc. don't shift horizontally
+       as the step advances. */
+    font-variant-numeric: tabular-nums;
   }
+  .step-banner[data-step="ready"] .step-number { color: var(--ink); }
   .step-banner .step-label {
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 500;
     color: var(--ink);
+    letter-spacing: -0.005em;
     flex-shrink: 0;
   }
   .step-banner .step-sub {
@@ -594,7 +606,7 @@
   }
   @media (max-width: 600px) {
     .step-banner { padding: 14px 16px; gap: 10px; flex-wrap: wrap; }
-    .step-banner .step-sub { flex-basis: 100%; margin-left: 24px; }
+    .step-banner .step-sub { flex-basis: 100%; margin-left: 0; }
   }
 
   .arena {
@@ -613,8 +625,13 @@
     max-width: 420px;
     margin: 0 auto;
     background: var(--paper);
-    border: 2px dashed var(--rule);
-    border-radius: 20px;
+    /* Ive-pass: dashed border was reading as "construction site". A
+       single hairline + cream interior tells the same story —  "an
+       empty container waiting for a specimen" — without the dotted
+       Web2 affordance. The pulse keyframe still kicks in only on the
+       currently-targeted slot (.target). */
+    border: 1px solid var(--rule);
+    border-radius: var(--r-lg);
     position: relative;
     overflow: hidden;
     /* Layout/paint/style isolation — a hover or animation inside the
@@ -623,27 +640,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color var(--t-base) var(--ease), background var(--t-base) var(--ease);
   }
-  .slot.donor.filled { border: 2px solid #b94a8c; border-style: solid; }
-  .slot.recipient.filled { border: 2px solid #4a8cb9; border-style: solid; }
+  /* Filled slots: hairline thickens to 1.5px ink. The slot's identity
+     (donor vs recipient) is carried by the role-label chip + the
+     A/B/Burn chip on the underlying biom card — duplicating it via
+     border colour was decorative noise. */
+  .slot.donor.filled,
+  .slot.recipient.filled { border: 1.5px solid var(--ink); }
   /* Subtle pulse on the currently-targeted empty slot so the user knows
-     exactly where the next clicked Biom will land. */
+     exactly where the next clicked Biom will land. Single keyframe
+     (was three) — slot identity is carried by the role-label chip,
+     not by border-colour variation. */
   @keyframes slot-target-pulse {
     0%, 100% { border-color: var(--rule); }
     50%      { border-color: var(--ink-2); }
   }
-  .slot.target { animation: slot-target-pulse 2s ease-in-out infinite; }
-  .slot.donor.target     { animation-name: slot-pulse-donor; }
-  .slot.recipient.target { animation-name: slot-pulse-recipient; }
-  @keyframes slot-pulse-donor {
-    0%, 100% { border-color: rgba(185, 74, 140, 0.35); }
-    50%      { border-color: #b94a8c; }
-  }
-  @keyframes slot-pulse-recipient {
-    0%, 100% { border-color: rgba(74, 140, 185, 0.35); }
-    50%      { border-color: #4a8cb9; }
-  }
+  .slot.target { animation: slot-target-pulse 2.4s ease-in-out infinite; }
   .slot-empty {
     text-align: center;
     color: var(--ink-3);
@@ -688,34 +701,51 @@
   .slot .clear-btn:hover {
     background: var(--ink); color: var(--bg);
   }
+  /* Slot role-label — same paper-fill + ink-hairline language as the
+     biom-card chips. Identical recipe makes the page read as one
+     designed surface instead of three different chip dialects. */
   .slot .role-label {
     position: absolute;
     top: 12px; left: 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 10px;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     font-weight: 500;
-    background: rgba(244,241,232,0.92);
-    padding: 3px 8px;
-    border-radius: 4px;
+    background: var(--paper);
+    color: var(--ink-2);
+    border: 1px solid var(--rule);
+    padding: 3px 9px;
+    border-radius: var(--r-pill);
     z-index: 5;
+    line-height: 1;
   }
-  .slot.donor .role-label { color: #b94a8c; }
-  .slot.recipient .role-label { color: #4a8cb9; }
+  /* Donor + recipient both inherit the same chip recipe — the role
+     identity is communicated by the chip TEXT (DONOR / RECIPIENT),
+     not by colour. */
+  body.mode-burn .slot.donor .role-label {
+    color: var(--burn);
+    border-color: var(--burn);
+  }
   /* Preview-mode pill on a slot when an outcome is selected and this slot
-     is now showing the LIVE prospective hybrid (not its current state). */
+     is now showing the LIVE prospective hybrid (not its current state).
+     Inverse fill (ink-on-paper) so it reads as the "active outcome"
+     state — same chip recipe, opposite contrast. */
   .slot .preview-badge {
     position: absolute;
     top: 12px; right: 50px;   /* leaves room for the × button */
     z-index: 5;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 10px;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     font-weight: 500;
     background: var(--ink);
     color: var(--bg);
-    padding: 3px 8px;
-    border-radius: 4px;
+    border: 1px solid var(--ink);
+    padding: 3px 9px;
+    border-radius: var(--r-pill);
+    line-height: 1;
   }
   .slot.preview-mode { box-shadow: 0 0 0 3px rgba(28, 26, 22, 0.14); }
 
@@ -751,7 +781,7 @@
     stroke: var(--ink-3);
   }
   .plasmid-dot {
-    fill: #b94a8c;
+    fill: var(--ink);
     opacity: 0;
     transition: opacity 0.2s;
   }
@@ -780,7 +810,7 @@
   .outcome-card {
     background: var(--paper);
     border: 2px solid var(--rule);
-    border-radius: 14px;
+    border-radius: var(--r-md);
     padding: 0;
     cursor: pointer;
     transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
@@ -892,7 +922,7 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     padding: 3px 8px 3px 7px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: var(--ink);
     color: var(--bg);
     line-height: 1;
@@ -929,7 +959,7 @@
     text-align: center;
     background: var(--paper);
     border: 1px dashed var(--rule);
-    border-radius: 14px;
+    border-radius: var(--r-md);
     color: var(--ink-3);
     font-size: 14px;
   }
@@ -937,7 +967,7 @@
   .burn-preview-card {
     background: var(--paper);
     border: 2px solid var(--ink);
-    border-radius: 14px;
+    border-radius: var(--r-md);
     overflow: hidden;
     max-width: 360px;
     box-shadow: 0 0 0 4px rgba(28, 26, 22, 0.06);
@@ -959,7 +989,7 @@
   .crossbreed-result-card {
     background: var(--paper);
     border: 2px solid var(--ink);
-    border-radius: 14px;
+    border-radius: var(--r-md);
     overflow: hidden;
     max-width: 560px;
     box-shadow: 0 0 0 4px rgba(28, 26, 22, 0.06);
@@ -1021,7 +1051,7 @@
     font-weight: 600;
     letter-spacing: 0.04em;
     padding: 3px 9px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     line-height: 1;
     z-index: 2;
     pointer-events: none;
@@ -1056,31 +1086,18 @@
 
   /* (trait-picker / change-preview CSS removed — replaced by outcomes gallery) */
 
-  /* === CONJUGATE BUTTON === */
+  /* === CONJUGATE BUTTON ===
+     The .btn primitive comes from /design.css (solid ink pill).
+     Page-local rules below only add Lab-specific variants and the
+     pulse animation that's idiomatic to "ready to commit". */
   .conjugate-row {
     display: flex;
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
   }
-  .btn {
-    display: inline-block;
-    background: var(--ink); color: var(--bg);
-    border: 1px solid var(--ink);
-    padding: 12px 24px;
-    border-radius: 6px;
-    font: inherit; font-size: 15px; font-weight: 500;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
-  }
-  .btn:hover { background: #000; border-color: #000; }
-  .btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-    background: var(--ink-3);
-    border-color: var(--ink-3);
-  }
+  /* Ghost — design.css owns .btn.ghost; the .btn-ghost legacy class
+     is kept as an alias so existing markup still works. */
   .btn-ghost {
     background: transparent; color: var(--ink);
     border-color: var(--rule);
@@ -1088,7 +1105,7 @@
   .btn-ghost:hover {
     background: transparent; color: var(--ink); border-color: var(--ink);
   }
-  .btn-big { font-size: 16px; padding: 14px 28px; }
+  .btn-big { font-size: 16px; padding: 15px 28px; }
   /* When everything's set up and we're waiting on the user to commit,
      the Conjugate button breathes so they know what to tap. */
   @keyframes ready-breathe {
@@ -1162,8 +1179,8 @@
   /* Burn events get an ember dot — they're the moments worth
      marking in the chronicle. */
   .log-event.op-burn::before {
-    background: #c8826a;
-    box-shadow: 0 0 0 1px #c8826a, 0 0 8px 2px rgba(200, 130, 106, 0.30);
+    background: var(--burn);
+    box-shadow: 0 0 0 1px var(--burn), 0 0 8px 2px var(--burn-glow);
   }
   .log-event.op-rejected::before { opacity: 0.4; }
   .log-event .log-time {
@@ -1231,8 +1248,8 @@
 
   /* === ANIMATION (success flash, etc) === */
   @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(74, 124, 74, 0); }
-    50% { box-shadow: 0 0 0 8px rgba(74, 124, 74, 0.3); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(74, 107, 74, 0); }
+    50% { box-shadow: 0 0 0 8px rgba(74, 107, 74, 0.30); }
   }
   .slot.flash-success { animation: pulse-glow 1.2s ease-out; }
   /* Recipient "shake" on rejection — feels like the cell turning away,
@@ -1269,7 +1286,7 @@
   .chooser-card {
     background: var(--paper);
     border: 1px solid var(--rule);
-    border-radius: 22px;
+    border-radius: var(--r-lg);
     padding: 40px 36px;
     text-align: left;
     cursor: pointer;
@@ -1321,17 +1338,17 @@
     font-variant-numeric: tabular-nums;
   }
   .chooser-card .chooser-risk { font-weight: 500; }
-  .chooser-card .chooser-risk--safe  { color: #2d6a4f; }
-  .chooser-card .chooser-risk--final { color: #9a4a2e; }
+  .chooser-card .chooser-risk--safe  { color: var(--ok); }
+  .chooser-card .chooser-risk--final { color: var(--burn); }
   .chooser-card .chooser-result { color: var(--ink-3); font-size: 12px; }
   /* Make the anchor act like the old button visually */
   a.chooser-card { text-decoration: none; }
   .chooser-card[data-mode="burn"]:hover {
-    border-color: #c45a3a;
-    box-shadow: 0 8px 24px rgba(196, 90, 58, 0.10);
+    border-color: var(--burn);
+    box-shadow: 0 8px 24px var(--burn-soft);
   }
-  .chooser-card[data-mode="burn"]:hover .chooser-icon { color: #c45a3a; }
-  .chooser-card[data-mode="burn"]:hover .chooser-title { color: #9a4a2e; }
+  .chooser-card[data-mode="burn"]:hover .chooser-icon { color: var(--burn); }
+  .chooser-card[data-mode="burn"]:hover .chooser-title { color: var(--burn); }
   /* The "Back" link — soft, sits above the working area without
      stealing attention. Click goes back to the chooser. */
   .back-to-chooser {
@@ -1349,13 +1366,13 @@
   .back-to-chooser:hover { color: var(--ink); }
 
   /* Burn-mode slot styling — left slot is the sacrifice */
-  body.mode-burn .slot.donor.filled { border-color: #c45a3a; }
-  body.mode-burn .slot.donor .role-label { color: #c45a3a; }
+  body.mode-burn .slot.donor.filled { border-color: var(--burn); }
+  body.mode-burn .slot.donor .role-label { color: var(--burn); }
   body.mode-burn .slot.donor::before {
     content: "";
     position: absolute;
     inset: 0;
-    background: rgba(196, 90, 58, 0.04);
+    background: var(--burn-soft);
     pointer-events: none;
     z-index: 1;
   }
@@ -1363,30 +1380,30 @@
     animation: slot-pulse-burn 2s ease-in-out infinite;
   }
   @keyframes slot-pulse-burn {
-    0%, 100% { border-color: rgba(196, 90, 58, 0.35); }
-    50%      { border-color: #c45a3a; }
+    0%, 100% { border-color: rgba(184, 73, 44, 0.35); }
+    50%      { border-color: var(--burn); }
   }
   /* Big Burn button in burn mode */
   body.mode-burn .btn-big.ready {
-    background: #c45a3a;
-    border-color: #c45a3a;
+    background: var(--burn);
+    border-color: var(--burn);
     color: white;
     animation-name: ready-breathe-burn;
   }
   @keyframes ready-breathe-burn {
     0%, 100% { box-shadow: 0 0 0 0 rgba(196, 90, 58, 0); }
-    50%      { box-shadow: 0 0 0 6px rgba(196, 90, 58, 0.20); }
+    50%      { box-shadow: 0 0 0 6px var(--burn-glow); }
   }
-  body.mode-burn .btn-big.ready:hover { background: #a84a2e; border-color: #a84a2e; }
+  body.mode-burn .btn-big.ready:hover { background: #a23f24; border-color: #a23f24; }
 
   /* Confirm dialog for burn (lightweight inline, not a modal) */
   .burn-confirm {
     display: none;
     margin-top: 18px;
     padding: 16px 20px;
-    background: rgba(196, 90, 58, 0.06);
+    background: var(--burn-soft);
     border: 1px solid rgba(196, 90, 58, 0.3);
-    border-radius: 10px;
+    border-radius: var(--r-sm);
     align-items: center;
     gap: 14px;
     flex-wrap: wrap;
@@ -1435,7 +1452,7 @@
     box-shadow: 0 0 0 2px var(--ink), 0 16px 32px rgba(0,0,0,0.08);
   }
   body.mode-burn .biom-card.drag-target {
-    box-shadow: 0 0 0 2px #c8826a, 0 0 28px rgba(200, 130, 106, 0.32), 0 12px 24px rgba(0,0,0,0.08);
+    box-shadow: 0 0 0 2px var(--burn), 0 0 28px var(--burn-glow), 0 12px 24px rgba(0,0,0,0.08);
   }
   /* The dragged ghost — clone of the card following the pointer.
      Slightly lifted (shadow + scale) and tilted just barely. */
@@ -1447,7 +1464,7 @@
     transform-origin: center;
     transform: scale(0.92) rotate(-1.5deg);
     box-shadow: 0 24px 48px rgba(0,0,0,0.20), 0 8px 16px rgba(0,0,0,0.12);
-    border-radius: 12px;
+    border-radius: var(--r-md);
     overflow: hidden;
     opacity: 0.92;
     will-change: transform, left, top;
@@ -1466,7 +1483,7 @@
     background: var(--ink);
     color: var(--bg);
     padding: 10px 18px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     font-size: 13px;
     z-index: 998;
     opacity: 0;
@@ -1492,7 +1509,7 @@
                     digital, more "darkroom"
        Foreground:  cream #f4ead4 (the paper-card color inverted),
                     used for text + specimen surfaces
-       Accent:      ember #c8826a — single warm color for the
+       Accent:      ember var(--burn) — single warm color for the
                     progress fill and the bloom after commit
      ============================================================ */
   .burn-ritual {
@@ -1591,7 +1608,7 @@
     position: relative;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 22px;
+    border-radius: var(--r-lg);
     overflow: hidden;
     transition: transform 500ms cubic-bezier(0.2, 0.8, 0.3, 1),
                 box-shadow 800ms ease;
@@ -1660,7 +1677,7 @@
   }
   @keyframes ritual-bloom {
     0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 130, 106, 0); }
-    50%  { transform: scale(1.04); box-shadow: 0 0 64px 14px rgba(200, 130, 106, 0.32); }
+    50%  { transform: scale(1.04); box-shadow: 0 0 64px 14px var(--burn-glow); }
     100% { transform: scale(1);    box-shadow: 0 0 24px 4px rgba(200, 130, 106, 0); }
   }
 
@@ -1677,7 +1694,7 @@
     position: relative;
     width: clamp(220px, 32vw, 280px);
     height: 56px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: rgba(255, 255, 255, 0.05);
     color: #f4ead4;
     border: 1px solid rgba(255, 255, 255, 0.18);
@@ -1697,7 +1714,7 @@
   .ritual-hold .fill {
     position: absolute;
     inset: 0;
-    background: linear-gradient(90deg, #c8826a 0%, #b86a4f 100%);
+    background: linear-gradient(90deg, var(--burn) 0%, #b86a4f 100%);
     transform: scaleX(0);
     transform-origin: left center;
     transition: transform 0ms linear;
@@ -1761,7 +1778,7 @@
   .ritual-result-tier {
     display: inline-block;
     padding: 5px 14px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     background: rgba(255, 255, 255, 0.10);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
@@ -1774,7 +1791,7 @@
     border: 1px solid rgba(244, 234, 212, 0.4);
     color: #f4ead4;
     padding: 10px 28px;
-    border-radius: 999px;
+    border-radius: var(--r-pill);
     font-family: inherit;
     font-size: 14px;
     letter-spacing: 0.01em;
@@ -1972,7 +1989,7 @@
          second tap to confirm. -->
     <div class="burn-confirm" id="burnConfirm">
       <span class="burn-confirm-text" id="burnConfirmText"></span>
-      <button class="btn" type="button" id="burnConfirmYes" style="background:#c45a3a; border-color:#c45a3a;">Yes, burn it</button>
+      <button class="btn" type="button" id="burnConfirmYes" style="background:var(--burn); border-color:var(--burn);">Yes, burn it</button>
       <button class="btn btn-ghost" type="button" id="burnConfirmNo">Cancel</button>
     </div>
     </div><!-- /.lab-main -->
