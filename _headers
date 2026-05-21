@@ -124,8 +124,36 @@
 /design.css
   Cache-Control: public, max-age=86400, must-revalidate
 
-# HTML — cache for an hour
+# HTML — cache for an hour.
+# Cloudflare Pages serves both /lab and /lab.html for the same file, but the
+# _headers wildcard /*.html only matches the .html-suffixed form. The
+# extensionless canonical URLs (the ones we ACTUALLY link from nav menus
+# and the ones Twitter shares) need their own entries — without these the
+# CDN serves them as cf-cache-status: DYNAMIC and every visitor hits the
+# origin. With 10k+ visitors from a drop announcement, that's a brittle
+# default. One-hour cache + must-revalidate means edge serves cached copy
+# instantly but checks origin on each request for freshness (cheap 304s).
 /*.html
+  Cache-Control: public, max-age=3600, must-revalidate
+/
+  Cache-Control: public, max-age=3600, must-revalidate
+/lab
+  Cache-Control: public, max-age=3600, must-revalidate
+/explore
+  Cache-Control: public, max-age=3600, must-revalidate
+/reserve
+  Cache-Control: public, max-age=3600, must-revalidate
+/list
+  Cache-Control: public, max-age=3600, must-revalidate
+/manifesto
+  Cache-Control: public, max-age=3600, must-revalidate
+/make
+  Cache-Control: public, max-age=3600, must-revalidate
+/preview
+  Cache-Control: public, max-age=3600, must-revalidate
+/unrevealed
+  Cache-Control: public, max-age=3600, must-revalidate
+/soup
   Cache-Control: public, max-age=3600, must-revalidate
 
 # 404 explicitly NOT cached — without this, /*.html catches /404.html
