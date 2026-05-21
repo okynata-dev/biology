@@ -3169,7 +3169,7 @@ function _buildCardElement(seed) {
       <span class="cooldown-tag" hidden></span>
     </div>
     <div class="biom-info">
-      <span class="biom-name">${window.BiomEngine.label(seed)}</span>
+      <span class="biom-name" title="${window.BiomEngine.species(seed).toLowerCase()}">${window.BiomEngine.label(seed)}</span>
       <span class="biom-traits">${traitsText}</span>
     </div>
   `;

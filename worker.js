@@ -1049,6 +1049,11 @@ async function buildMetadata(env, tokenId) {
 
   // Attributes — order matters for OpenSea grouping
   const attributes = [
+    // Species first — the per-token "nickname" derived from the seed
+    // (PHAGOPHILIA / STREPTONAX / GLIAARIA …). 1/3000 unique per token
+    // so it acts as the human-readable identity inside the BIOM #N
+    // wrapper.
+    { trait_type: 'Species',      value: name },
     { trait_type: 'Tier',         value: tier },
     { trait_type: 'Rank',         value: rank, display_type: 'number' },
     { trait_type: 'Morphology',   value: _MORPH_LABEL[eff.morphology]    || eff.morphology },
@@ -1072,7 +1077,11 @@ async function buildMetadata(env, tokenId) {
   }
 
   return {
-    name: `${name} #${padded}`,
+    // "BIOM #N" — no padding, max ID is 2999 so digit count tops out at
+    // 4 chars and reads cleaner than "BIOM #00001". Genus name (the old
+    // "PHAGOPHILIA" style identifier) is preserved as a Species trait so
+    // the character isn't lost — it just doesn't crowd the title.
+    name: `BIOM #${tokenId}`,
     description: 'A living microbe from the Bioms collection — 3000 generative specimens that share traits, burn each other, and evolve. The survivors carry everything forward. thebioms.com',
     image: `https://pngs.thebioms.com/preview/${padded}.png`,
     image_url: `https://pngs.thebioms.com/preview/${padded}.png`,  // OpenSea legacy field

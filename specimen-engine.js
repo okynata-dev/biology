@@ -343,10 +343,19 @@
   // Note: the historical "REVEAL=true on prod" warning was removed in
   // 2026-05 when the project switched to instant reveal — seed numbers
   // are visible from day one, so no surprise here.
+  // Canonical token label. After the 2026-05 rename, every surface uses
+  // "BIOM #N" as the primary identifier (no padding — max ID is 2999 so
+  // longest form is "BIOM #2999", 10 chars). The genus name (pickName)
+  // still exists and is exposed for places that want the per-token
+  // nickname; metadata surfaces it as the Species trait.
   function label(seed) {
-    const name = pickName(seed);
-    if (!REVEAL) return name;
-    return `${name} #${String(seed).padStart(4, '0')}`;
+    return `BIOM #${seed}`;
+  }
+  // Sub-label — the genus/species nickname (PHAGOPHILIA, STREPTONAX...).
+  // Use this on cards as a small secondary line under the BIOM #N title
+  // so each token still feels individual instead of generic catalogue.
+  function species(seed) {
+    return pickName(seed);
   }
 
   // ============================================================
@@ -1332,6 +1341,7 @@
     generateState,
     pickName,
     label,
+    species,
     REVEAL,
     mixPalettes,
     pickUnlockPalette,
