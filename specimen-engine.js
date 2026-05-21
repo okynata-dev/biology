@@ -900,7 +900,14 @@
     const W = canvas.width;
     const H = canvas.height;
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = '#ffffff';
+    // Canvas background — accepts opts.background ("#hex" string) so the
+    // Lab's burn/crossbreed previews can match the cream paper card
+    // surface instead of the pure-white default used by the public
+    // master PNG renderer (those go on a clean white field for
+    // OpenSea-grade fidelity). Without this option, snapshots embedded
+    // inside Lab cards showed a stark white frame against the cream
+    // paper of the surrounding UI.
+    ctx.fillStyle = opts.background || '#ffffff';
     ctx.fillRect(0, 0, W, H);
 
     // Build the specimen data. Caller can pass opts.state to render a

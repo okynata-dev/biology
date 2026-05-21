@@ -3671,6 +3671,11 @@ function _renderOutcomeSnapshot(seed, state) {
   try {
     window.BiomEngine.renderSpecimenToCanvas(canvas, seed, {
       state: state ? { ...state, palette } : null,
+      // Match the cream paper surface of the surrounding Lab card so
+      // the snapshot reads as part of the same material — not a white
+      // photo glued onto cream paper. --paper is #f4f1e8 from
+      // design.css :root tokens.
+      background: '#f4f1e8',
     });
   } catch (err) {
     console.warn('outcome snapshot failed for', seed, err);
