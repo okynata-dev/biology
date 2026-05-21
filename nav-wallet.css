@@ -17,6 +17,22 @@
 }
 .nav-wallet:hover { opacity: 0.88; }
 .nav-wallet:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.nav-wallet[disabled] { cursor: wait; opacity: 0.7; }
+
+/* "Approve in wallet…" pulsing state — gives the user clear feedback
+   that the request was sent and MetaMask popup is open (just out of
+   view). Without this, the button visually doesn't change and people
+   assume the click did nothing. */
+.nav-wallet.connecting {
+  animation: nav-wallet-pulse 1.4s ease-in-out infinite;
+}
+@keyframes nav-wallet-pulse {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1.0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-wallet.connecting { animation: none; opacity: 0.85; }
+}
 
 /* Connected: paper-on-ink, green dot signals active session */
 .nav-wallet.connected {

@@ -185,14 +185,38 @@
     // CRITICAL: fire eth_requestAccounts BEFORE any DOM mutation. Some
     // wallet builds ignore the call if the user-gesture chain is broken
     // by intervening DOM work (innerHTML / classList changes count).
+    // We capture the promise SYNCHRONOUSLY here, then update UI safely
+    // in the next microtask.
+    const reqPromise = provider.request({ method: 'eth_requestAccounts' });
+    // Now (post-gesture) we can mutate the DOM freely. Tell the user
+    // to look at their wallet — MetaMask opens a separate popup window
+    // and people miss it constantly.
+    const origLabel = btn.querySelector('.nav-wallet-label');
+    if (origLabel) origLabel.textContent = 'Approve in wallet…';
+    btn.classList.add('connecting');
+    btn.setAttribute('disabled', 'disabled');
+
     let accounts;
     try {
-      accounts = await provider.request({ method: 'eth_requestAccounts' });
+      accounts = await reqPromise;
     } catch (err) {
-      // User rejected, wallet locked, etc.
-      console.warn('[nav-wallet] eth_requestAccounts failed:', err && (err.code + ' ' + err.message));
+      btn.classList.remove('connecting');
+      btn.removeAttribute('disabled');
+      if (origLabel) origLabel.textContent = 'Connect';
+      // Code -32002 = already-pending request. MetaMask is sitting on
+      // an unresolved popup. Give the user a clear hint.
+      if (err && err.code === -32002) {
+        if (origLabel) origLabel.textContent = 'Check wallet';
+        setTimeout(() => { if (origLabel) origLabel.textContent = 'Connect'; }, 3500);
+        console.warn('[nav-wallet] previous request still pending in wallet — open MetaMask to resolve');
+      } else {
+        // User rejected (4001), wallet locked, etc.
+        console.warn('[nav-wallet] eth_requestAccounts failed:', err && (err.code + ' ' + err.message));
+      }
       return;
     }
+    btn.classList.remove('connecting');
+    btn.removeAttribute('disabled');
     const addr = (accounts && accounts[0]) ? accounts[0].toLowerCase() : null;
     if (!addr) {
       console.warn('[nav-wallet] no account returned from provider');
