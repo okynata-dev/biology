@@ -3,45 +3,39 @@
   <!--
     Dark-mode favicon — served via:
       <link rel="icon" media="(prefers-color-scheme: dark)" href="/favicon-dark.svg">
-    in every page's <head>, after the light <link>.
-
-    Same composition as favicon.svg but inverted: cream cell body on
-    dark chrome, with a dark nucleoid as the focal point. The cell now
-    reads as a "lit" cell against a dark background — same biological
-    metaphor, opposite contrast direction.
-
-    Stays byte-aligned with the light version where possible
-    (proportions, coordinates) so the brand identity reads consistent
-    when a user toggles their OS theme mid-session.
+    Same composition as v3 favicon.svg, inverted: cream cell body on
+    dark chrome with a dark nucleoid as focal point. Coordinates match
+    the light version exactly so a user toggling OS theme mid-session
+    sees the same mark, just inverted.
   -->
   <defs>
     <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f4ead4"/>
-      <stop offset="1" stop-color="#d6c9a8"/>
+      <stop offset="0" stop-color="#f8efd6"/>
+      <stop offset="1" stop-color="#d0c39e"/>
     </linearGradient>
-    <radialGradient id="bloom" cx="0.3" cy="0.22" r="0.6">
-      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.65"/>
-      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.1"/>
+    <radialGradient id="bloom" cx="0.22" cy="0.18" r="0.65">
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.7"/>
+      <stop offset="0.5"  stop-color="#ffffff" stop-opacity="0.12"/>
       <stop offset="1"    stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.4"/>
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.45"/>
       <stop offset="0.22" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
-    <radialGradient id="nuc" cx="0.4" cy="0.35" r="0.7">
+    <radialGradient id="nuc" cx="0.38" cy="0.32" r="0.7">
       <stop offset="0"   stop-color="#3d3a32"/>
-      <stop offset="0.7" stop-color="#1c1a16"/>
+      <stop offset="0.7" stop-color="#16140f"/>
       <stop offset="1"   stop-color="#0b0a07"/>
     </radialGradient>
   </defs>
 
-  <rect x="4" y="6" width="24" height="20" rx="10" fill="url(#body)"/>
-  <circle cx="12.6" cy="15.2" r="5.4" fill="url(#nuc)"/>
-  <circle cx="21.2" cy="12.4" r="1.7" fill="#1c1a16" fill-opacity="0.78"/>
-  <circle cx="22.6" cy="20.0" r="1.2" fill="#1c1a16" fill-opacity="0.7"/>
-  <rect x="4" y="6" width="24" height="20" rx="10" fill="url(#bloom)"/>
-  <rect x="4" y="6" width="24" height="20" rx="10" fill="url(#sheen)"/>
-  <!-- Lighter outline since the cell itself is light. -->
-  <rect x="4" y="6" width="24" height="20" rx="10"
-        fill="none" stroke="#0b0a07" stroke-width="0.8" stroke-opacity="0.45"/>
+  <rect x="3" y="10" width="26" height="12" rx="6" fill="url(#body)"/>
+  <circle cx="9.8" cy="15.6" r="2.9" fill="url(#nuc)"/>
+  <circle cx="17.6" cy="14.2" r="1.5" fill="#16140f" fill-opacity="0.82"/>
+  <circle cx="22.4" cy="17.8" r="1.1" fill="#16140f" fill-opacity="0.75"/>
+  <circle cx="24.6" cy="14.6" r="0.55" fill="#16140f" fill-opacity="0.6"/>
+  <rect x="3" y="10" width="26" height="12" rx="6" fill="url(#bloom)"/>
+  <rect x="3" y="10" width="26" height="12" rx="6" fill="url(#sheen)"/>
+  <rect x="3" y="10" width="26" height="12" rx="6"
+        fill="none" stroke="#0b0a07" stroke-width="0.9" stroke-opacity="0.5"/>
 </svg>

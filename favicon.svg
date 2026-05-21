@@ -1,74 +1,79 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Bioms">
   <title>Bioms</title>
   <!--
-    v2 (2026-05): the v1 favicon used a thin 26×12 pill with four small
-    organelles at 0.5–0.8 opacity. At 16×16 favicon size those organelles
-    disappeared into the silhouette and the mark read as a flat dark blob.
+    v3 (2026-05): user feedback on v2 was "ещё чёрный круг" — v2's
+    near-circular cell (24×20, rx=10) read as a generic record-button
+    eye at favicon size. Losing the elongated silhouette and reducing
+    to one centered organelle made the mark look schematic instead of
+    biological.
 
-    v2 widens the cell (24×20, almost a squashed circle) so there's room
-    for ONE dominant cream nucleoid as the focal point — that organelle
-    is the eye that distinguishes this from any other dark pill in a
-    browser tab. Two small accents add organic asymmetry without
-    competing for attention. Glass bloom + sheen preserved (they make
-    the cell read as "alive" not "geometric").
+    v3 brings back the rod-bacterium pill silhouette (26×12, rx=6) and
+    restores three organelles of varying sizes in an asymmetric layout:
+    one big nucleoid on the left + a smaller pair on the right. All at
+    full opacity (v1's bug was 0.5–0.82 opacity dissolving at favicon
+    size; v2's bug was over-simplifying to one shape). The asymmetry is
+    what makes the eye read "alive" instead of "schematic".
 
-    Brand alignment: same dark warm body as the rest of the site
-    (#3d3a32 → #16140f gradient = the "ink" colour family) on cream
-    organelles (#f4ead4 = the "paper" colour family). The nav brand-mark
-    on every page loads this exact file, so favicon and logo stay
-    byte-identical.
+    Glass treatment stays: bloom highlight upper-left, sheen top fade,
+    crisp membrane stroke. The pill shape + three internal dots + glass
+    = recognisable as "bacterium under a microscope" at any size.
 
-    For dark browser chrome see favicon-dark.svg + the media-query
-    <link> entries in each page's <head>.
+    Brand alignment: same dark warm body (#3d3a32 → #16140f) on cream
+    organelles (#fdf6e3 / #f4ead4) used everywhere on the site. The
+    nav brand-mark loads this exact file so favicon and logo stay
+    byte-identical. See favicon-dark.svg for the prefers-color-scheme:
+    dark variant.
   -->
   <defs>
     <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0"   stop-color="#3d3a32"/>
-      <stop offset="1"   stop-color="#16140f"/>
+      <stop offset="0"    stop-color="#3d3a32"/>
+      <stop offset="0.55" stop-color="#211e18"/>
+      <stop offset="1"    stop-color="#0e0c08"/>
     </linearGradient>
-    <radialGradient id="bloom" cx="0.3" cy="0.22" r="0.6">
-      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.55"/>
-      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.08"/>
+    <radialGradient id="bloom" cx="0.22" cy="0.18" r="0.65">
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.6"/>
+      <stop offset="0.5"  stop-color="#ffffff" stop-opacity="0.1"/>
       <stop offset="1"    stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.32"/>
+      <stop offset="0"    stop-color="#ffffff" stop-opacity="0.38"/>
       <stop offset="0.22" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
-    <!-- Soft inner shadow on the nucleoid — gives it depth without
-         visual noise at favicon size. -->
-    <radialGradient id="nuc" cx="0.4" cy="0.35" r="0.7">
-      <stop offset="0"    stop-color="#fdf6e3"/>
-      <stop offset="0.7"  stop-color="#f4ead4"/>
-      <stop offset="1"    stop-color="#e9dcb8"/>
+    <radialGradient id="nuc" cx="0.38" cy="0.32" r="0.7">
+      <stop offset="0"    stop-color="#fff5dc"/>
+      <stop offset="0.65" stop-color="#f4ead4"/>
+      <stop offset="1"    stop-color="#dec99c"/>
     </radialGradient>
   </defs>
 
-  <!-- Body — squashed-circle capsule, much rounder than v1 so there's
-       room for a big nucleoid inside. -->
-  <rect x="4" y="6" width="24" height="20" rx="10" fill="url(#body)"/>
+  <!-- Body — proper rod-bacterium pill. Wider and flatter than v2 so the
+       silhouette reads as "bacterium" not "eye/circle". -->
+  <rect x="3" y="10" width="26" height="12" rx="6" fill="url(#body)"/>
 
-  <!-- Nucleoid — the eye of the mark. Big, high-contrast, slightly
-       off-centre so the cell reads as alive (perfect centre would feel
-       schematic). r=5.4 is ~34% of cell height — large enough to be
-       visible even at 16×16 favicon size where it occupies ~3px. -->
-  <circle cx="12.6" cy="15.2" r="5.4" fill="url(#nuc)"/>
+  <!-- Nucleoid — big, off-centre left, full opacity. Subtle radial
+       gradient gives it 3D depth (the highlight on the upper-left
+       mirrors the cell's bloom). At 16px favicon size this organelle
+       is ~1.4px — small but distinctly cream against dark, visible. -->
+  <circle cx="9.8" cy="15.6" r="2.9" fill="url(#nuc)"/>
 
-  <!-- Two small ribosomes — visual rhythm against the big nucleoid.
-       Larger one upper-right, smaller lower-right. Both fully opaque so
-       they survive at favicon size (v1's 0.5 opacity was the bug). -->
-  <circle cx="21.2" cy="12.4" r="1.7" fill="#f4ead4"/>
-  <circle cx="22.6" cy="20.0" r="1.2" fill="#f4ead4"/>
+  <!-- Ribosomes — smaller pair on the right, both opaque so they
+       survive at favicon size. Slight size variance avoids "two equal
+       dots" looking too symmetric/intentional. -->
+  <circle cx="17.6" cy="14.2" r="1.5" fill="#f4ead4"/>
+  <circle cx="22.4" cy="17.8" r="1.1" fill="#f4ead4"/>
+  <!-- One tiny accent so the right-side cluster has a triangular
+       composition (rule of three). Reads only at logo size — at 16px
+       this dot is sub-pixel and falls away, which is fine. -->
+  <circle cx="24.6" cy="14.6" r="0.55" fill="#f4ead4" fill-opacity="0.85"/>
 
-  <!-- Glass overlays — bloom is the upper-left highlight that makes the
-       cell read as wet/alive, sheen is the top-edge fade. Both layered
-       OVER the contents so the glass feels like real glass. -->
-  <rect x="4" y="6" width="24" height="20" rx="10" fill="url(#bloom)"/>
-  <rect x="4" y="6" width="24" height="20" rx="10" fill="url(#sheen)"/>
+  <!-- Glass overlays — layered OVER the contents so it feels like real
+       glass with stuff sealed inside. Bloom upper-left is the signature
+       wet-and-alive cue. -->
+  <rect x="3" y="10" width="26" height="12" rx="6" fill="url(#bloom)"/>
+  <rect x="3" y="10" width="26" height="12" rx="6" fill="url(#sheen)"/>
 
-  <!-- Membrane edge — bumped from 0.6 to 0.9 stroke width so the
-       silhouette stays crisp at 16×16 instead of dissolving into the
-       browser-tab background. -->
-  <rect x="4" y="6" width="24" height="20" rx="10"
-        fill="none" stroke="#0b0a07" stroke-width="0.9" stroke-opacity="0.7"/>
+  <!-- Membrane edge — 1.0 stroke width at 70% opacity. Keeps the
+       silhouette crisp at 16×16 while not feeling like a hard outline. -->
+  <rect x="3" y="10" width="26" height="12" rx="6"
+        fill="none" stroke="#0b0a07" stroke-width="1.0" stroke-opacity="0.7"/>
 </svg>
