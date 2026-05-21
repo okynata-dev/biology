@@ -273,7 +273,10 @@ async function ownerOf(env, tokenId) {
 }
 
 async function listOwned(env, address) {
-  if (!env.CONTRACT_ADDRESS || env.CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+  // Strict hex-address validation (same standard as /api/health) so a
+  // placeholder secret can't accidentally surface as "contract deployed".
+  if (!/^0x[a-fA-F0-9]{40}$/.test(env.CONTRACT_ADDRESS || '') ||
+      env.CONTRACT_ADDRESS.toLowerCase() === '0x0000000000000000000000000000000000000000') {
     return { tokens: [], contractDeployed: false };
   }
   const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${env.ALCHEMY_KEY}/getNFTsForOwner` +
@@ -345,7 +348,10 @@ async function verifyBurnTx(env, txHash, expectedTokenId, expectedSigner) {
   if (!env.ALCHEMY_KEY) {
     return { ok: false, reason: 'no_alchemy_key' };
   }
-  if (!env.CONTRACT_ADDRESS || env.CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+  // Strict address validation — see /api/health for why placeholder
+  // strings shouldn't slip through.
+  if (!/^0x[a-fA-F0-9]{40}$/.test(env.CONTRACT_ADDRESS || '') ||
+      env.CONTRACT_ADDRESS.toLowerCase() === '0x0000000000000000000000000000000000000000') {
     return { ok: false, reason: 'no_contract_address' };
   }
   if (typeof txHash !== 'string' || !/^0x[a-fA-F0-9]{64}$/.test(txHash)) {
@@ -1185,7 +1191,13 @@ export default {
 
     try {
       if (path === '/api/health') {
-        const deployed = !!env.CONTRACT_ADDRESS && env.CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000';
+        // Strict address validation — placeholder strings like
+        // "0xYourContractAddress" used to pass the old truthy+zero check
+        // and flip features.walletBurn=true in the frontend even though
+        // no real contract existed yet. Now we require a 40-hex string
+        // AND reject the zero address.
+        const isHex40 = /^0x[a-fA-F0-9]{40}$/.test(env.CONTRACT_ADDRESS || '');
+        const deployed = isHex40 && env.CONTRACT_ADDRESS.toLowerCase() !== '0x0000000000000000000000000000000000000000';
         // Probe D1 with a cheap SELECT — surfaces a missing or wrong
         // database_id at health-check time (used by uptime monitors)
         // instead of waiting for the first user conjugation to 500.
