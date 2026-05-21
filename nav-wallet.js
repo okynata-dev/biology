@@ -1,60 +1,90 @@
 /**
  * Bioms · Shared nav-wallet pill
  *
- * Drop-in connect/disconnect button for every page that has a nav.
- * Persists the wallet address in localStorage under 'bioms-wallet-addr'
- * so lab.html and any other wallet-aware code can read the same key
- * (sync across tabs via `storage` events).
+ * EIP-6963 multi-wallet picker (modelled on dustopia.xyz): clicking
+ * the pill opens a modal listing EVERY injected wallet — MetaMask,
+ * Rabby, Coinbase, Phantom, Brave, Frame, etc. The user picks one
+ * and we connect via that specific provider, bypassing the legacy
+ * window.ethereum hijack wars that single-provider apps get stuck in.
  *
- * Render contract:
- *   - looks for `.nav-links` in the current page's nav
- *   - injects a <button class="nav-wallet"> just before the first child
- *     (so it sits at the LEFT of the existing nav links)
- *   - if already connected, shows truncated address
- *   - if not, shows "Connect"
+ * Architecture:
+ *   - Boot: announce/request EIP-6963 providers, collect list
+ *   - Click pill: open modal with list (icon + name)
+ *   - User picks: call provider.request({eth_requestAccounts})
+ *   - On success: pill flips to connected state, modal closes, address
+ *     persists to localStorage as 'bioms-wallet-addr' (+ rdns for
+ *     reconnect)
+ *   - Silent reconnect on next page-load via eth_accounts (no prompt)
  *
- * State machine:
- *   disconnected → click → request accounts → connected
- *   connected    → click → show dropdown (Etherscan link, Disconnect)
- *   disconnected → no wallet provider → click → modal-ish prompt with
- *                  link to MetaMask
+ * Persistence:
+ *   - bioms-wallet-addr  (lowercased address)
+ *   - bioms-wallet-rdns  (e.g. "io.metamask" — to find same provider
+ *                         on reload)
+ *   Cross-tab sync via the native `storage` event; same-tab via
+ *   the synthetic `bioms-wallet-change` CustomEvent.
  *
- * Defensive:
- *   - if window.ethereum is missing (mobile non-dapp browser) clicking
- *     opens a help link
- *   - wraps everything in try/catch so a bad eth response doesn't break
- *     the rest of the page
- *   - never throws to the page-level handler
+ * Lab integration:
+ *   lab.html's Wallet.connect() also writes to these keys so the pill
+ *   stays in sync whether the user connects from the header or from
+ *   inside the Lab.
  */
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'bioms-wallet-addr';
-  const CHAIN_ID_HEX = '0x1';  // Ethereum mainnet
+  const ADDR_KEY = 'bioms-wallet-addr';
+  const RDNS_KEY = 'bioms-wallet-rdns';
+  const CHAIN_ID_HEX = '0x1';                  // Ethereum mainnet
+  const DISCOVERY_WINDOW_MS = 350;             // wallets respond fast; 350ms covers slow ones
 
-  function getStoredAddr() {
+  // === State ===
+  const providers = [];                        // [{ info, provider }]
+  let activeProvider = null;                   // raw EIP-1193 provider that's currently bound
+  let modalEl = null;
+  let dropdownEl = null;
+
+  // === Storage helpers ===
+  function getAddr() {
     try {
-      const a = localStorage.getItem(STORAGE_KEY);
+      const a = localStorage.getItem(ADDR_KEY);
       return (a && /^0x[a-fA-F0-9]{40}$/.test(a)) ? a.toLowerCase() : null;
     } catch (_) { return null; }
   }
-
-  function setStoredAddr(a) {
+  function getRdns() { try { return localStorage.getItem(RDNS_KEY) || null; } catch (_) { return null; } }
+  function setStoredWallet(addr, rdns) {
     try {
-      if (a) localStorage.setItem(STORAGE_KEY, a.toLowerCase());
-      else localStorage.removeItem(STORAGE_KEY);
-      // Fire a synthetic storage event for same-tab listeners (the
-      // native one only fires across tabs).
-      window.dispatchEvent(new CustomEvent('bioms-wallet-change', { detail: { addr: a || null } }));
+      if (addr) localStorage.setItem(ADDR_KEY, addr.toLowerCase());
+      else localStorage.removeItem(ADDR_KEY);
+      if (rdns) localStorage.setItem(RDNS_KEY, rdns);
+      else localStorage.removeItem(RDNS_KEY);
     } catch (_) {}
+    window.dispatchEvent(new CustomEvent('bioms-wallet-change', { detail: { addr: addr || null } }));
   }
 
-  function shortAddr(addr) {
-    if (!addr) return '';
-    return addr.slice(0, 6) + '…' + addr.slice(-4);
+  function shortAddr(a) {
+    return a ? (a.slice(0, 6) + '…' + a.slice(-4)) : '';
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
   }
 
-  // === Build the pill DOM ===
+  // === EIP-6963 discovery ===
+  // Listen for announcements + dispatch request. Wallets reply
+  // synchronously with their info+provider. We collect and dedupe.
+  function startDiscovery() {
+    const seen = new Set();
+    window.addEventListener('eip6963:announceProvider', (e) => {
+      if (!e || !e.detail || !e.detail.provider || !e.detail.info) return;
+      const uuid = e.detail.info.uuid;
+      if (uuid && seen.has(uuid)) return;
+      if (uuid) seen.add(uuid);
+      providers.push({ info: e.detail.info, provider: e.detail.provider });
+    });
+    try { window.dispatchEvent(new Event('eip6963:requestProvider')); } catch (_) {}
+  }
+
+  // === Pill DOM ===
   function buildPill() {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -67,230 +97,261 @@
   function updatePill(btn, addr) {
     if (addr) {
       btn.classList.add('connected');
+      btn.classList.remove('connecting');
+      btn.removeAttribute('disabled');
       btn.setAttribute('aria-label', `Wallet connected: ${shortAddr(addr)}. Click for options.`);
       btn.innerHTML = '<span class="nav-wallet-dot" aria-hidden="true"></span><span class="nav-wallet-label">' + shortAddr(addr) + '</span>';
     } else {
-      btn.classList.remove('connected');
+      btn.classList.remove('connected', 'connecting');
+      btn.removeAttribute('disabled');
       btn.setAttribute('aria-label', 'Connect wallet');
       btn.innerHTML = '<span class="nav-wallet-label">Connect</span>';
     }
   }
 
-  // === Dropdown (shown when connected pill is clicked) ===
-  let openDropdown = null;
-  function closeDropdown() {
-    if (openDropdown) {
-      openDropdown.remove();
-      openDropdown = null;
-      document.removeEventListener('click', onOutsideClick, true);
-      document.removeEventListener('keydown', onEsc);
+  // === Modal (wallet picker) ===
+  function closeModal() {
+    if (modalEl) {
+      modalEl.remove();
+      modalEl = null;
+      document.removeEventListener('keydown', onModalKey);
     }
   }
-  function onOutsideClick(e) {
-    if (openDropdown && !openDropdown.contains(e.target)) closeDropdown();
-  }
-  function onEsc(e) { if (e.key === 'Escape') closeDropdown(); }
+  function onModalKey(e) { if (e.key === 'Escape') closeModal(); }
 
-  function showDropdown(anchorBtn, addr) {
-    closeDropdown();
-    const dd = document.createElement('div');
-    dd.className = 'nav-wallet-dropdown';
-    dd.setAttribute('role', 'menu');
-    dd.innerHTML = `
-      <div class="nav-wallet-dd-addr">${addr}</div>
-      <a href="https://etherscan.io/address/${addr}" target="_blank" rel="noopener" role="menuitem">View on Etherscan ↗</a>
-      <button type="button" class="nav-wallet-dd-copy" role="menuitem">Copy address</button>
-      <button type="button" class="nav-wallet-dd-disconnect" role="menuitem">Disconnect</button>
+  function openModal(pillBtn) {
+    closeModal();
+    // Re-announce in case wallets were slow on initial boot
+    try { window.dispatchEvent(new Event('eip6963:requestProvider')); } catch (_) {}
+
+    const list = providers.length
+      ? providers.map((p, i) => `
+          <button type="button" class="nav-wallet-modal-option" data-i="${i}">
+            ${p.info.icon ? `<img class="nav-wallet-modal-icon" src="${esc(p.info.icon)}" alt="" width="28" height="28">` : '<span class="nav-wallet-modal-icon-blank"></span>'}
+            <span class="nav-wallet-modal-name">${esc(p.info.name)}</span>
+            <span class="nav-wallet-modal-arrow" aria-hidden="true">→</span>
+          </button>
+        `).join('')
+      : `<div class="nav-wallet-modal-empty">
+           <p>No wallets detected in this browser.</p>
+           <p class="nav-wallet-modal-empty-sub">Install
+             <a href="https://metamask.io" target="_blank" rel="noopener">MetaMask</a>,
+             <a href="https://rabby.io" target="_blank" rel="noopener">Rabby</a>, or
+             <a href="https://www.coinbase.com/wallet" target="_blank" rel="noopener">Coinbase Wallet</a>
+             and reload this page.</p>
+         </div>`;
+
+    modalEl = document.createElement('div');
+    modalEl.className = 'nav-wallet-modal-backdrop';
+    modalEl.setAttribute('role', 'dialog');
+    modalEl.setAttribute('aria-modal', 'true');
+    modalEl.setAttribute('aria-labelledby', 'nav-wallet-modal-title');
+    modalEl.innerHTML = `
+      <div class="nav-wallet-modal" role="document">
+        <div class="nav-wallet-modal-head">
+          <h2 id="nav-wallet-modal-title">Connect a wallet</h2>
+          <button type="button" class="nav-wallet-modal-close" aria-label="Close">×</button>
+        </div>
+        <p class="nav-wallet-modal-sub">Pick any wallet you have installed.</p>
+        <div class="nav-wallet-modal-list">${list}</div>
+      </div>
     `;
-    // Position under the button
-    const r = anchorBtn.getBoundingClientRect();
-    dd.style.position = 'fixed';
-    dd.style.top  = (r.bottom + 6) + 'px';
-    dd.style.right = (window.innerWidth - r.right) + 'px';
-    document.body.appendChild(dd);
-    openDropdown = dd;
+    document.body.appendChild(modalEl);
 
-    // Wire actions
-    dd.querySelector('.nav-wallet-dd-disconnect').addEventListener('click', () => {
-      setStoredAddr(null);
-      closeDropdown();
+    // Backdrop click closes
+    modalEl.addEventListener('click', (e) => { if (e.target === modalEl) closeModal(); });
+    modalEl.querySelector('.nav-wallet-modal-close').addEventListener('click', closeModal);
+    document.addEventListener('keydown', onModalKey);
+    // Wire wallet options
+    modalEl.querySelectorAll('.nav-wallet-modal-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = parseInt(btn.dataset.i, 10);
+        connectViaProvider(pillBtn, providers[i]);
+      });
     });
-    dd.querySelector('.nav-wallet-dd-copy').addEventListener('click', async (e) => {
-      try {
-        await navigator.clipboard.writeText(addr);
-        e.currentTarget.textContent = 'Copied ✓';
-        setTimeout(() => { if (e.currentTarget) e.currentTarget.textContent = 'Copy address'; }, 1400);
-      } catch (_) {}
-    });
-
-    // Defer outside-click handler so the same click that opened doesn't close it
-    setTimeout(() => {
-      document.addEventListener('click', onOutsideClick, true);
-      document.addEventListener('keydown', onEsc);
-    }, 0);
   }
 
-  // === EIP-6963 multi-wallet discovery ===
-  // Modern wallet standard: every wallet extension announces itself
-  // via an 'eip6963:announceProvider' event. We collect all and let
-  // the user (or our default rule) pick one, instead of fighting over
-  // window.ethereum where the last-installed wallet wins.
-  //
-  // Real-world problem we hit: user had OKX Wallet + MetaMask both
-  // installed. OKX hijacked window.ethereum, masqueraded as MetaMask
-  // (isMetaMask: true), and threw "Unexpected error at selectExtension"
-  // when we called eth_requestAccounts. EIP-6963 sidesteps the
-  // hijack by talking to MetaMask directly.
-  const _eip6963Providers = [];
-  if (typeof window !== 'undefined') {
-    window.addEventListener('eip6963:announceProvider', (e) => {
-      if (!e || !e.detail || !e.detail.provider) return;
-      // Dedupe by uuid (some wallets re-announce on every request)
-      const uuid = e.detail.info && e.detail.info.uuid;
-      if (uuid && _eip6963Providers.some(p => p.info && p.info.uuid === uuid)) return;
-      _eip6963Providers.push(e.detail);
-    });
-    // Ask wallets to announce themselves (idempotent — wallets debounce internally)
-    try { window.dispatchEvent(new Event('eip6963:requestProvider')); } catch (_) {}
-  }
-
-  // Pick the best provider:
-  //   1. MetaMask by rdns (most common, our primary integration target)
-  //   2. First EIP-6963 provider
-  //   3. Fallback to window.ethereum (legacy single-injection)
-  function pickProvider() {
-    // Re-announce in case extensions just finished initialising
-    try { window.dispatchEvent(new Event('eip6963:requestProvider')); } catch (_) {}
-    const mm = _eip6963Providers.find(p => p.info && p.info.rdns === 'io.metamask');
-    if (mm) return { provider: mm.provider, name: mm.info.name };
-    if (_eip6963Providers.length > 0) return { provider: _eip6963Providers[0].provider, name: _eip6963Providers[0].info.name };
-    if (window.ethereum) return { provider: window.ethereum, name: 'window.ethereum (legacy)' };
-    return null;
-  }
-
-  // === Wallet flow ===
-  async function connectWallet(btn) {
-    const picked = pickProvider();
-    console.info('[nav-wallet] connect click', {
-      eip6963Count: _eip6963Providers.length,
-      eip6963Names: _eip6963Providers.map(p => p.info && p.info.name),
-      picked: picked ? picked.name : 'NONE',
-    });
-    if (!picked) {
-      console.warn('[nav-wallet] no wallet provider found — opening MetaMask download');
-      window.open('https://metamask.io/download/', '_blank', 'noopener');
-      return;
-    }
-    const provider = picked.provider;
-    // CRITICAL: fire eth_requestAccounts BEFORE any DOM mutation. Some
-    // wallet builds ignore the call if the user-gesture chain is broken
-    // by intervening DOM work (innerHTML / classList changes count).
-    // We capture the promise SYNCHRONOUSLY here, then update UI safely
-    // in the next microtask.
-    const reqPromise = provider.request({ method: 'eth_requestAccounts' });
-    // Now (post-gesture) we can mutate the DOM freely. Tell the user
-    // to look at their wallet — MetaMask opens a separate popup window
-    // and people miss it constantly.
-    const origLabel = btn.querySelector('.nav-wallet-label');
-    if (origLabel) origLabel.textContent = 'Approve in wallet…';
-    btn.classList.add('connecting');
-    btn.setAttribute('disabled', 'disabled');
-
+  // === Connect flow (per-provider) ===
+  async function connectViaProvider(pillBtn, entry) {
+    if (!entry || !entry.provider) return;
+    console.info('[nav-wallet] picked', entry.info.name, entry.info.rdns);
+    // Synchronously start the request so the user-gesture chain is preserved
+    const reqPromise = entry.provider.request({ method: 'eth_requestAccounts' });
+    // Optimistic UI in modal: mark this option as connecting
+    const buttons = modalEl ? modalEl.querySelectorAll('.nav-wallet-modal-option') : null;
+    if (buttons) buttons.forEach(b => b.setAttribute('disabled', 'disabled'));
     let accounts;
     try {
       accounts = await reqPromise;
     } catch (err) {
-      btn.classList.remove('connecting');
-      btn.removeAttribute('disabled');
-      if (origLabel) origLabel.textContent = 'Connect';
-      // Code -32002 = already-pending request. MetaMask is sitting on
-      // an unresolved popup. Give the user a clear hint.
+      console.warn('[nav-wallet] eth_requestAccounts failed:', err && (err.code + ' ' + err.message));
+      if (buttons) buttons.forEach(b => b.removeAttribute('disabled'));
       if (err && err.code === -32002) {
-        if (origLabel) origLabel.textContent = 'Check wallet';
-        setTimeout(() => { if (origLabel) origLabel.textContent = 'Connect'; }, 3500);
-        console.warn('[nav-wallet] previous request still pending in wallet — open MetaMask to resolve');
-      } else {
-        // User rejected (4001), wallet locked, etc.
-        console.warn('[nav-wallet] eth_requestAccounts failed:', err && (err.code + ' ' + err.message));
+        // Pending request elsewhere — flash a hint
+        const sub = modalEl && modalEl.querySelector('.nav-wallet-modal-sub');
+        if (sub) {
+          const orig = sub.textContent;
+          sub.textContent = 'A request is already pending in your wallet — check it.';
+          setTimeout(() => { if (sub) sub.textContent = orig; }, 3500);
+        }
       }
       return;
     }
-    btn.classList.remove('connecting');
-    btn.removeAttribute('disabled');
-    const addr = (accounts && accounts[0]) ? accounts[0].toLowerCase() : null;
-    if (!addr) {
-      console.warn('[nav-wallet] no account returned from provider');
+    const addr = (accounts && accounts[0] || '').toLowerCase();
+    if (!/^0x[a-f0-9]{40}$/.test(addr)) {
+      console.warn('[nav-wallet] no account returned from', entry.info.name);
+      if (buttons) buttons.forEach(b => b.removeAttribute('disabled'));
       return;
     }
-    // Best-effort chain switch to mainnet (silent fail if user declines)
+    // Best-effort chain switch to mainnet
     try {
-      await provider.request({
+      await entry.provider.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: CHAIN_ID_HEX }],
       });
-    } catch (_) { /* user declined — keep going, lab UI will warn if relevant */ }
-    setStoredAddr(addr);
-    console.info('[nav-wallet] connected:', addr, 'via', picked.name);
+    } catch (_) { /* user declined — leave them where they were */ }
+
+    activeProvider = entry.provider;
+    setStoredWallet(addr, entry.info.rdns || '');
+    updatePill(pillBtn, addr);
+    bindProviderEvents(entry.provider, pillBtn);
+    closeModal();
+    console.info('[nav-wallet] connected via', entry.info.name, addr);
   }
 
-  // === Watch injected provider for external changes ===
-  function bindProviderEvents(btn) {
-    if (!window.ethereum || !window.ethereum.on) return;
-    // User changes account in MetaMask
-    window.ethereum.on('accountsChanged', (accounts) => {
-      const next = accounts && accounts[0];
-      if (!next) setStoredAddr(null);
-      else if (next.toLowerCase() !== getStoredAddr()) setStoredAddr(next);
+  // === Provider event sync (account changed externally) ===
+  function bindProviderEvents(provider, pillBtn) {
+    if (!provider || !provider.on || provider.__biomsWired) return;
+    provider.__biomsWired = true;
+    provider.on('accountsChanged', (accs) => {
+      const next = ((accs && accs[0]) || '').toLowerCase();
+      if (!next || !/^0x[a-f0-9]{40}$/.test(next)) {
+        // Wallet disconnected externally
+        activeProvider = null;
+        setStoredWallet(null, null);
+        updatePill(pillBtn, null);
+      } else if (next !== getAddr()) {
+        setStoredWallet(next, getRdns() || '');
+        updatePill(pillBtn, next);
+      }
     });
-    // Chain changed — for now we just keep the address; pages that
-    // care about chain do their own check
-    window.ethereum.on('chainChanged', () => {
-      // no-op — leave UI as is
+    provider.on('chainChanged', () => { /* mainnet-only; no-op */ });
+  }
+
+  // === Connected-pill dropdown ===
+  function closeDropdown() {
+    if (dropdownEl) {
+      dropdownEl.remove();
+      dropdownEl = null;
+      document.removeEventListener('click', onDropdownOutside, true);
+      document.removeEventListener('keydown', onDropdownKey);
+    }
+  }
+  function onDropdownOutside(e) {
+    if (dropdownEl && !dropdownEl.contains(e.target)) closeDropdown();
+  }
+  function onDropdownKey(e) { if (e.key === 'Escape') closeDropdown(); }
+
+  function openDropdown(pillBtn, addr) {
+    closeDropdown();
+    dropdownEl = document.createElement('div');
+    dropdownEl.className = 'nav-wallet-dropdown';
+    dropdownEl.setAttribute('role', 'menu');
+    dropdownEl.innerHTML = `
+      <div class="nav-wallet-dd-addr">${esc(addr)}</div>
+      <a href="https://etherscan.io/address/${esc(addr)}" target="_blank" rel="noopener" role="menuitem">View on Etherscan ↗</a>
+      <button type="button" class="nav-wallet-dd-copy" role="menuitem">Copy address</button>
+      <button type="button" class="nav-wallet-dd-disconnect" role="menuitem">Disconnect</button>
+    `;
+    const r = pillBtn.getBoundingClientRect();
+    dropdownEl.style.position = 'fixed';
+    dropdownEl.style.top  = (r.bottom + 6) + 'px';
+    dropdownEl.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+    document.body.appendChild(dropdownEl);
+    dropdownEl.querySelector('.nav-wallet-dd-disconnect').addEventListener('click', () => {
+      activeProvider = null;
+      setStoredWallet(null, null);
+      updatePill(pillBtn, null);
+      closeDropdown();
     });
+    dropdownEl.querySelector('.nav-wallet-dd-copy').addEventListener('click', async (e) => {
+      try {
+        await navigator.clipboard.writeText(addr);
+        const b = e.currentTarget; const orig = b.textContent;
+        b.textContent = 'Copied ✓';
+        setTimeout(() => { if (b) b.textContent = orig; }, 1400);
+      } catch (_) {}
+    });
+    setTimeout(() => {
+      document.addEventListener('click', onDropdownOutside, true);
+      document.addEventListener('keydown', onDropdownKey);
+    }, 0);
+  }
+
+  // === Silent reconnect on page load ===
+  // If the user previously connected, we DON'T trigger a popup — we
+  // just call eth_accounts which returns already-authorized addresses
+  // silently. Then we re-bind state without UX disruption.
+  async function tryReconnect(pillBtn) {
+    const savedAddr = getAddr();
+    const savedRdns = getRdns();
+    if (!savedAddr) return;
+    // Try by saved rdns first, fall back to any provider
+    const entry = providers.find(p => p.info.rdns === savedRdns) || providers[0];
+    if (!entry) return;  // wallet uninstalled / not announced this time
+    try {
+      const accs = await entry.provider.request({ method: 'eth_accounts' });
+      const addr = (accs && accs[0] || '').toLowerCase();
+      if (!/^0x[a-f0-9]{40}$/.test(addr)) {
+        // Wallet no longer authorizing us — clear stale state
+        setStoredWallet(null, null);
+        return;
+      }
+      activeProvider = entry.provider;
+      setStoredWallet(addr, entry.info.rdns || '');
+      updatePill(pillBtn, addr);
+      bindProviderEvents(entry.provider, pillBtn);
+    } catch (_) {
+      // Wallet is locked, errored, etc — leave pill as Connect
+    }
   }
 
   // === Boot ===
+  startDiscovery();
+
   function boot() {
-    // Find nav-links container on this page. If the page doesn't have
-    // one (e.g. soup.html with its custom HUD-only nav, or admin), bail.
     const navLinks = document.querySelector('nav .nav-links');
     if (!navLinks) {
       console.warn('[nav-wallet] no nav .nav-links on this page — pill not mounted');
       return;
     }
-    console.info('[nav-wallet] mounting pill');
-
     const pill = buildPill();
-    // Insert as the FIRST child of nav-links so it appears to the left
-    // of the existing links (visual hierarchy: action > navigation).
     navLinks.insertBefore(pill, navLinks.firstChild);
 
-    // Initial render from localStorage
-    updatePill(pill, getStoredAddr());
+    // Render initial state from localStorage (might be stale; tryReconnect refines)
+    updatePill(pill, getAddr());
 
-    // Click handling
     pill.addEventListener('click', (e) => {
       e.stopPropagation();
-      const addr = getStoredAddr();
+      const addr = getAddr();
       if (addr) {
-        // Connected → toggle dropdown
-        if (openDropdown) closeDropdown();
-        else showDropdown(pill, addr);
+        if (dropdownEl) closeDropdown();
+        else openDropdown(pill, addr);
       } else {
-        connectWallet(pill);
+        openModal(pill);
       }
     });
 
-    // Cross-tab + lab-side updates
     window.addEventListener('storage', (e) => {
-      if (e.key === STORAGE_KEY) updatePill(pill, getStoredAddr());
+      if (e.key === ADDR_KEY) updatePill(pill, getAddr());
     });
     window.addEventListener('bioms-wallet-change', () => {
-      updatePill(pill, getStoredAddr());
+      updatePill(pill, getAddr());
       closeDropdown();
     });
 
-    bindProviderEvents(pill);
+    // Give wallets a beat to announce, then attempt silent reconnect.
+    setTimeout(() => tryReconnect(pill), DISCOVERY_WINDOW_MS);
   }
 
   if (document.readyState === 'loading') {

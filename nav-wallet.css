@@ -94,10 +94,158 @@
   color: #9a4a2e !important;
 }
 
-/* Mobile — slightly more compact */
+/* ===========================================================
+   Wallet-picker modal — opens when disconnected pill is clicked.
+   Lists every EIP-6963-announced wallet so users can pick MetaMask,
+   Rabby, Coinbase, Phantom, etc. instead of fighting over
+   window.ethereum.
+   =========================================================== */
+.nav-wallet-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(28, 26, 22, 0.55);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: nav-wallet-fade-in 0.18s ease-out;
+}
+@keyframes nav-wallet-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.nav-wallet-modal {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04);
+  width: 100%;
+  max-width: 380px;
+  padding: 20px 20px 16px;
+  animation: nav-wallet-slide-in 0.22s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+@keyframes nav-wallet-slide-in {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);    opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-wallet-modal-backdrop, .nav-wallet-modal { animation: none; }
+}
+
+.nav-wallet-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+.nav-wallet-modal-head h2 {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0;
+}
+.nav-wallet-modal-close {
+  background: none; border: 0;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 4px 8px; margin: -4px -8px -4px 0;
+  border-radius: 6px;
+  transition: background 0.12s, color 0.12s;
+}
+.nav-wallet-modal-close:hover { background: rgba(28,26,22,0.05); color: var(--ink); }
+
+.nav-wallet-modal-sub {
+  font-size: 13px;
+  color: var(--ink-3);
+  margin: 0 0 14px;
+}
+
+.nav-wallet-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-wallet-modal-option {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+.nav-wallet-modal-option:hover {
+  border-color: var(--ink);
+  background: var(--paper);
+  transform: translateY(-1px);
+}
+.nav-wallet-modal-option:disabled {
+  cursor: wait;
+  opacity: 0.6;
+  transform: none;
+}
+.nav-wallet-modal-icon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  background: white;
+}
+.nav-wallet-modal-icon-blank {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  background: var(--rule);
+}
+.nav-wallet-modal-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+.nav-wallet-modal-arrow {
+  color: var(--ink-3);
+  font-size: 16px;
+}
+
+.nav-wallet-modal-empty {
+  text-align: center;
+  padding: 24px 8px;
+}
+.nav-wallet-modal-empty p {
+  font-size: 14px;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+.nav-wallet-modal-empty-sub {
+  font-size: 12px !important;
+  color: var(--ink-3) !important;
+  line-height: 1.55;
+}
+.nav-wallet-modal-empty a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Mobile — full-width sheet */
 @media (max-width: 600px) {
   .nav-wallet {
     padding: 6px 12px;
     font-size: 11px;
+  }
+  .nav-wallet-modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .nav-wallet-modal {
+    max-width: 100%;
+    border-radius: 18px 18px 0 0;
+    padding: 18px 16px 24px;
   }
 }
