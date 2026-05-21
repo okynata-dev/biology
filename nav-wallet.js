@@ -130,21 +130,64 @@
     }, 0);
   }
 
+  // === EIP-6963 multi-wallet discovery ===
+  // Modern wallet standard: every wallet extension announces itself
+  // via an 'eip6963:announceProvider' event. We collect all and let
+  // the user (or our default rule) pick one, instead of fighting over
+  // window.ethereum where the last-installed wallet wins.
+  //
+  // Real-world problem we hit: user had OKX Wallet + MetaMask both
+  // installed. OKX hijacked window.ethereum, masqueraded as MetaMask
+  // (isMetaMask: true), and threw "Unexpected error at selectExtension"
+  // when we called eth_requestAccounts. EIP-6963 sidesteps the
+  // hijack by talking to MetaMask directly.
+  const _eip6963Providers = [];
+  if (typeof window !== 'undefined') {
+    window.addEventListener('eip6963:announceProvider', (e) => {
+      if (!e || !e.detail || !e.detail.provider) return;
+      // Dedupe by uuid (some wallets re-announce on every request)
+      const uuid = e.detail.info && e.detail.info.uuid;
+      if (uuid && _eip6963Providers.some(p => p.info && p.info.uuid === uuid)) return;
+      _eip6963Providers.push(e.detail);
+    });
+    // Ask wallets to announce themselves (idempotent — wallets debounce internally)
+    try { window.dispatchEvent(new Event('eip6963:requestProvider')); } catch (_) {}
+  }
+
+  // Pick the best provider:
+  //   1. MetaMask by rdns (most common, our primary integration target)
+  //   2. First EIP-6963 provider
+  //   3. Fallback to window.ethereum (legacy single-injection)
+  function pickProvider() {
+    // Re-announce in case extensions just finished initialising
+    try { window.dispatchEvent(new Event('eip6963:requestProvider')); } catch (_) {}
+    const mm = _eip6963Providers.find(p => p.info && p.info.rdns === 'io.metamask');
+    if (mm) return { provider: mm.provider, name: mm.info.name };
+    if (_eip6963Providers.length > 0) return { provider: _eip6963Providers[0].provider, name: _eip6963Providers[0].info.name };
+    if (window.ethereum) return { provider: window.ethereum, name: 'window.ethereum (legacy)' };
+    return null;
+  }
+
   // === Wallet flow ===
   async function connectWallet(btn) {
-    console.info('[nav-wallet] connect click', { hasEthereum: !!window.ethereum, isMetaMask: !!(window.ethereum && window.ethereum.isMetaMask) });
-    if (!window.ethereum) {
-      console.warn('[nav-wallet] no injected provider — opening MetaMask download');
+    const picked = pickProvider();
+    console.info('[nav-wallet] connect click', {
+      eip6963Count: _eip6963Providers.length,
+      eip6963Names: _eip6963Providers.map(p => p.info && p.info.name),
+      picked: picked ? picked.name : 'NONE',
+    });
+    if (!picked) {
+      console.warn('[nav-wallet] no wallet provider found — opening MetaMask download');
       window.open('https://metamask.io/download/', '_blank', 'noopener');
       return;
     }
+    const provider = picked.provider;
     // CRITICAL: fire eth_requestAccounts BEFORE any DOM mutation. Some
     // wallet builds ignore the call if the user-gesture chain is broken
     // by intervening DOM work (innerHTML / classList changes count).
-    // The "Connecting…" UI is updated AFTER the request is in-flight.
     let accounts;
     try {
-      accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      accounts = await provider.request({ method: 'eth_requestAccounts' });
     } catch (err) {
       // User rejected, wallet locked, etc.
       console.warn('[nav-wallet] eth_requestAccounts failed:', err && (err.code + ' ' + err.message));
@@ -157,13 +200,13 @@
     }
     // Best-effort chain switch to mainnet (silent fail if user declines)
     try {
-      await window.ethereum.request({
+      await provider.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: CHAIN_ID_HEX }],
       });
     } catch (_) { /* user declined — keep going, lab UI will warn if relevant */ }
     setStoredAddr(addr);
-    console.info('[nav-wallet] connected:', addr);
+    console.info('[nav-wallet] connected:', addr, 'via', picked.name);
   }
 
   // === Watch injected provider for external changes ===
