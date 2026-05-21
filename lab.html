@@ -471,7 +471,18 @@
      INK-on-INK. No halos needed, no isolation hacks, fewer pixels. */
   .biom-card .role-tag {
     position: absolute;
-    top: 12px; right: 12px;
+    /* GEOMETRY, NOT STYLING, was the real cause of every "обрезанность"
+       complaint. The card has overflow:hidden + border-radius 14px,
+       which carves a quarter-circle clip out of each corner. A chip
+       parked too close to that corner gets shaved along its outermost
+       edge by 1-3 anti-aliased pixels.
+       Constraint: the chip's outer corner must lie outside the clip
+       curve. With card radius r, inset T (top) and R (right):
+           √((T - r)² + (R - r)²) ≥ r
+       For r = 14 and T = R symmetric:
+           T ≥ r + r/√2 = 14 + 9.9 ≈ 24
+       Using 26 for visual breathing room above the threshold. */
+    top: 26px; right: 26px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
     font-weight: 600;
@@ -509,7 +520,9 @@
      siblings, they read as one chip language. */
   .biom-card .gen-badge {
     position: absolute;
-    top: 12px; left: 12px;
+    /* Same clip-zone math as .role-tag — see comment there.
+       T ≥ 24 required, 26 used for breathing room. */
+    top: 26px; left: 26px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
     font-weight: 600;
