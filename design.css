@@ -93,6 +93,122 @@ input:focus-visible,
 }
 
 /* =========================================================================
+   Body baseline — every page inherits the same paper-and-ink ground.
+   The noise overlay is the same SVG at 0.014 alpha (analog grain). Pages
+   may override font-size only — everything else lives here.
+   ========================================================================= */
+html, body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+  line-height: 1.55;
+  font-size: 17px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+* { box-sizing: border-box; }
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.014 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+  z-index: 1;
+}
+
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 4px;
+  transition: text-decoration-color var(--t-fast) var(--ease);
+}
+a:hover { text-decoration-color: var(--ink); }
+
+/* Skip-link — WCAG 2.4.1, hidden until keyboard-focused.
+   Off-screen until focus pulls it into the top-left. */
+.skip-link {
+  position: absolute; left: -9999px; top: 0;
+  background: var(--ink); color: var(--bg);
+  padding: 12px 18px; border-radius: 0 0 var(--r-xs) 0;
+  font-size: 14px; font-weight: 500; text-decoration: none;
+  z-index: 9999;
+}
+.skip-link:focus { left: 0; outline: 2px solid var(--bg); outline-offset: -2px; }
+
+/* =========================================================================
+   Nav — canonical recipe for every page. Sticky top, cream paper at
+   94% opacity so the scroll content tints it slightly. Hairline bottom
+   rule sets the page off from the chrome.
+   ========================================================================= */
+nav {
+  position: sticky; top: 0; z-index: 50;
+  padding: 18px 32px;
+  display: flex; justify-content: space-between; align-items: center;
+  background: rgba(236, 233, 224, 0.94);
+  border-bottom: 1px solid var(--rule);
+}
+.brand {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 17px; font-weight: 500; letter-spacing: -0.005em;
+  color: var(--ink); text-decoration: none;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.brand:hover { opacity: 0.65; text-decoration: none; }
+.brand-mark { width: 18px; height: 18px; display: block; }
+.nav-links {
+  display: flex; align-items: center;
+  gap: 22px; font-size: 14px;
+}
+.nav-links a {
+  color: var(--ink-3); text-decoration: none;
+  transition: color var(--t-fast) var(--ease);
+  /* ≥ 44px tap target without shifting visible layout — WCAG 2.5.5 */
+  padding: 12px 6px; margin: -12px -6px;
+}
+.nav-links a:hover { color: var(--ink); text-decoration: none; }
+.nav-links a.active { color: var(--ink); font-weight: 500; }
+.nav-x {
+  display: inline-flex; align-items: center;
+  color: var(--ink-3); transition: color var(--t-fast) var(--ease);
+  margin-left: 4px;
+}
+.nav-x:hover { color: var(--ink); text-decoration: none; }
+.x-icon { width: 15px; height: 15px; display: block; }
+@media (max-width: 600px) {
+  nav { padding: 14px 18px; }
+  .nav-links { gap: 14px; font-size: 13px; }
+}
+
+/* =========================================================================
+   Footer — same recipe everywhere, one shape, two meta rows.
+   ========================================================================= */
+footer {
+  padding: 32px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 12px;
+  font-size: 13px; color: var(--ink-3);
+  border-top: 1px solid var(--rule);
+  position: relative; z-index: 2;
+}
+footer a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease);
+}
+footer a:hover { color: var(--ink); }
+.footer-meta { display: flex; align-items: center; gap: 14px; }
+/* Separator dots — quieter than the 0.4 they used to be. The eye now
+   tracks the links instead of the punctuation. */
+.footer-meta .sep { opacity: 0.32; user-select: none; }
+@media (max-width: 600px) {
+  footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 12px; }
+  .footer-meta { flex-wrap: wrap; justify-content: center; gap: 8px 14px; }
+  .footer-meta > span:not(.sep), .footer-meta > a { white-space: nowrap; }
+}
+
+/* =========================================================================
    Button system
    .btn          — primary, solid ink pill
    .btn.ghost    — secondary, hairline pill

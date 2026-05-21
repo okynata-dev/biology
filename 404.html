@@ -10,7 +10,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
 <link rel="stylesheet" href="/nav-wallet.css?v=9">
-<link rel="stylesheet" href="/design.css?v=1">
+<link rel="stylesheet" href="/design.css?v=2">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -170,13 +170,21 @@
     fill: none;
     stroke-linecap: round;
   }
+  /* The detached fragment drifts further away the longer you look — a
+     six-keyframe loop that starts almost still, swings to peak
+     separation halfway through, then settles back. Asymmetric ease
+     (more in than out) reads like cytoplasmic surface tension, not a
+     metronome. */
   .broken-biom .fragment {
-    animation: drift-away 7s ease-in-out infinite;
+    animation: drift-away 9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     transform-origin: center;
   }
   @keyframes drift-away {
-    0%, 100% { transform: translate(0, 0) rotate(0deg); }
-    50%      { transform: translate(8px, -3px) rotate(-4deg); }
+    0%   { transform: translate(0, 0)      rotate(0deg);  }
+    25%  { transform: translate(4px, -2px) rotate(-2deg); }
+    50%  { transform: translate(11px, -4px) rotate(-5deg); }
+    75%  { transform: translate(6px, -1px) rotate(-1deg); }
+    100% { transform: translate(0, 0)      rotate(0deg);  }
   }
   @media (prefers-reduced-motion: reduce) {
     .broken-biom .fragment { animation: none; }

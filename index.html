@@ -14,7 +14,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
 <link rel="stylesheet" href="/nav-wallet.css?v=9">
-<link rel="stylesheet" href="/design.css?v=1">
+<link rel="stylesheet" href="/design.css?v=2">
 <link rel="canonical" href="https://thebioms.com/">
 
 <meta property="og:type" content="website">
@@ -309,6 +309,14 @@
     transition: color 0.15s, background 0.15s;
   }
   .caption-btn:hover { color: var(--ink); background: rgba(28,26,22,0.04); }
+  /* The arrow follows the pointer on hover — micro-detail that
+     compounds with the title's sculpted feel. */
+  .caption-btn .arrow {
+    display: inline-block;
+    transition: transform var(--t-fast) var(--ease);
+    margin-left: 2px;
+  }
+  .caption-btn:hover .arrow { transform: translateX(2px); }
   .visually-hidden {
     position: absolute;
     width: 1px; height: 1px;
@@ -354,17 +362,20 @@
     letter-spacing: -0.02em;
     font-weight: 500;
   }
+  /* Catalog grid — fluid columns, fluid gap. Replaces three media-query
+     breakpoints with one auto-fit clamp pair: the grid breathes from
+     1 column on a phone to 4 on a desktop without a single break.
+     min(220px, 100%) lets a single-column phone width still hold the
+     intended cell aspect ratio. */
   .catalog-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+    gap: clamp(10px, 1.4vw, 18px);
     margin-top: 40px;
     /* The grid is below the fold — skip its render until visible. */
     content-visibility: auto;
     contain-intrinsic-size: 1px 600px;
   }
-  @media (max-width: 900px) { .catalog-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; } }
-  @media (max-width: 600px) { .catalog-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
   .catalog-cell {
     aspect-ratio: 1;
     position: relative;
@@ -742,7 +753,7 @@
         <div class="hero-caption">
           <span id="seedChip">BIOM #<span id="seedDisplay" aria-live="polite" aria-atomic="true"></span></span>
           <span class="sep" id="seedChipSep">·</span>
-          <button type="button" class="caption-btn" id="rollBtn" aria-label="Generate next specimen">Next →</button>
+          <button type="button" class="caption-btn" id="rollBtn" aria-label="Generate next specimen">Next<span class="arrow" aria-hidden="true">›</span></button>
         </div>
       </div>
     </div>
