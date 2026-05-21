@@ -132,11 +132,25 @@
   // in-app browser. Universal links handle "is the app installed?"
   // automatically — installed → app opens; not installed → wallet's
   // landing page in the browser.
+  //
+  // Inline brand icons: data-URI SVGs so they ship in this file with
+  // no extra HTTP requests. Each is a simplified mark that captures
+  // the brand's primary identity (fox snout, Coinbase circle, Rainbow
+  // arc, Trust shield) — enough to read at 28px against the cream
+  // paper background.
+  const ICON_METAMASK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><defs><linearGradient id='m' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23f6851b'/><stop offset='1' stop-color='%23e2761b'/></linearGradient></defs><rect width='48' height='48' rx='12' fill='url(%23m)'/><path d='M14 13l8 6-2-4-6-2zm20 0l-8 6 2-4 6-2zM16 30l-2 4 4 1-2-5zm16 0l2 4-4 1 2-5zm-12 5l4 2 4-2-2 3h-4l-2-3z' fill='%23fff'/></svg>";
+  const ICON_COINBASE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><rect width='48' height='48' rx='12' fill='%230052ff'/><circle cx='24' cy='24' r='10' fill='none' stroke='%23fff' stroke-width='3'/><rect x='20' y='20' width='8' height='8' rx='1' fill='%23fff'/></svg>";
+  const ICON_RAINBOW = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><defs><linearGradient id='r' x1='0' y1='1' x2='1' y2='0'><stop offset='0' stop-color='%23174299'/><stop offset='0.25' stop-color='%23001e59'/><stop offset='0.5' stop-color='%23001e59'/><stop offset='0.75' stop-color='%23174299'/><stop offset='1' stop-color='%23174299'/></linearGradient></defs><rect width='48' height='48' rx='12' fill='url(%23r)'/><path d='M10 38v-5a16 16 0 0116-16h5' stroke='%23ff4000' stroke-width='3' fill='none'/><path d='M10 38v-9a12 12 0 0112-12h9' stroke='%23ffb800' stroke-width='3' fill='none'/><path d='M10 38v-13a8 8 0 018-8h13' stroke='%2300d4ff' stroke-width='3' fill='none'/><circle cx='12' cy='36' r='2.5' fill='%23ff4000'/></svg>";
+  const ICON_TRUST = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><rect width='48' height='48' rx='12' fill='%230500ff'/><path d='M24 10l-10 4v8c0 7 4 13 10 16 6-3 10-9 10-16v-8l-10-4z' fill='%23fff'/><path d='M19 23l4 4 7-7' fill='none' stroke='%230500ff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/></svg>";
   const MOBILE_WALLETS = [
-    { name: 'MetaMask',       url: `https://metamask.app.link/dapp/${location.host}${location.pathname}${location.search}` },
-    { name: 'Coinbase Wallet', url: `https://go.cb-w.com/dapp?cb_url=https%3A%2F%2F${HERE}` },
-    { name: 'Rainbow',        url: `https://rnbwapp.com/dapp/${location.host}${location.pathname}${location.search}` },
-    { name: 'Trust Wallet',   url: `https://link.trustwallet.com/open_url?coin_id=60&url=https%3A%2F%2F${HERE}` },
+    { name: 'MetaMask',        rdns: 'io.metamask', icon: ICON_METAMASK,
+      url: `https://metamask.app.link/dapp/${location.host}${location.pathname}${location.search}` },
+    { name: 'Coinbase Wallet', rdns: 'com.coinbase.wallet', icon: ICON_COINBASE,
+      url: `https://go.cb-w.com/dapp?cb_url=https%3A%2F%2F${HERE}` },
+    { name: 'Rainbow',         rdns: 'me.rainbow', icon: ICON_RAINBOW,
+      url: `https://rnbwapp.com/dapp/${location.host}${location.pathname}${location.search}` },
+    { name: 'Trust Wallet',    rdns: 'com.trustwallet.app', icon: ICON_TRUST,
+      url: `https://link.trustwallet.com/open_url?coin_id=60&url=https%3A%2F%2F${HERE}` },
   ];
 
   function openModal(pillBtn) {
@@ -154,12 +168,20 @@
         `).join('')
       : '';
 
-    // Mobile wallet links — always shown on mobile, also offered as
-    // "Or open in a mobile wallet" below the installed list on desktop
-    // (for users who have a phone wallet but no extension).
-    const mobileList = MOBILE_WALLETS.map(w => `
+    // Mobile wallet links — but only for wallets the user DOESN'T
+    // already have as a desktop extension. No point showing
+    // "MetaMask Mobile" if MetaMask extension is right there in the
+    // Installed section — that confused users. Match by rdns first
+    // (canonical) then by name (fallback for legacy injectors).
+    const installedRdns = new Set(providers.map(p => (p.info.rdns || '').toLowerCase()));
+    const installedNames = new Set(providers.map(p => (p.info.name || '').toLowerCase()));
+    const filteredMobile = MOBILE_WALLETS.filter(w =>
+      !installedRdns.has(w.rdns.toLowerCase()) &&
+      !installedNames.has(w.name.toLowerCase())
+    );
+    const mobileList = filteredMobile.map(w => `
       <a class="nav-wallet-modal-option nav-wallet-modal-mobile" href="${esc(w.url)}" target="_blank" rel="noopener">
-        <span class="nav-wallet-modal-icon-blank"></span>
+        <img class="nav-wallet-modal-icon" src="${w.icon}" alt="" width="28" height="28">
         <span class="nav-wallet-modal-name">${esc(w.name)}</span>
         <span class="nav-wallet-modal-arrow" aria-hidden="true">↗</span>
       </a>
@@ -188,10 +210,15 @@
         </div>
       `;
     }
-    body += `
-      <div class="nav-wallet-modal-section-label">${installedList ? 'Or open in a mobile wallet' : 'Open in a mobile wallet'}</div>
-      <div class="nav-wallet-modal-list">${mobileList}</div>
-    `;
+    // Mobile section: skip entirely if filtered list is empty (e.g.
+    // user has all 4 mobile wallets installed as extensions, which
+    // is rare but possible)
+    if (filteredMobile.length > 0) {
+      body += `
+        <div class="nav-wallet-modal-section-label">${installedList ? 'Or open in a mobile wallet' : 'Open in a mobile wallet'}</div>
+        <div class="nav-wallet-modal-list">${mobileList}</div>
+      `;
+    }
 
     modalEl = document.createElement('div');
     modalEl.className = 'nav-wallet-modal-backdrop';
