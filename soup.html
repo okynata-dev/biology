@@ -291,6 +291,16 @@ const PINCH_ZOOM_SMOOTHING = 0.18;
 const DRIFT_AMP_BASE = 12;          // world units of brownian drift
 const DRIFT_FREQ = 0.0008;          // radians/ms
 
+// === Atlas — real bioms (post-reveal) ===
+// 64×48 grid of 64×64 thumbs = 4096×3072 atlas. Each particle's
+// a_tokenId selects its slot. Built by scripts/build-soup-atlas.mjs
+// and uploaded to R2 as atlas/v{N}.webp. Cache-busting via the
+// version segment — bump ATLAS_VERSION and the URL changes.
+const ATLAS_VERSION = 'v1';
+const ATLAS_URL = `https://pngs.thebioms.com/atlas/${ATLAS_VERSION}.webp`;
+const ATLAS_COLS = 64;
+const ATLAS_ROWS = 48;
+
 const canvas  = document.getElementById('soupCanvas');
 const noWebgl = document.getElementById('nowebgl');
 const hintEl  = document.getElementById('hint');
@@ -340,7 +350,8 @@ in vec2 a_pos;          // base position in world space
 in vec2 a_drift;        // per-particle drift amplitude (x/y)
 in float a_phase;       // drift phase offset
 in float a_scale;       // per-particle scale multiplier (0.7–1.3)
-in float a_rot;         // per-particle rotation in radians
+in float a_rot;         // per-particle rotation in radians (only used in capsule mode)
+in float a_tokenId;     // 0..2999 — used by FS to pick atlas tile when atlas is active
 
 uniform vec2 u_pan;
 uniform float u_zoom;
@@ -348,8 +359,10 @@ uniform vec2 u_screenSize;     // canvas size in device pixels
 uniform float u_time;          // milliseconds
 uniform float u_pointBaseSize; // base size in device pixels at zoom=1
 uniform float u_motionScale;   // 0 freezes drift (reduced motion)
+uniform float u_useAtlas;      // 1.0 when atlas loaded, 0.0 = generic capsule mode
 
 out float v_rot;
+out float v_tokenId;
 
 void main() {
   float t = u_time * ${DRIFT_FREQ.toFixed(6)} + a_phase;
@@ -366,25 +379,52 @@ void main() {
   gl_Position = vec4(clip, 0.0, 1.0);
   gl_PointSize = u_pointBaseSize * a_scale * u_zoom;
 
-  v_rot = a_rot;
+  // Rotation is for the generic capsule (adds organic variety to a
+  // single sprite). Real bioms have baked-in orientation, so zero
+  // rotation in atlas mode. Mix between the two via u_useAtlas.
+  v_rot = a_rot * (1.0 - u_useAtlas);
+  v_tokenId = a_tokenId;
 }
 `;
 
 const FS = `#version 300 es
 precision highp float;
 uniform sampler2D u_tex;
+uniform float u_useAtlas;
+uniform float u_atlasCols;     // e.g. 64
+uniform float u_atlasRows;     // e.g. 48
 in float v_rot;
+in float v_tokenId;
 out vec4 outColor;
 
 void main() {
-  // Rotate gl_PointCoord around (0.5, 0.5)
-  vec2 uv = gl_PointCoord - 0.5;
-  float c = cos(v_rot), s = sin(v_rot);
-  uv = mat2(c, -s, s, c) * uv;
-  uv += 0.5;
-  // Clip outside the unit square (rotation can pull samples off-texture)
-  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) discard;
-  vec4 c4 = texture(u_tex, uv);
+  // === Capsule path (atlas not loaded yet, or load failed) ===
+  // gl_PointCoord covers the whole texture; rotate around (0.5, 0.5)
+  // so the swarm looks organic instead of grid-aligned.
+  if (u_useAtlas < 0.5) {
+    vec2 uv = gl_PointCoord - 0.5;
+    float c = cos(v_rot), s = sin(v_rot);
+    uv = mat2(c, -s, s, c) * uv;
+    uv += 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) discard;
+    vec4 c4 = texture(u_tex, uv);
+    if (c4.a < 0.01) discard;
+    outColor = c4;
+    return;
+  }
+
+  // === Atlas path (real bioms) ===
+  // The atlas is COLS × ROWS tiles. Each tile lives at grid (col, row)
+  // computed from tokenId. We map gl_PointCoord [0,1]² into the slot's
+  // sub-rectangle of the atlas: u = (col + pcx) / COLS, v = (row + pcy) / ROWS.
+  float tid = v_tokenId;
+  float col = mod(tid, u_atlasCols);
+  float row = floor(tid / u_atlasCols);
+  vec2 atlasUV = vec2(
+    (col + gl_PointCoord.x) / u_atlasCols,
+    (row + gl_PointCoord.y) / u_atlasRows
+  );
+  vec4 c4 = texture(u_tex, atlasUV);
   if (c4.a < 0.01) discard;
   outColor = c4;
 }
@@ -423,6 +463,9 @@ const u_time      = gl.getUniformLocation(prog, 'u_time');
 const u_pointBaseSize = gl.getUniformLocation(prog, 'u_pointBaseSize');
 const u_motionScale = gl.getUniformLocation(prog, 'u_motionScale');
 const u_tex       = gl.getUniformLocation(prog, 'u_tex');
+const u_useAtlas  = gl.getUniformLocation(prog, 'u_useAtlas');
+const u_atlasCols = gl.getUniformLocation(prog, 'u_atlasCols');
+const u_atlasRows = gl.getUniformLocation(prog, 'u_atlasRows');
 
 // Attribute locations
 const a_pos    = gl.getAttribLocation(prog, 'a_pos');
@@ -430,6 +473,10 @@ const a_drift  = gl.getAttribLocation(prog, 'a_drift');
 const a_phase  = gl.getAttribLocation(prog, 'a_phase');
 const a_scale  = gl.getAttribLocation(prog, 'a_scale');
 const a_rot    = gl.getAttribLocation(prog, 'a_rot');
+const a_tokenId = gl.getAttribLocation(prog, 'a_tokenId');
+
+// Atlas state — starts off, flips to true once R2 atlas loads
+let atlasReady = false;
 
 // =============================================================
 // PARTICLE DATA
@@ -452,6 +499,7 @@ const drifts    = new Float32Array(PARTICLE_COUNT * 2);
 const phases    = new Float32Array(PARTICLE_COUNT);
 const scales    = new Float32Array(PARTICLE_COUNT);
 const rots      = new Float32Array(PARTICLE_COUNT);
+const tokenIds  = new Float32Array(PARTICLE_COUNT);
 
 for (let i = 0; i < PARTICLE_COUNT; i++) {
   // Polar coordinates with sqrt(r) for uniform density inside the disc,
@@ -468,12 +516,21 @@ for (let i = 0; i < PARTICLE_COUNT; i++) {
   drifts[i * 2 + 1] = DRIFT_AMP_BASE * (0.5 + rng() * 1.3);
   phases[i] = rng() * Math.PI * 2;
 
-  // Scale — most around 1.0, a few smaller, a few larger
+  // Scale — most around 1.0, a few smaller, a few larger.
+  // When atlas mode is active, scale slightly up so real bioms read
+  // bigger than generic capsules did (they have more visual interest).
   scales[i] = 0.72 + rng() * 0.6;
 
   // Rotation — keep capsules at gently varied angles so the swarm
-  // doesn't look like a grid of identical pills.
+  // doesn't look like a grid of identical pills. Vertex shader zeros
+  // this out when atlas mode is active (real bioms have their own
+  // orientation baked in by the renderer).
   rots[i] = (rng() - 0.5) * Math.PI * 0.6;  // ±54°
+
+  // TokenId — particle i renders biom #i. Stable across reloads since
+  // the seeded RNG produces the same layout, so each biom has a "home"
+  // position in the swarm.
+  tokenIds[i] = i;
 }
 
 // VAO + buffers
@@ -488,11 +545,12 @@ function attrBuffer(loc, data, components) {
   gl.vertexAttribPointer(loc, components, gl.FLOAT, false, 0, 0);
 }
 
-attrBuffer(a_pos,   positions, 2);
-attrBuffer(a_drift, drifts,    2);
-attrBuffer(a_phase, phases,    1);
-attrBuffer(a_scale, scales,    1);
-attrBuffer(a_rot,   rots,      1);
+attrBuffer(a_pos,     positions, 2);
+attrBuffer(a_drift,   drifts,    2);
+attrBuffer(a_phase,   phases,    1);
+attrBuffer(a_scale,   scales,    1);
+attrBuffer(a_rot,     rots,      1);
+attrBuffer(a_tokenId, tokenIds,  1);
 
 // =============================================================
 // TEXTURE — glass capsule sprite, drawn to an offscreen 2D canvas
@@ -578,6 +636,10 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+// Initial texture: generic capsule. The swarm renders immediately
+// using this while the atlas downloads in the background. On atlas
+// success, we re-upload to the same GL texture (avoids juggling two
+// textures + uniforms).
 const texCanvas = buildCapsuleTexture();
 const tex = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -589,6 +651,62 @@ gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 gl.uniform1i(u_tex, 0);
+gl.uniform1f(u_atlasCols, ATLAS_COLS);
+gl.uniform1f(u_atlasRows, ATLAS_ROWS);
+gl.uniform1f(u_useAtlas, 0.0);
+
+// === Atlas loader (async) ===
+// Fetch the 4096×3072 WebP atlas from R2, upload it to the same GL
+// texture slot, flip u_useAtlas to 1.0 so the shader switches to
+// per-tokenId sampling. If load fails for any reason, we silently
+// stay on the generic capsule — graceful degradation.
+(async function loadAtlas() {
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.decoding = 'async';
+    const loaded = new Promise((res, rej) => {
+      img.onload = res;
+      img.onerror = () => rej(new Error('atlas image load failed'));
+    });
+    img.src = ATLAS_URL;
+    await loaded;
+    // Ensure full decode before upload (avoids first-frame jank)
+    if (img.decode) await img.decode().catch(() => {});
+
+    // Sanity check dimensions — wrong size means cache-busted upload didn't
+    // land or shader's grid constants got out of sync with the script.
+    const expectedW = ATLAS_COLS * 64;
+    const expectedH = ATLAS_ROWS * 64;
+    if (img.naturalWidth !== expectedW || img.naturalHeight !== expectedH) {
+      console.warn(`[soup] atlas dim mismatch: expected ${expectedW}×${expectedH}, got ${img.naturalWidth}×${img.naturalHeight} — staying on capsule.`);
+      return;
+    }
+
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    // WebGL premultiplies on upload — must match our blend mode
+    // (gl.ONE, gl.ONE_MINUS_SRC_ALPHA) which expects premultiplied
+    // color. Without this the edges of transparent biom thumbs would
+    // show white halos against the cream paper background.
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    // LINEAR_MIPMAP_LINEAR was great for the single capsule, but for an
+    // atlas it causes tile-bleed at zoomed-out levels (neighboring tiles
+    // get sampled into mipmap levels). Switch to LINEAR + no mipmaps for
+    // pixel-perfect atlas tiles. Slightly aliased at the smallest zoom,
+    // but no cross-tile contamination.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    gl.useProgram(prog);
+    gl.uniform1f(u_useAtlas, 1.0);
+    atlasReady = true;
+    console.log(`[soup] atlas loaded (${img.naturalWidth}×${img.naturalHeight})`);
+  } catch (err) {
+    console.warn('[soup] atlas load failed — staying on generic capsule.', err);
+  }
+})();
 
 // =============================================================
 // VIEW STATE & RENDER LOOP
