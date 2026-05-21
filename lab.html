@@ -13,6 +13,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
+<link rel="stylesheet" href="/nav-wallet.css?v=1">
 <link rel="canonical" href="https://thebioms.com/lab">
 
 <meta property="og:type" content="website">
@@ -2190,11 +2191,20 @@ const Wallet = {
     this.address = toChecksum(accounts[0]);
     const chainHex = await window.ethereum.request({ method: 'eth_chainId' });
     this.chainId = parseInt(chainHex, 16);
+    // Mirror to the nav-wallet's shared localStorage key so the pill in
+    // the page header reflects the connection without a refresh.
+    try { localStorage.setItem('bioms-wallet-addr', this.address.toLowerCase()); } catch (_) {}
+    window.dispatchEvent(new CustomEvent('bioms-wallet-change', { detail: { addr: this.address.toLowerCase() } }));
     // Listen for changes
     if (!this._listenersBound) {
       window.ethereum.on?.('accountsChanged', (accs) => {
         if (!accs || !accs.length) this.disconnect();
-        else { this.address = toChecksum(accs[0]); onWalletChange(); }
+        else {
+          this.address = toChecksum(accs[0]);
+          try { localStorage.setItem('bioms-wallet-addr', this.address.toLowerCase()); } catch (_) {}
+          window.dispatchEvent(new CustomEvent('bioms-wallet-change', { detail: { addr: this.address.toLowerCase() } }));
+          onWalletChange();
+        }
       });
       window.ethereum.on?.('chainChanged', (cidHex) => {
         this.chainId = parseInt(cidHex, 16);
@@ -2212,6 +2222,10 @@ const Wallet = {
     LabState.ownedSeeds = [];
     LabState.tokens = {};
     Storage.save(LabState);
+    // Clear the nav-wallet shared key so the pill in the header reverts
+    // to "Connect" on this page and any open tab.
+    try { localStorage.removeItem('bioms-wallet-addr'); } catch (_) {}
+    window.dispatchEvent(new CustomEvent('bioms-wallet-change', { detail: { addr: null } }));
     if (donorSeed !== null || recipientSeed !== null) resetArena();
     renderCollection();
     renderWalletUI();
@@ -5056,5 +5070,6 @@ collectionGrid.addEventListener('click', (e) => {
 })();
 </script>
 
+<script defer src="/nav-wallet.js?v=1"></script>
 </body>
 </html>

@@ -1,0 +1,87 @@
+/* Bioms · nav-wallet pill styles — shared across all primary pages.
+   Companion to nav-wallet.js. Pages opt in by loading both files. */
+
+/* Disconnected: solid ink chip (CTA, demands a click) */
+.nav-wallet {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--ink); color: var(--bg);
+  border: 1px solid var(--ink);
+  font: inherit;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px; font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 7px 14px; border-radius: 999px;
+  cursor: pointer; line-height: 1;
+  transition: opacity 0.15s, background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.nav-wallet:hover { opacity: 0.88; }
+.nav-wallet:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* Connected: paper-on-ink, green dot signals active session */
+.nav-wallet.connected {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--rule);
+}
+.nav-wallet.connected:hover { border-color: var(--ink); opacity: 1; }
+.nav-wallet-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #4a7c4a;
+  box-shadow: 0 0 0 2px rgba(74, 124, 74, 0.18);
+  flex: 0 0 auto;
+}
+
+/* Dropdown shown when connected pill is clicked */
+.nav-wallet-dropdown {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  padding: 10px;
+  min-width: 240px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-wallet-dd-addr {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--ink-3);
+  word-break: break-all;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+.nav-wallet-dropdown a,
+.nav-wallet-dropdown button {
+  background: none; border: 0;
+  font: inherit; font-size: 13px;
+  color: var(--ink);
+  text-decoration: none;
+  padding: 9px 10px; border-radius: 6px;
+  cursor: pointer; text-align: left;
+  transition: background 0.12s;
+  width: 100%;
+  display: block;
+}
+.nav-wallet-dropdown a:hover,
+.nav-wallet-dropdown button:hover {
+  background: rgba(28, 26, 22, 0.05);
+}
+.nav-wallet-dd-disconnect {
+  color: #9a4a2e !important;
+}
+
+/* Mobile — slightly more compact */
+@media (max-width: 600px) {
+  .nav-wallet {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+}

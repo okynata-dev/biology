@@ -112,6 +112,13 @@
 /specimen-engine.js
   Cache-Control: public, max-age=86400, must-revalidate
 
+# Nav-wallet shared chrome (CSS+JS) — cache day, revalidate.
+# Version-bust via ?v= query param when contents change.
+/nav-wallet.css
+  Cache-Control: public, max-age=86400, must-revalidate
+/nav-wallet.js
+  Cache-Control: public, max-age=86400, must-revalidate
+
 # HTML — cache for an hour
 /*.html
   Cache-Control: public, max-age=3600, must-revalidate
