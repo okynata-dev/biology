@@ -1110,6 +1110,36 @@ async function handleMetadata(env, tokenIdStr, origin) {
   }, origin);
 }
 
+// === Direct PNG download endpoint ===
+// GET /api/download/<tokenId> → proxies the R2 master PNG with
+// Content-Disposition: attachment so browsers ALWAYS save the file
+// instead of opening it in a tab. Filename embeds the tokenId for
+// clean defaults. Cache aggressively at the edge — masters never
+// change for a given token.
+async function handleDownload(env, tokenIdStr, origin) {
+  const tokenId = parseInt(tokenIdStr, 10);
+  const maxId = maxTokenId(env);
+  if (!Number.isFinite(tokenId) || tokenId < 0 || tokenId > maxId) {
+    return error('bad_token_id', 400, origin);
+  }
+  const padded = String(tokenId).padStart(5, '0');
+  const r2Url = `https://pngs.thebioms.com/preview/${padded}.png`;
+  try {
+    const r = await fetch(r2Url, { cf: { cacheTtl: 31536000, cacheEverything: true } });
+    if (!r.ok) return error('not_found', r.status, origin);
+    const headers = new Headers();
+    headers.set('Content-Type', 'image/png');
+    headers.set('Content-Disposition', `attachment; filename="BIOM-${tokenId}.png"`);
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    headers.set('Access-Control-Allow-Origin', '*');
+    const cl = r.headers.get('content-length');
+    if (cl) headers.set('Content-Length', cl);
+    return new Response(r.body, { status: 200, headers });
+  } catch (e) {
+    return error('fetch_failed', 502, origin);
+  }
+}
+
 async function handleLog(env, url, origin) {
   const params = url.searchParams;
   const donor = params.get('donor');
@@ -1486,6 +1516,14 @@ export default {
         // Contract baseURI should be: https://api.thebioms.com/api/metadata/
         const id = path.slice('/api/metadata/'.length);
         return await handleMetadata(env, id, origin);
+      }
+      if (path.startsWith('/api/download/')) {
+        // Direct PNG download with Content-Disposition: attachment.
+        // Marketplaces / OpenSea can't reliably trigger a save on
+        // images they proxy through their CDN — this gives users an
+        // unambiguous download URL that always saves the file.
+        const id = path.slice('/api/download/'.length);
+        return await handleDownload(env, id, origin);
       }
       if (path === '/api/conjugate' && req.method === 'POST') {
         return await handleConjugate(req, env, origin);

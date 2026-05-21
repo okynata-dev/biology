@@ -284,6 +284,37 @@
     }
     .noise { display: none !important; }
   }
+
+  /* Floating "Download PNG" affordance — only shown when preview.html
+     is loaded standalone (a user clicked "Original media" from OpenSea
+     and landed here in a new tab). When iframed by a marketplace, it
+     stays hidden so we don't overlay their UI.
+     Visibility is toggled by JS based on window.self !== window.top. */
+  .download-cta {
+    position: fixed;
+    right: 18px; bottom: 18px;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    background: rgba(28, 26, 22, 0.92);
+    color: #f4f1e8;
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    padding: 10px 16px;
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 0 0 1px rgba(255,255,255,0.06) inset;
+    transition: transform 0.15s ease-out, background 0.15s;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .download-cta:hover { background: #000; transform: translateY(-1px); }
+  .download-cta.show { display: inline-flex; }
+  .download-cta svg { width: 14px; height: 14px; flex: 0 0 auto; }
+  @media (prefers-reduced-motion: reduce) {
+    .download-cta { transition: none; }
+  }
 </style>
 </head>
 <body>
@@ -293,6 +324,18 @@
     <div class="scene"><div class="composition" id="comp"></div></div>
   </div>
 </div>
+
+<!-- Download CTA — visible only when standalone, see download-cta CSS.
+     href is rewritten by JS once the seed is known (defaults to #0 so
+     the link works even if the script fails). The Worker route emits
+     Content-Disposition: attachment so the browser always saves. -->
+<a id="downloadCta" class="download-cta" href="https://api.thebioms.com/api/download/0"
+   download="BIOM.png" rel="noopener" aria-label="Download high-resolution PNG">
+  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M8 1.5v9m0 0L4.5 7m3.5 3.5L11.5 7M2 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <span>Download PNG</span>
+</a>
 
 <!-- Shared engine — loaded only for the save-as-PNG context menu.
      preview.html has its own inline renderer for the live DOM; the
@@ -1783,6 +1826,34 @@ if (_hasOverrides) buildScene();
 // Stamp the real seed into the a11y label so screen-readers get the token id.
 const _pfp = document.getElementById('pfpCard');
 if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom specimen');
+
+// === Download-CTA wiring ===
+// Show only when preview.html is standalone (NOT inside an OpenSea /
+// marketplace iframe). Inside an iframe `window.self !== window.top`
+// — that's the signal to stay hidden so we don't overlay their UI.
+// Standalone visitors typically came from "Original media" or a direct
+// link, and they DO want a clear save path.
+(function setupDownloadCta() {
+  const cta = document.getElementById('downloadCta');
+  if (!cta) return;
+  const inIframe = (() => { try { return window.self !== window.top; } catch (_) { return true; } })();
+  if (inIframe) return;
+  // Seed the link with the actual token id from URL (?seed=N)
+  const params = new URLSearchParams(window.location.search);
+  const seedRaw = params.get('seed');
+  const seed = (seedRaw !== null && Number.isFinite(parseInt(seedRaw, 10)))
+    ? parseInt(seedRaw, 10) : 0;
+  // Use api.thebioms.com proxy — it forces Content-Disposition: attachment
+  // so the browser ALWAYS saves the file instead of opening it in a tab.
+  // Local-dev fallback uses the raw R2 URL (still works for "Save as").
+  const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  const downloadUrl = isLocal
+    ? `https://pngs.thebioms.com/preview/${String(seed).padStart(5, '0')}.png`
+    : `https://api.thebioms.com/api/download/${seed}`;
+  cta.href = downloadUrl;
+  cta.setAttribute('download', `BIOM-${seed}.png`);
+  cta.classList.add('show');
+})();
 
 // ============================================================
 // Right-click → "Save as PNG" menu. Works on the bare preview page
