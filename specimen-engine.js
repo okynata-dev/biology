@@ -1271,11 +1271,38 @@
     return 'bioms-' + label(seed).replace(/[^A-Za-z0-9_-]/g, '_') + '.png';
   }
 
-  // For BASE bioms (no mutations) we fetch the R2 master PNG directly —
-  // it's the canonical render with full glass, real shadows, real
-  // backdrop-filter. Canvas snapshots can't replicate that.
+  // For BASE bioms (no mutations) we trigger the Worker's download
+  // proxy at /api/download/<seed>. It serves the R2 master with
+  // Content-Disposition: attachment, so navigating to it triggers a
+  // save dialog WITHOUT actually changing the current page.
+  //
+  // Why navigate-the-frame instead of fetch+blob+<a download>:
+  // when preview.html is loaded as `animation_url` inside a
+  // marketplace iframe (OpenSea, Blur, etc.), the iframe sandbox
+  // typically disallows popups (`allow-popups` not granted) and
+  // sometimes downloads (`allow-downloads` not granted). The
+  // fetch-blob-download path works in a standalone tab but silently
+  // fails inside those iframes. location.href works because it
+  // navigates the SAME frame — Content-Disposition then short-circuits
+  // before any actual navigation happens.
+  //
+  // Local dev (file:// or localhost) falls back to direct R2 fetch
+  // since api.thebioms.com isn't routed locally.
   async function _saveBiomViaMaster(seed, masterUrl) {
     try {
+      const isLocal = typeof location !== 'undefined' &&
+        (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ||
+         location.protocol === 'file:');
+      if (!isLocal) {
+        // Production path — navigate to the Worker download endpoint.
+        // Browser sees Content-Disposition, triggers save, page stays put.
+        const downloadUrl = `https://api.thebioms.com/api/download/${seed}`;
+        window.location.href = downloadUrl;
+        return true;
+      }
+      // Local-dev fallback: legacy fetch-blob path. Works only in
+      // top-level tabs (not inside iframes), but local dev never runs
+      // inside an iframe so this is fine.
       const r = await fetch(masterUrl, { mode: 'cors' });
       if (!r.ok) throw new Error('fetch_failed');
       const blob = await r.blob();
