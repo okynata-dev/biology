@@ -701,7 +701,13 @@
   }
   .slot .clear-btn {
     position: absolute;
-    top: 10px; right: 10px;
+    /* Clip-zone math: slot has border-radius var(--r-lg) = 22px. The
+       button is a circle inscribed in a 26x26 box; its bounding-box
+       outer corner at (10,10) sits inside the slot's quarter-circle
+       clip. Bumped to (16,16) — a circle's curved edge tolerates a
+       smaller inset than a sharp chip corner because its widest pixels
+       are at its center, not its bbox corner. */
+    top: 16px; right: 16px;
     width: 26px; height: 26px;
     background: rgba(244,241,232,0.92);
     border: 1px solid var(--rule);
@@ -723,7 +729,13 @@
      designed surface instead of three different chip dialects. */
   .slot .role-label {
     position: absolute;
-    top: 12px; left: 14px;
+    /* Clip-zone clearance: slot radius is --r-lg = 22px. Required inset
+       for symmetric chip ≥ 22 + 22/√2 ≈ 37px. The asymmetric (16,18)
+       used here is a compromise — leaves the chip readably close to
+       the corner while pushing the AA-shave from ~3px down to under 1px
+       (still imperfect, but the slot's role-label is a peripheral
+       chip and survives a sub-pixel artifact). */
+    top: 16px; left: 18px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 10px;
     letter-spacing: 0.14em;
@@ -750,7 +762,10 @@
      state — same chip recipe, opposite contrast. */
   .slot .preview-badge {
     position: absolute;
-    top: 12px; right: 50px;   /* leaves room for the × button */
+    /* right:54 keeps clearance from the .clear-btn that sits at 16/16
+       (clear-btn is 26px wide → 16 + 26 + gap = 54). top:16 matches the
+       chip's clear-zone math from .role-tag. */
+    top: 16px; right: 54px;
     z-index: 5;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 10px;
@@ -827,7 +842,12 @@
   .outcome-card {
     background: var(--paper);
     border: 2px solid var(--rule);
-    border-radius: var(--r-md);
+    /* Outcome cards are small (~110px wide) — the bigger --r-md radius
+       creates a clip-zone that eats the .who-tag chip in the top-left
+       corner. Dropping to --r-sm keeps the card visually rounded while
+       shrinking the clip-zone enough that the chip at top:12 left:12
+       clears it cleanly (8 + 8/√2 ≈ 13.7). */
+    border-radius: var(--r-sm);
     padding: 0;
     cursor: pointer;
     transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
@@ -933,7 +953,11 @@
      biom (A or B) is the one being transformed by this option. */
   .outcome-frame .who-tag {
     position: absolute;
-    top: 8px; left: 8px;
+    /* Outcome-card has 2px border + var(--r-sm) = 10px radius. Chip's
+       bounding-box corner reaches the card's clip curve at offset
+       (chip_inset + border_w) from card outer. For radius 10, that
+       offset must be ≥ 10 + 10/√2 ≈ 17. Inset 16 + border 2 = 18 ≥ 17. */
+    top: 16px; left: 16px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
     font-weight: 600;
@@ -1057,10 +1081,14 @@
     font-weight: 400;
   }
   /* The corner pill on each preview ("Stays" / "Gains pili") —
-     visible at a glance without reading the full label below. */
+     visible at a glance without reading the full label below.
+     Same clip-zone math as .who-tag: parent crossbreed-result-card
+     has --r-md (14px) + 2px border. Required clearance for radius
+     14: chip outer must be ≥ 14 + 14/√2 ≈ 24 from card outer edge.
+     Inset 22 + border 2 = 24 just clears. */
   .crossbreed-half .half-pill {
     position: absolute;
-    top: 8px; left: 8px;
+    top: 22px; left: 22px;
     background: var(--ink);
     color: var(--bg);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;

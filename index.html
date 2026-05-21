@@ -449,7 +449,13 @@
   }
   .catalog-cell .seed-tag {
     position: absolute;
-    bottom: 10px; left: 10px;
+    /* Clip-zone math: catalog-cell has --r-md = 14px radius + no
+       border. For bottom-left corner clearance, chip outer corner
+       must sit ≥ 14 + 14/√2 ≈ 24 from edges. Inset 16 chosen as a
+       balance — the .seed-tag is hover-only so a sub-pixel AA shave
+       wouldn't be a problem here, but rounding up for consistency
+       with the chip language on the rest of the site. */
+    bottom: 14px; left: 14px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
     color: var(--ink-2);
