@@ -301,11 +301,19 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 14px;
-    /* content-visibility lets the browser skip layout/paint for cells
-       outside the viewport entirely. Combined with the intrinsic-size
-       hint, scrolling a 50+ Biom collection costs almost nothing. */
-    content-visibility: auto;
-    contain-intrinsic-size: 400px;
+    /* content-visibility: auto USED to live here for perf — skip
+       rendering off-screen rows. But it implies `contain: paint` on
+       the grid container, which clips children that overflow the
+       grid's content-box. Selected cards lift translateY(-3px), and
+       the FIRST-ROW card's top 3px landed outside the grid content
+       box → its top border got shaved off (every other row's lift
+       landed in the gap between rows, so it stayed visible).
+       Perf optimisation kept by moving content-visibility:auto down
+       to each .biom-card individually — the cards still skip render
+       off-screen, but the grid no longer paint-contains them. */
+    /* Breathing room ≥ max card lift (3px) so the first-row lifted
+       border has somewhere to sit without crowding the heading. */
+    padding-top: 6px;
   }
   .collection-empty {
     padding: 48px 24px;
