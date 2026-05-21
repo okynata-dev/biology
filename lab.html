@@ -480,7 +480,19 @@
        painted through it where a panel's glass-sheen overlaps. */
     z-index: 1000;
     pointer-events: none;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    /* THREE-layer shadow stack solves the real "обрезанность" the
+       user kept flagging — the chip's ink fill was merging visually
+       with the card's 3px ink border when selected (same colour →
+       anti-alias blurs them into one shape → top half of chip
+       "disappears" into the border).
+         1+2. Inner + outer paper rings — unambiguous gap between the
+              chip's ink edge and any nearby card border, regardless
+              of zoom level or DPI.
+         3. Drop shadow — keeps the lifted-pill affordance. */
+    box-shadow:
+      0 0 0 2px var(--paper),
+      0 0 0 3px rgba(28, 26, 22, 0.08),
+      0 3px 8px rgba(0, 0, 0, 0.22);
     /* isolate creates a new stacking context — the chip's children
        and its background can't be reached by overlay blend modes
        from siblings below. Double belt-and-braces vs the panel sheen. */
@@ -504,10 +516,12 @@
     border-radius: 999px;
     background: var(--ink);
     color: var(--bg);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-    /* Same z-index + isolation as .role-tag — engine panels go up to
-       z~100 and their ::before sheen with mix-blend-mode: overlay would
-       otherwise paint a diagonal slash across the chip. */
+    /* Paper halo — see .role-tag for the rationale. Prevents the chip's
+       dark fill from merging with the card's selected-state border. */
+    box-shadow:
+      0 0 0 2px var(--paper),
+      0 0 0 3px rgba(28, 26, 22, 0.08),
+      0 3px 8px rgba(0, 0, 0, 0.22);
     z-index: 1000;
     isolation: isolate;
   }
