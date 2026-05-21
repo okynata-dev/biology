@@ -1076,6 +1076,28 @@ async function buildMetadata(env, tokenId) {
     attributes.push({ trait_type: 'Burns absorbed', value: absorbed, display_type: 'number' });
   }
 
+  // === Encode mutations in the animation_url ===
+  // preview.html accepts force* URL params to override seed-defaults
+  // (forceStain, forceOrganelles, forcePhage, etc.). For a mutated
+  // token, we encode the current state into the URL so OpenSea's live
+  // preview iframe shows the post-burn / post-conjugate biom, not the
+  // original seed render. Without this, OpenSea would show the BASE
+  // version of every mutated token.
+  const animParams = new URLSearchParams({ seed: String(tokenId) });
+  if (mutations.receivedPalette)   animParams.set('forceStain',     mutations.receivedPalette);
+  if (mutations.receivedMorphology) animParams.set('forceMorph',    mutations.receivedMorphology);
+  if (mutations.receivedCellCount)  animParams.set('forceCells',    String(mutations.receivedCellCount));
+  if (mutations.receivedLifecycle)  animParams.set('forceLifecycle', mutations.receivedLifecycle);
+  if (mutations.receivedReserve)    animParams.set('forceReserve',  mutations.receivedReserve);
+  if (Array.isArray(mutations.receivedOrganelles) && mutations.receivedOrganelles.length) {
+    // preview.html parses forceOrganelles as comma-separated list
+    animParams.set('forceOrganelles', mutations.receivedOrganelles.join(','));
+  }
+  const recvAnom = Array.isArray(mutations.receivedAnomalies) ? mutations.receivedAnomalies : [];
+  if (recvAnom.includes('phageAttached')) animParams.set('forcePhage',   '1');
+  if (recvAnom.includes('endosymbiont'))  animParams.set('forceEndo',    '1');
+  if (recvAnom.includes('biofilmHalo'))   animParams.set('forceBiofilm', '1');
+
   return {
     // "BIOM #N" — no padding, max ID is 2999 so digit count tops out at
     // 4 chars and reads cleaner than "BIOM #00001". Genus name (the old
@@ -1083,9 +1105,15 @@ async function buildMetadata(env, tokenId) {
     // the character isn't lost — it just doesn't crowd the title.
     name: `BIOM #${tokenId}`,
     description: 'A living microbe from the Bioms collection — 3000 generative specimens that share traits, burn each other, and evolve. The survivors carry everything forward. thebioms.com',
+    // NOTE: static image still points to the BASE R2 master even for
+    // mutated tokens. Re-rendering masters post-mutation requires
+    // Cloudflare Browser Rendering API (or equivalent headless pipeline);
+    // tracked as future work. Live `animation_url` below DOES reflect
+    // mutations via force* params, so detail pages show correct state
+    // even when the collection-grid thumbnail is still base.
     image: `https://pngs.thebioms.com/preview/${padded}.png`,
     image_url: `https://pngs.thebioms.com/preview/${padded}.png`,  // OpenSea legacy field
-    animation_url: `https://thebioms.com/preview.html?seed=${tokenId}`,
+    animation_url: `https://thebioms.com/preview.html?${animParams.toString()}`,
     external_url: `https://thebioms.com/lab?seed=${tokenId}`,
     attributes,
     // OpenSea-specific: this lets the collection page show creator + royalty info

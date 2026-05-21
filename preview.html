@@ -1833,26 +1833,92 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom specimen');
 // — that's the signal to stay hidden so we don't overlay their UI.
 // Standalone visitors typically came from "Original media" or a direct
 // link, and they DO want a clear save path.
+//
+// Two download paths:
+//   - BASE biom (no force* params)    → static R2 master via /api/download
+//   - MUTATED biom (force* present)   → canvas snapshot of current render.
+//     The R2 master would be wrong (it's the base version); the only
+//     correct PNG for a mutated token is what's on screen right now.
 (function setupDownloadCta() {
   const cta = document.getElementById('downloadCta');
   if (!cta) return;
   const inIframe = (() => { try { return window.self !== window.top; } catch (_) { return true; } })();
   if (inIframe) return;
-  // Seed the link with the actual token id from URL (?seed=N)
   const params = new URLSearchParams(window.location.search);
   const seedRaw = params.get('seed');
   const seed = (seedRaw !== null && Number.isFinite(parseInt(seedRaw, 10)))
     ? parseInt(seedRaw, 10) : 0;
-  // Use api.thebioms.com proxy — it forces Content-Disposition: attachment
-  // so the browser ALWAYS saves the file instead of opening it in a tab.
-  // Local-dev fallback uses the raw R2 URL (still works for "Save as").
-  const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-  const downloadUrl = isLocal
-    ? `https://pngs.thebioms.com/preview/${String(seed).padStart(5, '0')}.png`
-    : `https://api.thebioms.com/api/download/${seed}`;
-  cta.href = downloadUrl;
-  cta.setAttribute('download', `BIOM-${seed}.png`);
+
+  // Detect any force* override — if present, the static R2 master is
+  // the WRONG file and we need to render the visible state to canvas.
+  const FORCE_KEYS = ['forceStain', 'forceMorph', 'forceCells',
+                      'forceLifecycle', 'forceReserve', 'forceOrganelles',
+                      'forcePhage', 'forceEndo', 'forceBiofilm'];
+  const hasForce = FORCE_KEYS.some(k => params.has(k));
+
+  if (!hasForce) {
+    // Static master path — direct link to Worker download proxy
+    const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    cta.href = isLocal
+      ? `https://pngs.thebioms.com/preview/${String(seed).padStart(5, '0')}.png`
+      : `https://api.thebioms.com/api/download/${seed}`;
+    cta.setAttribute('download', `BIOM-${seed}.png`);
+    cta.classList.add('show');
+    return;
+  }
+
+  // Mutated path — intercept the click, render canvas, trigger blob
+  // download. Standalone tab so blob downloads aren't sandbox-blocked.
+  cta.href = '#';
+  cta.removeAttribute('download');
   cta.classList.add('show');
+  cta.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!window.BiomEngine || typeof window.BiomEngine.renderSpecimenToCanvas !== 'function') {
+      console.warn('[download] engine not ready');
+      return;
+    }
+    try {
+      // Build the override state from URL params
+      const override = {};
+      const fs = params.get('forceStain');
+      if (fs) {
+        if (fs.includes('+')) {
+          override.palette = window.BiomEngine.mixPalettes(...fs.split('+').filter(Boolean));
+        } else {
+          override.palette = fs;
+        }
+      }
+      if (params.get('forceMorph'))     override.morphology     = params.get('forceMorph');
+      if (params.get('forceCells'))     override.cellCount      = parseInt(params.get('forceCells'), 10);
+      if (params.get('forceLifecycle')) override.lifecycle      = params.get('forceLifecycle');
+      if (params.get('forceReserve'))   override.reserveGranule = params.get('forceReserve');
+      if (params.get('forceOrganelles')) override.organelles    = new Set(params.get('forceOrganelles').split(',').filter(Boolean));
+      if (params.get('forcePhage')   === '1') override.phageAttached = true;
+      if (params.get('forceEndo')    === '1') override.endosymbiont  = true;
+      if (params.get('forceBiofilm') === '1') override.biofilmHalo   = true;
+
+      const size = 1500;  // half-master resolution — matches Lab right-click save
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      window.BiomEngine.renderSpecimenToCanvas(canvas, seed, {
+        specSize: size, state: override,
+      });
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `BIOM-${seed}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    } catch (err) {
+      console.warn('[download] mutated render failed:', err);
+    }
+  });
 })();
 
 // ============================================================
