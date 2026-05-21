@@ -45,9 +45,6 @@
     <changefreq>daily</changefreq>
     <priority>0.85</priority>
   </url>
-  <url>
-    <loc>https://thebioms.com/soup</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.85</priority>
-  </url>
+  <!-- /soup is intentionally hidden pre-drop — page still works at the
+       URL but isn't surfaced in nav or indexed. -->
 </urlset>

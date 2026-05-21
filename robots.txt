@@ -4,5 +4,8 @@ Disallow: /api/
 Disallow: /admin
 Disallow: /admin.html
 Disallow: /asset-template.html
+# /soup is built but hidden pre-drop — don't index until we surface it
+Disallow: /soup
+Disallow: /soup.html
 
 Sitemap: https://thebioms.com/sitemap.xml
