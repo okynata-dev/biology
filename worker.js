@@ -24,6 +24,12 @@
 import { recoverTypedDataAddress, createPublicClient, http, isAddress, getAddress } from 'viem';
 import { mainnet } from 'viem/chains';
 import { normalize } from 'viem/ens';
+// Headless Chromium for the post-mutation master re-render pipeline.
+// Bound via wrangler.toml `browser = { binding = "BROWSER" }`. The
+// Worker takes a 3000×3000 screenshot of preview.html with the new
+// state encoded as force-* URL params, then uploads to R2 overwriting
+// the token's master. See renderTokenMaster() below.
+import puppeteer from '@cloudflare/puppeteer';
 
 // ----- CORS / utility -----
 // Canonical URLs all live at apex thebioms.com (no www). www-subdomain
@@ -175,9 +181,10 @@ function tokenHasTrait(base, mutations, depletionsActive, traitId) {
 
 // ----- D1 helpers -----
 async function loadTokenState(env, tokenId) {
-  // Mutations row + absorbed lineage
+  // Mutations row + absorbed lineage + image_version (cache-bust counter,
+  // bumped each time renderTokenMaster() re-uploads the master to R2).
   const m = await env.DB.prepare(
-    'SELECT received_palette, received_organelles, received_anomalies, absorbed_seeds FROM token_state WHERE token_id = ?'
+    'SELECT received_palette, received_organelles, received_anomalies, absorbed_seeds, image_version FROM token_state WHERE token_id = ?'
   ).bind(tokenId).first();
 
   const mutations = {
@@ -185,6 +192,7 @@ async function loadTokenState(env, tokenId) {
     organelles: m?.received_organelles ? JSON.parse(m.received_organelles) : [],
     anomalies: m?.received_anomalies ? JSON.parse(m.received_anomalies) : [],
   };
+  const imageVersion = m?.image_version || 1;
 
   let absorbedSeeds = [];
   try { if (m?.absorbed_seeds) absorbedSeeds = JSON.parse(m.absorbed_seeds); } catch (_) {}
@@ -215,7 +223,7 @@ async function loadTokenState(env, tokenId) {
     at: burnSelfRow.burned_at,
   } : null;
 
-  return { mutations, depletions, absorbedSeeds, burned: burnedInfo };
+  return { mutations, depletions, absorbedSeeds, burned: burnedInfo, imageVersion };
 }
 
 // ----- viem client factory -----
@@ -416,7 +424,7 @@ async function verifiableRoll(signature, nonce, donorId, recipientId) {
 }
 
 // ----- Conjugation handler -----
-async function handleConjugate(req, env, origin) {
+async function handleConjugate(req, env, ctx, origin) {
   if (!env.CONTRACT_ADDRESS || env.CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
     return error('Mint contract not yet deployed. Lab will activate post-mint.', 503, origin);
   }
@@ -606,6 +614,15 @@ async function handleConjugate(req, env, origin) {
     refreshOpenSeaMetadata(env, donorId, recipientId).catch(e => {
       console.warn('OS refresh top-level error:', e?.message || e);
     });
+    // Background re-render of master PNGs. ctx.waitUntil lets the response
+    // return immediately while the screenshots happen for ~2-5s each.
+    // Both bioms changed (mutual trait share) so both need regen.
+    if (ctx && typeof ctx.waitUntil === 'function') {
+      ctx.waitUntil((async () => {
+        try { await renderTokenMaster(env, donorId); } catch (_) {}
+        try { await renderTokenMaster(env, recipientId); } catch (_) {}
+      })());
+    }
   }
 
   return json({
@@ -670,7 +687,7 @@ async function refreshOpenSeaMetadata(env, ...tokenIds) {
 //     traits + append donor seed to absorbed_seeds for rank ladder
 //   - Refresh OpenSea metadata for the recipient (donor is gone)
 // ============================================================
-async function handleBurn(req, env, origin) {
+async function handleBurn(req, env, ctx, origin) {
   if (!env.CONTRACT_ADDRESS || env.CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
     return error('Mint contract not yet deployed. Burn will activate post-mint.', 503, origin);
   }
@@ -832,6 +849,14 @@ async function handleBurn(req, env, origin) {
   refreshOpenSeaMetadata(env, recipientId).catch(e => {
     console.warn('OS refresh top-level error:', e?.message || e);
   });
+  // Background re-render of recipient's master PNG. Burn-absorb cycles
+  // tend to produce the most visually dramatic mutations (palette
+  // blends + organelle stacks + cell-count bumps), so a fresh master
+  // is especially important here. ctx.waitUntil keeps the user's
+  // response fast while the screenshot runs in the background.
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(renderTokenMaster(env, recipientId).catch(() => {}));
+  }
 
   return json({
     ok: true,
@@ -1025,26 +1050,32 @@ async function buildMetadata(env, tokenId) {
   // become part of its metadata. Defensive — if D1 is unreachable
   // we serve the base specimen rather than 500'ing.
   let mutations = {};
+  let imageVersion = 1;
+  let absorbedSeeds = [];
   try {
-    const { mutations: m } = await loadTokenState(env, tokenId);
-    mutations = m || {};
+    const loaded = await loadTokenState(env, tokenId);
+    mutations = loaded.mutations || {};
+    imageVersion = loaded.imageVersion || 1;
+    absorbedSeeds = loaded.absorbedSeeds || [];
   } catch (_) { /* ignore */ }
 
-  // Effective state after mutations
+  // Effective state after mutations.
+  // loadTokenState returns mutations as {palette, organelles, anomalies}
+  // (matching D1 column names without the "received_" prefix). Schema
+  // only persists those three — morphology/cellCount/lifecycle/reserve
+  // shares aren't in token_state, so they always come from the seed.
   const eff = { ...state, organelles: state.organelles.slice() };
-  if (mutations.receivedPalette) eff.palette = mutations.receivedPalette;
-  if (Array.isArray(mutations.receivedOrganelles)) {
-    for (const o of mutations.receivedOrganelles) if (!eff.organelles.includes(o)) eff.organelles.push(o);
+  if (mutations.palette) eff.palette = mutations.palette;
+  if (Array.isArray(mutations.organelles)) {
+    for (const o of mutations.organelles) if (!eff.organelles.includes(o)) eff.organelles.push(o);
   }
-  if (Array.isArray(mutations.receivedAnomalies)) {
-    for (const a of mutations.receivedAnomalies) eff[a] = true;
+  if (Array.isArray(mutations.anomalies)) {
+    for (const a of mutations.anomalies) eff[a] = true;
   }
-  if (mutations.receivedMorphology) eff.morphology = mutations.receivedMorphology;
-  if (mutations.receivedCellCount) eff.cellCount = mutations.receivedCellCount;
-  if (mutations.receivedLifecycle) eff.lifecycle = mutations.receivedLifecycle;
-  if (mutations.receivedReserve)   eff.reserveGranule = mutations.receivedReserve;
-  const rank = mutations.rank || 1;
-  const absorbed = mutations.burnsAbsorbed || 0;
+  // Rank derived from absorbed_seeds length (each burn adds a parent).
+  // Genesis = 0 absorbed (rank 1), every absorption shifts the tier.
+  const absorbed = absorbedSeeds.length;
+  const rank = 1 + absorbed;  // simplest: linear. Tier ladder unchanged.
   const tier = _tierForRank(rank);
 
   // Attributes — order matters for OpenSea grouping
@@ -1081,22 +1112,21 @@ async function buildMetadata(env, tokenId) {
   // (forceStain, forceOrganelles, forcePhage, etc.). For a mutated
   // token, we encode the current state into the URL so OpenSea's live
   // preview iframe shows the post-burn / post-conjugate biom, not the
-  // original seed render. Without this, OpenSea would show the BASE
-  // version of every mutated token.
+  // original seed render.
   const animParams = new URLSearchParams({ seed: String(tokenId) });
-  if (mutations.receivedPalette)   animParams.set('forceStain',     mutations.receivedPalette);
-  if (mutations.receivedMorphology) animParams.set('forceMorph',    mutations.receivedMorphology);
-  if (mutations.receivedCellCount)  animParams.set('forceCells',    String(mutations.receivedCellCount));
-  if (mutations.receivedLifecycle)  animParams.set('forceLifecycle', mutations.receivedLifecycle);
-  if (mutations.receivedReserve)    animParams.set('forceReserve',  mutations.receivedReserve);
-  if (Array.isArray(mutations.receivedOrganelles) && mutations.receivedOrganelles.length) {
-    // preview.html parses forceOrganelles as comma-separated list
-    animParams.set('forceOrganelles', mutations.receivedOrganelles.join(','));
+  if (mutations.palette) animParams.set('forceStain', mutations.palette);
+  if (Array.isArray(mutations.organelles) && mutations.organelles.length) {
+    animParams.set('forceOrganelles', mutations.organelles.join(','));
   }
-  const recvAnom = Array.isArray(mutations.receivedAnomalies) ? mutations.receivedAnomalies : [];
-  if (recvAnom.includes('phageAttached')) animParams.set('forcePhage',   '1');
-  if (recvAnom.includes('endosymbiont'))  animParams.set('forceEndo',    '1');
-  if (recvAnom.includes('biofilmHalo'))   animParams.set('forceBiofilm', '1');
+  const anomList = Array.isArray(mutations.anomalies) ? mutations.anomalies : [];
+  if (anomList.includes('phageAttached')) animParams.set('forcePhage',   '1');
+  if (anomList.includes('endosymbiont'))  animParams.set('forceEndo',    '1');
+  if (anomList.includes('biofilmHalo'))   animParams.set('forceBiofilm', '1');
+
+  // Image URL with cache-bust version. After renderTokenMaster()
+  // overwrites the R2 master, imageVersion is bumped → URL changes →
+  // CDN treats as fresh asset → users see new master.
+  const imageUrl = `https://pngs.thebioms.com/preview/${padded}.png?v=${imageVersion}`;
 
   return {
     // "BIOM #N" — no padding, max ID is 2999 so digit count tops out at
@@ -1105,14 +1135,12 @@ async function buildMetadata(env, tokenId) {
     // the character isn't lost — it just doesn't crowd the title.
     name: `BIOM #${tokenId}`,
     description: 'A living microbe from the Bioms collection — 3000 generative specimens that share traits, burn each other, and evolve. The survivors carry everything forward. thebioms.com',
-    // NOTE: static image still points to the BASE R2 master even for
-    // mutated tokens. Re-rendering masters post-mutation requires
-    // Cloudflare Browser Rendering API (or equivalent headless pipeline);
-    // tracked as future work. Live `animation_url` below DOES reflect
-    // mutations via force* params, so detail pages show correct state
-    // even when the collection-grid thumbnail is still base.
-    image: `https://pngs.thebioms.com/preview/${padded}.png`,
-    image_url: `https://pngs.thebioms.com/preview/${padded}.png`,  // OpenSea legacy field
+    // Static image — for mutated tokens this URL gets re-uploaded by
+    // renderTokenMaster() after each burn/conjugate (Browser Rendering
+    // pipeline). The ?v=N query bumps each regen → CDN cache busts →
+    // OpenSea grid thumbnails refresh.
+    image: imageUrl,
+    image_url: imageUrl,  // OpenSea legacy field
     animation_url: `https://thebioms.com/preview.html?${animParams.toString()}`,
     external_url: `https://thebioms.com/lab?seed=${tokenId}`,
     attributes,
@@ -1144,6 +1172,120 @@ async function handleMetadata(env, tokenIdStr, origin) {
 // instead of opening it in a tab. Filename embeds the tokenId for
 // clean defaults. Cache aggressively at the edge — masters never
 // change for a given token.
+// ============================================================
+// BROWSER RENDERING PIPELINE — regen master PNG on mutation
+// ============================================================
+// After a successful burn/conjugate, the token's R2 master PNG is now
+// out of date (it shows the base/pre-mutation render). We use
+// Cloudflare Browser Rendering API to spawn a headless Chromium,
+// navigate to preview.html with the new state encoded as force-*
+// URL params, take a 3000×3000 screenshot, and overwrite the R2 key.
+//
+// Versioning: imageVersion in D1 is bumped on each successful regen.
+// Metadata `image` field includes `?v=N` query → CDN cache treats
+// each version as a fresh asset → OpenSea grid refreshes.
+//
+// Fire-and-forget: called from handleConjugate/handleBurn via
+// ctx.waitUntil() so the response to the user returns immediately;
+// the screenshot happens in the background (~2-5s). Worst case the
+// user sees the old master for a few seconds before OpenSea
+// re-polls metadata.
+// ============================================================
+
+// Build the preview.html URL for a given mutation state. Mirrors the
+// animation_url construction in buildMetadata so the screenshot
+// matches what marketplaces show as the live preview.
+function _previewUrlForTokenState(tokenId, mutations) {
+  const params = new URLSearchParams({ seed: String(tokenId), static: '1' });
+  if (mutations.palette) params.set('forceStain', mutations.palette);
+  if (Array.isArray(mutations.organelles) && mutations.organelles.length) {
+    params.set('forceOrganelles', mutations.organelles.join(','));
+  }
+  const anomList = Array.isArray(mutations.anomalies) ? mutations.anomalies : [];
+  if (anomList.includes('phageAttached')) params.set('forcePhage',   '1');
+  if (anomList.includes('endosymbiont'))  params.set('forceEndo',    '1');
+  if (anomList.includes('biofilmHalo'))   params.set('forceBiofilm', '1');
+  return `https://thebioms.com/preview.html?${params.toString()}`;
+}
+
+// Re-render a token's master PNG and upload to R2.
+// Returns { ok, version } on success, { ok: false, reason } on failure.
+// Safe to call concurrently for different tokenIds (different R2 keys).
+async function renderTokenMaster(env, tokenId) {
+  if (!env.BROWSER) {
+    return { ok: false, reason: 'no_browser_binding' };
+  }
+  if (!env.PNGS) {
+    return { ok: false, reason: 'no_r2_binding' };
+  }
+  const padded = String(tokenId).padStart(5, '0');
+  let browser = null;
+  try {
+    const { mutations } = await loadTokenState(env, tokenId);
+    const url = _previewUrlForTokenState(tokenId, mutations);
+    browser = await puppeteer.launch(env.BROWSER);
+    const page = await browser.newPage();
+    await page.setViewport({ width: 3000, height: 3000, deviceScaleFactor: 1 });
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+    // preview.html sets window.__biomReady = true after first paint
+    // (see preview.html). Wait up to 10s; engine usually ready in <1s.
+    await page.waitForFunction(() => window.__biomReady === true, { timeout: 10000 });
+    const buffer = await page.screenshot({ type: 'png', omitBackground: false });
+
+    // Upload to R2 — overwrites existing master. cache headers on the
+    // R2 object itself are inherited from bucket config; we rely on
+    // the ?v=N query in metadata for cache-busting at the CDN edge.
+    await env.PNGS.put(`preview/${padded}.png`, buffer, {
+      httpMetadata: { contentType: 'image/png' },
+    });
+
+    // Bump image_version so the metadata URL changes on next fetch
+    // (token_state row is upserted to ensure the column exists).
+    await env.DB.prepare(
+      `INSERT INTO token_state (token_id, image_version, updated_at) VALUES (?, 2, ?)
+       ON CONFLICT(token_id) DO UPDATE SET
+         image_version = COALESCE(image_version, 1) + 1,
+         updated_at = excluded.updated_at`
+    ).bind(tokenId, Math.floor(Date.now() / 1000)).run();
+
+    // Get the new version for the return value
+    const row = await env.DB.prepare(
+      'SELECT image_version FROM token_state WHERE token_id = ?'
+    ).bind(tokenId).first();
+    const newVersion = row?.image_version || 2;
+
+    console.log(`[render] token ${tokenId} master regenerated, version=${newVersion}, ${buffer.byteLength} bytes`);
+    return { ok: true, version: newVersion };
+  } catch (e) {
+    console.warn(`[render] token ${tokenId} failed:`, e?.message || String(e));
+    return { ok: false, reason: 'render_failed', error: e?.message };
+  } finally {
+    if (browser) { try { await browser.close(); } catch (_) {} }
+  }
+}
+
+async function handleAdminRegen(req, env, tokenIdStr, origin) {
+  // Token-gated. Same ADMIN_TOKEN as the other /api/admin/* routes.
+  const token = req.headers.get('x-admin-token') || '';
+  if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
+    return error('unauthorized', 401, origin);
+  }
+  const tokenId = parseInt(tokenIdStr, 10);
+  const maxId = maxTokenId(env);
+  if (!Number.isFinite(tokenId) || tokenId < 0 || tokenId > maxId) {
+    return error('bad_token_id', 400, origin);
+  }
+  const result = await renderTokenMaster(env, tokenId);
+  if (!result.ok) {
+    return error(result.reason || 'render_failed', 502, origin);
+  }
+  // Best-effort OpenSea refresh — the new image URL has bumped ?v=N
+  if (env.CONTRACT_ADDRESS && env.OPENSEA_API_KEY) {
+    try { await refreshOpenSeaMetadata(env, tokenId); } catch (_) {}
+  }
+  return json({ ok: true, tokenId, version: result.version }, {}, origin);
+}
+
 async function handleDownload(env, tokenIdStr, origin) {
   const tokenId = parseInt(tokenIdStr, 10);
   const maxId = maxTokenId(env);
@@ -1554,10 +1696,18 @@ export default {
         return await handleDownload(env, id, origin);
       }
       if (path === '/api/conjugate' && req.method === 'POST') {
-        return await handleConjugate(req, env, origin);
+        return await handleConjugate(req, env, ctx, origin);
       }
       if (path === '/api/burn' && req.method === 'POST') {
-        return await handleBurn(req, env, origin);
+        return await handleBurn(req, env, ctx, origin);
+      }
+      if (path.startsWith('/api/admin/regen/') && req.method === 'POST') {
+        // POST /api/admin/regen/<tokenId>   x-admin-token: <secret>
+        // Manually trigger renderTokenMaster for a single token.
+        // Useful during testing AND as a recovery path if a ctx.waitUntil
+        // render fails silently.
+        const id = path.slice('/api/admin/regen/'.length);
+        return await handleAdminRegen(req, env, id, origin);
       }
       if (path === '/api/log') {
         return await handleLog(env, url, origin);

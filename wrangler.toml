@@ -23,6 +23,10 @@
 name = "bioms-api"
 main = "worker.js"
 compatibility_date = "2026-05-17"
+# nodejs_compat — required by @cloudflare/puppeteer which imports
+# node:buffer for screenshot byte handling. Safe addition: only enables
+# the standard node:* modules under explicit import.
+compatibility_flags = ["nodejs_compat"]
 
 # ------------------------------------------------------------
 # D1 binding — REQUIRED. The database_id below is intentionally a
@@ -37,6 +41,27 @@ compatibility_date = "2026-05-17"
 binding = "DB"
 database_name = "bioms-lab"
 database_id = "3f0dd6bd-c62d-4fe8-a0db-e351d410ebfa"
+
+# ------------------------------------------------------------
+# R2 bucket — used by the post-mutation re-render pipeline.
+# After a successful conjugate/burn, the Worker takes a headless
+# screenshot of preview.html (with the new state encoded in URL
+# force-* params) and uploads the result here, overwriting the
+# token's master PNG. The bucket is also served publicly at
+# pngs.thebioms.com (custom-domain mapping in CF dashboard).
+# ------------------------------------------------------------
+[[r2_buckets]]
+binding = "PNGS"
+bucket_name = "bioms-pngs"
+
+# ------------------------------------------------------------
+# Browser Rendering — headless Chromium for re-rendering tokens
+# after mutation. Requires the Cloudflare Workers Paid plan (the
+# free tier doesn't include Browser Rendering binding).
+# Pricing: ~$0.0001 per second of browser usage. Each render is
+# 2-5s; 50 burns/day → ~$0.03/day operating cost.
+# ------------------------------------------------------------
+browser = { binding = "BROWSER" }
 
 [vars]
 # Public config — fine to commit. Secrets go via `wrangler secret put`.

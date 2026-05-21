@@ -1823,6 +1823,21 @@ applyOverridesFromURL();
 applyBackgroundFromURL();
 if (_hasOverrides) buildScene();
 
+// Ready-signal for the Browser Rendering pipeline. After mutations,
+// the Worker calls puppeteer.screenshot() against this page and needs
+// to know when the engine has fully painted the specimen (with all
+// force-* overrides applied). We set a class on <body> AND a window
+// flag so headless can either waitForSelector or waitForFunction.
+// requestAnimationFrame ensures the first paint is flushed before
+// we declare ready — without it, screenshot lands on a blank canvas
+// in rare timing races.
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    document.body.classList.add('engine-ready');
+    window.__biomReady = true;
+  });
+});
+
 // Stamp the real seed into the a11y label so screen-readers get the token id.
 const _pfp = document.getElementById('pfpCard');
 if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom specimen');
