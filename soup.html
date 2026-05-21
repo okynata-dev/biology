@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- REVEAL gate — see specimen-engine.js → _resolveReveal().
+     Pre-mint: content="false" → soup renders generic glass capsules
+     (no per-token traits exposed → snipe-safe).
+     On reveal day: flip to content="true" → atlas swaps to real bioms. -->
+<meta name="bioms-reveal" content="false">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Bioms — Primordial Soup</title>
+<meta name="description" content="Three thousand microbes drifting in a primordial soup. Zoom out for the swarm, zoom in for the individual.">
+<meta name="theme-color" content="#ece9e0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/favicon.svg">
+<link rel="canonical" href="https://thebioms.com/soup">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bioms">
+<meta property="og:title" content="Primordial Soup — Bioms">
+<meta property="og:description" content="Three thousand microbes drifting together. Zoom out for the swarm, zoom in for the individual.">
+<meta property="og:url" content="https://thebioms.com/soup">
+<meta property="og:image" content="https://thebioms.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@theBioms">
+<meta name="twitter:creator" content="@timsouw">
+<meta name="twitter:image" content="https://thebioms.com/og-image.png">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ece9e0;
+    --paper: #f4f1e8;
+    --ink: #1c1a16;
+    --ink-2: #5b554a;
+    --ink-3: #6f6a5c;
+    --rule: rgba(28, 26, 22, 0.12);
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    line-height: 1.55;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;            /* canvas owns the viewport */
+    overscroll-behavior: none;   /* no pull-to-refresh while dragging soup */
+    touch-action: none;          /* pan/zoom handled in JS, not browser */
+  }
+  ::selection { background: rgba(140, 90, 180, 0.25); color: var(--ink); }
+
+  a { color: inherit; text-decoration: none; }
+
+  /* Skip-link — WCAG 2.4.1 */
+  .skip-link {
+    position: absolute; left: -9999px; top: 0;
+    background: var(--ink); color: var(--bg);
+    padding: 12px 18px; border-radius: 0 0 8px 0;
+    font-size: 14px; font-weight: 500;
+    z-index: 9999;
+  }
+  .skip-link:focus { left: 0; outline: 2px solid var(--bg); outline-offset: -2px; }
+
+  /* === NAV (canonical) === */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 50;
+    padding: 18px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(236, 233, 224, 0.78);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 17px; font-weight: 500; letter-spacing: -0.005em;
+    color: var(--ink); transition: opacity 0.15s;
+  }
+  .brand:hover { opacity: 0.65; }
+  .brand-mark { width: 18px; height: 18px; display: block; }
+  .nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
+  .nav-links a { color: var(--ink-3); transition: color 0.15s; padding: 12px 6px; margin: -12px -6px; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-x { display: inline-flex; align-items: center; }
+  .x-icon { width: 14px; height: 14px; }
+
+  /* === CANVAS (the entire viewport behind everything) === */
+  #soupCanvas {
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    display: block;
+    background: var(--bg);
+    cursor: grab;
+  }
+  #soupCanvas.dragging { cursor: grabbing; }
+
+  /* === HUD — counter + zoom level + reset === */
+  .hud {
+    position: fixed;
+    left: 32px; bottom: 32px;
+    z-index: 20;
+    display: flex; flex-direction: column; gap: 8px;
+    pointer-events: none;
+  }
+  .hud > * { pointer-events: auto; }
+  .hud-row {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: var(--ink-2);
+    background: rgba(244, 241, 232, 0.78);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    letter-spacing: 0.04em;
+  }
+  .hud-row strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .hud-btn {
+    background: rgba(244, 241, 232, 0.78);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    padding: 8px 14px;
+    border-radius: 999px;
+    font: inherit;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .hud-btn:hover { background: var(--ink); color: var(--bg); }
+
+  /* Title overlay (top-right under nav) — keeps the page identifiable
+     without crowding the canvas. */
+  .soup-title {
+    position: fixed;
+    top: 88px; left: 32px;
+    z-index: 20;
+    max-width: 360px;
+    pointer-events: none;
+  }
+  .soup-title h1 {
+    font-size: 22px; font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .soup-title p {
+    font-size: 13px;
+    color: var(--ink-3);
+    line-height: 1.4;
+  }
+
+  /* Hint card — bottom-center, instructional. Fades after first interaction. */
+  .hint {
+    position: fixed;
+    bottom: 32px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    background: rgba(244, 241, 232, 0.78);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-size: 13px;
+    color: var(--ink-2);
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.6s ease-out;
+  }
+  .hint.fade { opacity: 0; }
+
+  /* WebGL unsupported fallback */
+  .nowebgl {
+    position: fixed; inset: 0;
+    display: none;
+    align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px;
+    padding: 32px;
+    text-align: center;
+    z-index: 30;
+    background: var(--bg);
+  }
+  .nowebgl.show { display: flex; }
+  .nowebgl h2 { font-size: 22px; font-weight: 500; color: var(--ink); }
+  .nowebgl p { font-size: 15px; color: var(--ink-2); max-width: 460px; line-height: 1.5; }
+  .nowebgl a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+  /* Mobile — hint moves up so it doesn't collide with the bottom-left HUD,
+     and the title shrinks. */
+  @media (max-width: 600px) {
+    nav { padding: 14px 18px; }
+    .soup-title { top: 72px; left: 18px; max-width: calc(100% - 36px); }
+    .soup-title h1 { font-size: 18px; }
+    .soup-title p { font-size: 12px; }
+    .hud { left: 16px; bottom: 16px; gap: 6px; }
+    .hud-row, .hud-btn { padding: 7px 12px; font-size: 11px; }
+    .hint { bottom: 86px; padding: 8px 14px; font-size: 12px; max-width: 90vw; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hint { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#soupCanvas">Skip to soup</a>
+
+<nav>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <img class="brand-mark" src="/favicon.svg" alt="" width="18" height="18" decoding="async">
+    <span>Bioms</span>
+  </a>
+  <div class="nav-links">
+    <a href="/lab">Lab</a>
+    <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
+      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<canvas id="soupCanvas" aria-label="Three thousand microbes drifting in a primordial soup. Drag to pan, scroll or pinch to zoom."></canvas>
+
+<div class="soup-title">
+  <h1>Primordial soup.</h1>
+  <p>Three thousand microbes, drifting together. Zoom out for the swarm. Zoom in for the individual.</p>
+</div>
+
+<div class="hud">
+  <span class="hud-row" aria-live="polite">
+    <strong id="countLabel">3000</strong> microbes
+  </span>
+  <span class="hud-row" aria-live="off">
+    <span id="zoomLabel">100</span>%
+  </span>
+  <button class="hud-btn" type="button" id="resetBtn" aria-label="Reset view">Reset</button>
+</div>
+
+<div class="hint" id="hint" role="status">
+  Drag to pan · Scroll or pinch to zoom
+</div>
+
+<div class="nowebgl" id="nowebgl" role="alert">
+  <h2>Your browser can't render the soup.</h2>
+  <p>This page needs WebGL 2. Try a recent version of Safari, Chrome, Firefox, or Edge. The rest of the site still works — try the <a href="/lab">Lab</a> or the <a href="/explore">trait catalog</a>.</p>
+</div>
+
+<script>
+// =============================================================
+// Bioms — Primordial Soup
+// =============================================================
+// 3000 generic glass capsules drifting in a cream void. WebGL2 POINTS
+// renderer: one draw call, sprite-textured points with per-particle
+// position/scale/phase. Pan with drag, zoom with wheel or pinch.
+//
+// Pre-reveal: one shared texture (generic capsule) so no per-token
+// trait data is exposed. The page reads <meta name="bioms-reveal">
+// (single source of truth across the site). When the meta flips to
+// true on reveal day, swap to an atlas of all 3000 real biom thumbs
+// (build script: planned, not yet wired). Until then this stays
+// safe to ship pre-mint.
+//
+// Architecture mirrors dustopia (the author's other project, also
+// WebGL2 POINTS for thousands of NFT thumbnails). The shader is
+// intentionally minimal: one vertex transform, one texture sample.
+// =============================================================
+
+const PARTICLE_COUNT = 3000;
+const CLUSTER_RADIUS = 1100;        // world-space radius the swarm spans
+const TEXTURE_SIZE   = 256;         // capsule sprite resolution
+const POINT_BASE_SIZE_PX = 28;      // capsule size at zoom 1.0 (device px)
+const MIN_ZOOM = 0.15;              // zoomed all the way out
+const MAX_ZOOM = 12.0;              // zoomed all the way in (1 capsule fills view)
+const WHEEL_ZOOM_SPEED = 0.0015;
+const PINCH_ZOOM_SMOOTHING = 0.18;
+const DRIFT_AMP_BASE = 12;          // world units of brownian drift
+const DRIFT_FREQ = 0.0008;          // radians/ms
+
+const canvas  = document.getElementById('soupCanvas');
+const noWebgl = document.getElementById('nowebgl');
+const hintEl  = document.getElementById('hint');
+const zoomEl  = document.getElementById('zoomLabel');
+const resetBtn = document.getElementById('resetBtn');
+
+let gl;
+try {
+  gl = canvas.getContext('webgl2', {
+    antialias: true,
+    premultipliedAlpha: true,
+    alpha: false,                  // we always paint a paper background; no need for alpha
+    powerPreference: 'high-performance',
+    desynchronized: true,
+  });
+} catch (_) {}
+if (!gl) {
+  noWebgl.classList.add('show');
+  throw new Error('WebGL2 unavailable');
+}
+
+// --- Reduced motion ---
+const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const MOTION_SCALE = REDUCE_MOTION ? 0.0 : 1.0;
+
+// --- DPR-aware sizing ---
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.round(window.innerWidth * dpr);
+  const h = Math.round(window.innerHeight * dpr);
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+    canvas.style.width  = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    gl.viewport(0, 0, w, h);
+  }
+}
+window.addEventListener('resize', resize);
+resize();
+
+// =============================================================
+// SHADERS
+// =============================================================
+const VS = `#version 300 es
+in vec2 a_pos;          // base position in world space
+in vec2 a_drift;        // per-particle drift amplitude (x/y)
+in float a_phase;       // drift phase offset
+in float a_scale;       // per-particle scale multiplier (0.7–1.3)
+in float a_rot;         // per-particle rotation in radians
+
+uniform vec2 u_pan;
+uniform float u_zoom;
+uniform vec2 u_screenSize;     // canvas size in device pixels
+uniform float u_time;          // milliseconds
+uniform float u_pointBaseSize; // base size in device pixels at zoom=1
+uniform float u_motionScale;   // 0 freezes drift (reduced motion)
+
+out float v_rot;
+
+void main() {
+  float t = u_time * ${DRIFT_FREQ.toFixed(6)} + a_phase;
+  vec2 drift = vec2(sin(t * 1.7), cos(t * 1.3)) * a_drift * u_motionScale;
+  vec2 worldPos = a_pos + drift;
+
+  // World -> screen space (device pixels)
+  vec2 screenPos = (worldPos - u_pan) * u_zoom + u_screenSize * 0.5;
+
+  // Screen -> clip [-1, 1]
+  vec2 clip = (screenPos / u_screenSize) * 2.0 - 1.0;
+  clip.y = -clip.y;
+
+  gl_Position = vec4(clip, 0.0, 1.0);
+  gl_PointSize = u_pointBaseSize * a_scale * u_zoom;
+
+  v_rot = a_rot;
+}
+`;
+
+const FS = `#version 300 es
+precision highp float;
+uniform sampler2D u_tex;
+in float v_rot;
+out vec4 outColor;
+
+void main() {
+  // Rotate gl_PointCoord around (0.5, 0.5)
+  vec2 uv = gl_PointCoord - 0.5;
+  float c = cos(v_rot), s = sin(v_rot);
+  uv = mat2(c, -s, s, c) * uv;
+  uv += 0.5;
+  // Clip outside the unit square (rotation can pull samples off-texture)
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) discard;
+  vec4 c4 = texture(u_tex, uv);
+  if (c4.a < 0.01) discard;
+  outColor = c4;
+}
+`;
+
+function compileShader(type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(sh);
+    console.error('Shader compile error:', log);
+    gl.deleteShader(sh);
+    throw new Error('Shader compile failed: ' + log);
+  }
+  return sh;
+}
+
+const vs = compileShader(gl.VERTEX_SHADER, VS);
+const fs = compileShader(gl.FRAGMENT_SHADER, FS);
+const prog = gl.createProgram();
+gl.attachShader(prog, vs);
+gl.attachShader(prog, fs);
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  console.error('Program link error:', gl.getProgramInfoLog(prog));
+  throw new Error('Program link failed');
+}
+gl.useProgram(prog);
+
+// Uniform locations
+const u_pan       = gl.getUniformLocation(prog, 'u_pan');
+const u_zoom      = gl.getUniformLocation(prog, 'u_zoom');
+const u_screenSize = gl.getUniformLocation(prog, 'u_screenSize');
+const u_time      = gl.getUniformLocation(prog, 'u_time');
+const u_pointBaseSize = gl.getUniformLocation(prog, 'u_pointBaseSize');
+const u_motionScale = gl.getUniformLocation(prog, 'u_motionScale');
+const u_tex       = gl.getUniformLocation(prog, 'u_tex');
+
+// Attribute locations
+const a_pos    = gl.getAttribLocation(prog, 'a_pos');
+const a_drift  = gl.getAttribLocation(prog, 'a_drift');
+const a_phase  = gl.getAttribLocation(prog, 'a_phase');
+const a_scale  = gl.getAttribLocation(prog, 'a_scale');
+const a_rot    = gl.getAttribLocation(prog, 'a_rot');
+
+// =============================================================
+// PARTICLE DATA
+// =============================================================
+// We use a deterministic seeded PRNG so the layout is the same across
+// reloads — gives the page a stable identity, like a poster.
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return function() {
+    t |= 0; t = (t + 0x6D2B79F5) | 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(0xB10C5);  // "BIOMS" → constant seed
+
+const positions = new Float32Array(PARTICLE_COUNT * 2);
+const drifts    = new Float32Array(PARTICLE_COUNT * 2);
+const phases    = new Float32Array(PARTICLE_COUNT);
+const scales    = new Float32Array(PARTICLE_COUNT);
+const rots      = new Float32Array(PARTICLE_COUNT);
+
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  // Polar coordinates with sqrt(r) for uniform density inside the disc,
+  // and a slight gaussian bias toward the centre so the swarm has shape.
+  const u = rng();
+  const v = rng();
+  const r = Math.sqrt(u) * CLUSTER_RADIUS * (0.85 + v * 0.25);
+  const theta = rng() * Math.PI * 2;
+  positions[i * 2]     = Math.cos(theta) * r;
+  positions[i * 2 + 1] = Math.sin(theta) * r;
+
+  // Brownian drift amplitude — small, irregular per particle
+  drifts[i * 2]     = DRIFT_AMP_BASE * (0.5 + rng() * 1.3);
+  drifts[i * 2 + 1] = DRIFT_AMP_BASE * (0.5 + rng() * 1.3);
+  phases[i] = rng() * Math.PI * 2;
+
+  // Scale — most around 1.0, a few smaller, a few larger
+  scales[i] = 0.72 + rng() * 0.6;
+
+  // Rotation — keep capsules at gently varied angles so the swarm
+  // doesn't look like a grid of identical pills.
+  rots[i] = (rng() - 0.5) * Math.PI * 0.6;  // ±54°
+}
+
+// VAO + buffers
+const vao = gl.createVertexArray();
+gl.bindVertexArray(vao);
+
+function attrBuffer(loc, data, components) {
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, components, gl.FLOAT, false, 0, 0);
+}
+
+attrBuffer(a_pos,   positions, 2);
+attrBuffer(a_drift, drifts,    2);
+attrBuffer(a_phase, phases,    1);
+attrBuffer(a_scale, scales,    1);
+attrBuffer(a_rot,   rots,      1);
+
+// =============================================================
+// TEXTURE — glass capsule sprite, drawn to an offscreen 2D canvas
+// then uploaded. Mirrors favicon.svg (single source of truth for
+// the brand mark). Pre-reveal: every particle samples this same
+// texture. Post-reveal: we'll swap to an atlas of 3000 thumbs.
+// =============================================================
+function buildCapsuleTexture() {
+  const c = document.createElement('canvas');
+  c.width = TEXTURE_SIZE;
+  c.height = TEXTURE_SIZE;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, TEXTURE_SIZE, TEXTURE_SIZE);
+
+  // Padding so the capsule never touches the texture edge
+  // (otherwise gl_PointCoord rotation can clip the silhouette)
+  const PAD = 18;
+  const W = TEXTURE_SIZE - PAD * 2;
+  const H = Math.round(W * 0.42);        // capsule aspect ratio ~26:12 from favicon
+  const X = PAD;
+  const Y = (TEXTURE_SIZE - H) / 2;
+  const R = H / 2;
+
+  // --- Capsule body (dark warm gradient) ---
+  const bodyGrad = ctx.createLinearGradient(0, Y, 0, Y + H);
+  bodyGrad.addColorStop(0, '#3d3a32');
+  bodyGrad.addColorStop(1, '#16140f');
+  ctx.fillStyle = bodyGrad;
+  roundRect(ctx, X, Y, W, H, R);
+  ctx.fill();
+
+  // --- Internal structures (cream organelles seen through glass) ---
+  // Positions/sizes match favicon proportions, scaled to W/H.
+  const dots = [
+    { cx: 0.300, cy: 0.500, r: 0.108, a: 0.82 },
+    { cx: 0.555, cy: 0.430, r: 0.039, a: 0.68 },
+    { cx: 0.677, cy: 0.555, r: 0.031, a: 0.60 },
+    { cx: 0.785, cy: 0.460, r: 0.023, a: 0.50 },
+  ];
+  for (const d of dots) {
+    ctx.beginPath();
+    ctx.arc(X + W * d.cx, Y + H * d.cy, W * d.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(244, 234, 212, ${d.a})`;
+    ctx.fill();
+  }
+
+  // --- Glass bloom (radial highlight, upper-left) ---
+  const bloom = ctx.createRadialGradient(
+    X + W * 0.28, Y + H * 0.22, 0,
+    X + W * 0.28, Y + H * 0.22, W * 0.55
+  );
+  bloom.addColorStop(0,    'rgba(255,255,255,0.55)');
+  bloom.addColorStop(0.55, 'rgba(255,255,255,0.08)');
+  bloom.addColorStop(1,    'rgba(255,255,255,0)');
+  ctx.fillStyle = bloom;
+  roundRect(ctx, X, Y, W, H, R);
+  ctx.fill();
+
+  // --- Sheen (top fade) ---
+  const sheen = ctx.createLinearGradient(0, Y, 0, Y + H);
+  sheen.addColorStop(0,    'rgba(255,255,255,0.42)');
+  sheen.addColorStop(0.18, 'rgba(255,255,255,0)');
+  ctx.fillStyle = sheen;
+  roundRect(ctx, X, Y, W, H, R);
+  ctx.fill();
+
+  // --- Membrane edge (subtle dark ring) ---
+  ctx.lineWidth = Math.max(1, W * 0.022);
+  ctx.strokeStyle = 'rgba(11, 10, 7, 0.65)';
+  roundRect(ctx, X, Y, W, H, R);
+  ctx.stroke();
+
+  return c;
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+}
+
+const texCanvas = buildCapsuleTexture();
+const tex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, tex);
+gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texCanvas);
+gl.generateMipmap(gl.TEXTURE_2D);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.uniform1i(u_tex, 0);
+
+// =============================================================
+// VIEW STATE & RENDER LOOP
+// =============================================================
+const state = {
+  pan: { x: 0, y: 0 },           // world coords centered in view
+  zoom: 1.0,                     // device-pixel scale: 1 world unit = N device px
+  targetZoom: 1.0,
+  dragging: false,
+  lastPointer: null,
+  pinchPrevDist: 0,
+};
+
+// Initial fit: the cluster radius is CLUSTER_RADIUS world units; we want
+// the cluster diameter to occupy ~80% of the smaller viewport dimension.
+function fitView() {
+  const smaller = Math.min(canvas.width, canvas.height);
+  const wantDiameter = smaller * 0.85;
+  state.zoom = wantDiameter / (CLUSTER_RADIUS * 2);
+  state.targetZoom = state.zoom;
+  state.pan.x = 0;
+  state.pan.y = 0;
+  updateHud();
+}
+fitView();
+window.addEventListener('resize', () => {
+  // On resize, recompute the fit but only if the user hasn't custom-zoomed.
+  // Heuristic: stay where they are; just keep the centre stable.
+});
+
+resetBtn.addEventListener('click', () => {
+  fitView();
+  fadeHint();
+});
+
+// Blend additive transparent: enable alpha blending
+gl.enable(gl.BLEND);
+gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);  // premultiplied alpha
+
+// Clear color — paper tone matches body background
+const bgRGB = [0xec / 255, 0xe9 / 255, 0xe0 / 255];
+
+let frameId = 0;
+function frame(tMs) {
+  // Zoom smoothing
+  if (Math.abs(state.zoom - state.targetZoom) > 1e-5) {
+    state.zoom += (state.targetZoom - state.zoom) * PINCH_ZOOM_SMOOTHING;
+    updateHud();
+  }
+
+  gl.clearColor(bgRGB[0], bgRGB[1], bgRGB[2], 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
+  gl.useProgram(prog);
+  gl.bindVertexArray(vao);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+
+  gl.uniform2f(u_pan, state.pan.x, state.pan.y);
+  gl.uniform1f(u_zoom, state.zoom);
+  gl.uniform2f(u_screenSize, canvas.width, canvas.height);
+  gl.uniform1f(u_time, tMs);
+  // Point size scales with the device-pixel-ratio path. canvas.width is
+  // already in device pixels (we DPR-adjusted in resize), so this is
+  // device-pixel size — gl_PointSize is in framebuffer pixels.
+  gl.uniform1f(u_pointBaseSize, POINT_BASE_SIZE_PX * (canvas.width / window.innerWidth));
+  gl.uniform1f(u_motionScale, MOTION_SCALE);
+
+  gl.drawArrays(gl.POINTS, 0, PARTICLE_COUNT);
+
+  frameId = requestAnimationFrame(frame);
+}
+frameId = requestAnimationFrame(frame);
+
+// Pause rendering when tab is hidden (saves battery)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    cancelAnimationFrame(frameId);
+  } else {
+    frameId = requestAnimationFrame(frame);
+  }
+});
+
+// =============================================================
+// INPUT — drag to pan, wheel + pinch to zoom
+// =============================================================
+function clampZoom(z) {
+  // The lower bound floats with the fit-zoom so we never zoom out past
+  // "see the whole cluster comfortably". fit-zoom depends on viewport.
+  const smaller = Math.min(canvas.width, canvas.height);
+  const fitZoom = (smaller * 0.85) / (CLUSTER_RADIUS * 2);
+  return Math.max(fitZoom * 0.6, Math.min(MAX_ZOOM, z));
+}
+
+function updateHud() {
+  const smaller = Math.min(canvas.width, canvas.height);
+  const fitZoom = (smaller * 0.85) / (CLUSTER_RADIUS * 2);
+  const pct = Math.round((state.zoom / fitZoom) * 100);
+  zoomEl.textContent = pct;
+}
+
+function fadeHint() {
+  if (hintEl && !hintEl.classList.contains('fade')) {
+    hintEl.classList.add('fade');
+    setTimeout(() => { hintEl.style.display = 'none'; }, 800);
+  }
+}
+
+// Apply a zoom delta centred on a screen-space pivot point.
+// Math: screen point under cursor in world space stays put after zoom.
+function zoomAtPoint(pivotX_dpx, pivotY_dpx, newZoom) {
+  newZoom = clampZoom(newZoom);
+  // World coords under pivot (before zoom)
+  const wxBefore = (pivotX_dpx - canvas.width  * 0.5) / state.zoom + state.pan.x;
+  const wyBefore = (pivotY_dpx - canvas.height * 0.5) / state.zoom + state.pan.y;
+  state.targetZoom = newZoom;
+  // Pan so the world coords stay under pivot at new zoom
+  state.pan.x = wxBefore - (pivotX_dpx - canvas.width  * 0.5) / newZoom;
+  state.pan.y = wyBefore - (pivotY_dpx - canvas.height * 0.5) / newZoom;
+  state.zoom = newZoom;  // immediate; targetZoom equal => no smoothing tween
+  updateHud();
+}
+
+// Mouse drag
+canvas.addEventListener('mousedown', (e) => {
+  state.dragging = true;
+  state.lastPointer = { x: e.clientX, y: e.clientY };
+  canvas.classList.add('dragging');
+  fadeHint();
+});
+window.addEventListener('mousemove', (e) => {
+  if (!state.dragging) return;
+  const dpr = canvas.width / window.innerWidth;
+  const dx = (e.clientX - state.lastPointer.x) * dpr;
+  const dy = (e.clientY - state.lastPointer.y) * dpr;
+  state.pan.x -= dx / state.zoom;
+  state.pan.y -= dy / state.zoom;
+  state.lastPointer = { x: e.clientX, y: e.clientY };
+});
+window.addEventListener('mouseup', () => {
+  state.dragging = false;
+  canvas.classList.remove('dragging');
+});
+
+// Wheel zoom (and ctrl+wheel from trackpad pinch)
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const dpr = canvas.width / window.innerWidth;
+  const px = e.clientX * dpr;
+  const py = e.clientY * dpr;
+  // Pinch on Mac trackpads sends wheel events with ctrlKey=true and
+  // larger deltas. Treat them the same; just scale a bit differently.
+  const delta = -e.deltaY * (e.ctrlKey ? 0.012 : WHEEL_ZOOM_SPEED);
+  const newZoom = state.zoom * Math.exp(delta);
+  zoomAtPoint(px, py, newZoom);
+  fadeHint();
+}, { passive: false });
+
+// Touch — 1 finger pan, 2 finger pinch+pan
+const touchState = {
+  mode: null,        // 'pan' | 'pinch' | null
+  lastX: 0, lastY: 0,
+  lastDist: 0,
+  lastCx: 0, lastCy: 0,
+};
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    touchState.mode = 'pan';
+    touchState.lastX = e.touches[0].clientX;
+    touchState.lastY = e.touches[0].clientY;
+  } else if (e.touches.length === 2) {
+    touchState.mode = 'pinch';
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    touchState.lastDist = Math.hypot(dx, dy);
+    touchState.lastCx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    touchState.lastCy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+  }
+  fadeHint();
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const dpr = canvas.width / window.innerWidth;
+  if (touchState.mode === 'pan' && e.touches.length === 1) {
+    const dx = (e.touches[0].clientX - touchState.lastX) * dpr;
+    const dy = (e.touches[0].clientY - touchState.lastY) * dpr;
+    state.pan.x -= dx / state.zoom;
+    state.pan.y -= dy / state.zoom;
+    touchState.lastX = e.touches[0].clientX;
+    touchState.lastY = e.touches[0].clientY;
+  } else if (touchState.mode === 'pinch' && e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    // Zoom by distance ratio, centred on the pinch midpoint
+    const ratio = dist / touchState.lastDist;
+    const newZoom = state.zoom * ratio;
+    zoomAtPoint(cx * dpr, cy * dpr, newZoom);
+    // Also pan by the midpoint movement (so the swarm follows the fingers)
+    const panDx = (cx - touchState.lastCx) * dpr;
+    const panDy = (cy - touchState.lastCy) * dpr;
+    state.pan.x -= panDx / state.zoom;
+    state.pan.y -= panDy / state.zoom;
+    touchState.lastDist = dist;
+    touchState.lastCx = cx;
+    touchState.lastCy = cy;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  if (e.touches.length === 0) touchState.mode = null;
+  else if (e.touches.length === 1) {
+    // Switched from pinch to pan
+    touchState.mode = 'pan';
+    touchState.lastX = e.touches[0].clientX;
+    touchState.lastY = e.touches[0].clientY;
+  }
+}, { passive: false });
+
+// Keyboard a11y — arrow keys pan, +/- zoom
+canvas.tabIndex = 0;
+canvas.addEventListener('keydown', (e) => {
+  const PAN_STEP = 60;
+  const ZOOM_STEP = 1.15;
+  let handled = true;
+  switch (e.key) {
+    case 'ArrowLeft':  state.pan.x -= PAN_STEP / state.zoom; break;
+    case 'ArrowRight': state.pan.x += PAN_STEP / state.zoom; break;
+    case 'ArrowUp':    state.pan.y -= PAN_STEP / state.zoom; break;
+    case 'ArrowDown':  state.pan.y += PAN_STEP / state.zoom; break;
+    case '+':
+    case '=':
+      zoomAtPoint(canvas.width / 2, canvas.height / 2, state.zoom * ZOOM_STEP);
+      break;
+    case '-':
+    case '_':
+      zoomAtPoint(canvas.width / 2, canvas.height / 2, state.zoom / ZOOM_STEP);
+      break;
+    case '0':
+      fitView();
+      break;
+    default: handled = false;
+  }
+  if (handled) { e.preventDefault(); fadeHint(); }
+});
+
+// Auto-fade the hint after 5 seconds even without interaction
+setTimeout(fadeHint, 5000);
+
+</script>
+
+</body>
+</html>

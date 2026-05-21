@@ -82,6 +82,12 @@
 /list.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
+/soup
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/soup.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
 /404
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
