@@ -167,6 +167,31 @@
   gap: 6px;
 }
 
+/* Section label between "Installed" extensions and "Mobile" deep-links.
+   Quiet — just a small subtitle, not a heading. */
+.nav-wallet-modal-section-label {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 12px 4px 6px;
+}
+.nav-wallet-modal-section-label:first-child {
+  padding-top: 0;
+}
+
+/* Mobile deep-link rows look the same as installed but use ↗ arrow
+   and decorate slightly differently to hint "this opens externally". */
+.nav-wallet-modal-mobile {
+  text-decoration: none;
+  color: var(--ink);
+}
+.nav-wallet-modal-mobile .nav-wallet-modal-arrow {
+  font-size: 14px;
+}
+
 .nav-wallet-modal-option {
   display: flex; align-items: center; gap: 12px;
   background: var(--bg);

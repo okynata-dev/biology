@@ -13,7 +13,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
-<link rel="stylesheet" href="/nav-wallet.css?v=6">
+<link rel="stylesheet" href="/nav-wallet.css?v=7">
 <link rel="canonical" href="https://thebioms.com/lab">
 
 <meta property="og:type" content="website">
@@ -3301,8 +3301,12 @@ function _updateCardDynamic(card, seed, now) {
 
   // Role tag
   const roleEl = card.querySelector('.role-tag');
+  // "Absorb" instead of "Keep" — the recipient in a burn doesn't
+  // "stay the same", it inherits every trait from the donor. Only
+  // its tokenId is preserved. "Absorb" matches the conjugate button
+  // label ("Burn & Absorb") and is honest about what happens.
   const roleText = !isDonor && !isRecipient ? ''
-    : arenaMode === 'burn' ? (isDonor ? 'Burn' : 'Keep')
+    : arenaMode === 'burn' ? (isDonor ? 'Burn' : 'Absorb')
     : (isDonor ? 'A' : 'B');
   if (roleText) {
     roleEl.textContent = roleText;
@@ -5101,6 +5105,6 @@ collectionGrid.addEventListener('click', (e) => {
 })();
 </script>
 
-<script defer src="/nav-wallet.js?v=6"></script>
+<script defer src="/nav-wallet.js?v=7"></script>
 </body>
 </html>

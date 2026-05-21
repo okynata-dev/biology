@@ -119,12 +119,32 @@
   }
   function onModalKey(e) { if (e.key === 'Escape') closeModal(); }
 
+  // Detect mobile so we can surface the right CTAs. Modern mobile
+  // wallets accept universal-link redirects that open the dapp inside
+  // their in-app browser, where window.ethereum is injected and the
+  // standard EIP-6963 flow works. This is the cheapest "any popular
+  // wallet" solution short of integrating WalletConnect v2 (which
+  // needs a Reown project ID — separate task).
+  const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  const HERE = encodeURIComponent(location.host + location.pathname + location.search);
+
+  // Mobile deep-links. Each opens the dapp inside the wallet's
+  // in-app browser. Universal links handle "is the app installed?"
+  // automatically — installed → app opens; not installed → wallet's
+  // landing page in the browser.
+  const MOBILE_WALLETS = [
+    { name: 'MetaMask',       url: `https://metamask.app.link/dapp/${location.host}${location.pathname}${location.search}` },
+    { name: 'Coinbase Wallet', url: `https://go.cb-w.com/dapp?cb_url=https%3A%2F%2F${HERE}` },
+    { name: 'Rainbow',        url: `https://rnbwapp.com/dapp/${location.host}${location.pathname}${location.search}` },
+    { name: 'Trust Wallet',   url: `https://link.trustwallet.com/open_url?coin_id=60&url=https%3A%2F%2F${HERE}` },
+  ];
+
   function openModal(pillBtn) {
     closeModal();
     // Re-announce in case wallets were slow on initial boot
     try { window.dispatchEvent(new Event('eip6963:requestProvider')); } catch (_) {}
 
-    const list = providers.length
+    const installedList = providers.length
       ? providers.map((p, i) => `
           <button type="button" class="nav-wallet-modal-option" data-i="${i}">
             ${p.info.icon ? `<img class="nav-wallet-modal-icon" src="${esc(p.info.icon)}" alt="" width="28" height="28">` : '<span class="nav-wallet-modal-icon-blank"></span>'}
@@ -132,14 +152,46 @@
             <span class="nav-wallet-modal-arrow" aria-hidden="true">→</span>
           </button>
         `).join('')
-      : `<div class="nav-wallet-modal-empty">
-           <p>No wallets detected in this browser.</p>
-           <p class="nav-wallet-modal-empty-sub">Install
-             <a href="https://metamask.io" target="_blank" rel="noopener">MetaMask</a>,
-             <a href="https://rabby.io" target="_blank" rel="noopener">Rabby</a>, or
-             <a href="https://www.coinbase.com/wallet" target="_blank" rel="noopener">Coinbase Wallet</a>
-             and reload this page.</p>
-         </div>`;
+      : '';
+
+    // Mobile wallet links — always shown on mobile, also offered as
+    // "Or open in a mobile wallet" below the installed list on desktop
+    // (for users who have a phone wallet but no extension).
+    const mobileList = MOBILE_WALLETS.map(w => `
+      <a class="nav-wallet-modal-option nav-wallet-modal-mobile" href="${esc(w.url)}" target="_blank" rel="noopener">
+        <span class="nav-wallet-modal-icon-blank"></span>
+        <span class="nav-wallet-modal-name">${esc(w.name)}</span>
+        <span class="nav-wallet-modal-arrow" aria-hidden="true">↗</span>
+      </a>
+    `).join('');
+
+    // Composition:
+    //   - If any EIP-6963 providers detected → show them as primary
+    //   - Always show mobile deep-link section (collapsible label on desktop)
+    //   - Empty fallback if nothing detected AND user is on desktop with
+    //     no wallets — direct install links
+    let body = '';
+    if (installedList) {
+      body += `
+        <div class="nav-wallet-modal-section-label">Installed</div>
+        <div class="nav-wallet-modal-list">${installedList}</div>
+      `;
+    } else if (!IS_MOBILE) {
+      body += `
+        <div class="nav-wallet-modal-empty">
+          <p>No wallet extensions detected in this browser.</p>
+          <p class="nav-wallet-modal-empty-sub">Install
+            <a href="https://metamask.io" target="_blank" rel="noopener">MetaMask</a>,
+            <a href="https://rabby.io" target="_blank" rel="noopener">Rabby</a>, or
+            <a href="https://www.coinbase.com/wallet" target="_blank" rel="noopener">Coinbase Wallet</a>,
+            then reload this page.</p>
+        </div>
+      `;
+    }
+    body += `
+      <div class="nav-wallet-modal-section-label">${installedList ? 'Or open in a mobile wallet' : 'Open in a mobile wallet'}</div>
+      <div class="nav-wallet-modal-list">${mobileList}</div>
+    `;
 
     modalEl = document.createElement('div');
     modalEl.className = 'nav-wallet-modal-backdrop';
@@ -152,8 +204,8 @@
           <h2 id="nav-wallet-modal-title">Connect a wallet</h2>
           <button type="button" class="nav-wallet-modal-close" aria-label="Close">×</button>
         </div>
-        <p class="nav-wallet-modal-sub">Pick any wallet you have installed.</p>
-        <div class="nav-wallet-modal-list">${list}</div>
+        <p class="nav-wallet-modal-sub">${installedList ? 'Pick a wallet to continue.' : 'Pick where you want to connect.'}</p>
+        ${body}
       </div>
     `;
     document.body.appendChild(modalEl);
