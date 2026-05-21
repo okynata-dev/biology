@@ -228,7 +228,11 @@
     letter-spacing: 0.1em;
     cursor: pointer;
     border: 1px solid transparent;
-    transition: all 0.15s;
+    /* Was `transition: all` — animates every property, including any
+       layout-shift, which can cause subtle jank when the pill text
+       updates. Narrowed to the three properties that actually change
+       on hover/active. */
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
     text-transform: uppercase;
   }
   .pill.active {

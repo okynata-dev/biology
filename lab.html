@@ -238,7 +238,11 @@
   .wallet-status.ok { color: var(--ok); }
   .wallet-status.bad { color: var(--bad); }
   .wallet-status .addr {
-    background: var(--bg);
+    /* Paper, not body-bg — the mode-bar is now transparent (showing
+       body bg through), and an addr chip filled with body-bg becomes
+       visually indistinguishable from the bar. Paper is one shade
+       lighter and reads as a deliberate chip. */
+    background: var(--paper);
     border: 1px solid var(--rule);
     border-radius: var(--r-pill);
     padding: 3px 10px;

@@ -406,7 +406,10 @@
     width: 100%; height: 100%;
     object-fit: cover;
     display: block;
-    background: #fff;
+    /* Match the catalog cell's paper surface. Acts as the placeholder
+       colour BEFORE the PNG decodes — a stark white block was flashing
+       in for ~80-200ms on slow networks. */
+    background: var(--paper);
   }
   /* Inline-render container for pre-reveal catalog cells. Replaces
      12 live iframes (each loading preview.html + engine) with one

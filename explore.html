@@ -206,7 +206,13 @@
     aspect-ratio: 1;
     width: 100%;
     overflow: hidden;
-    background: #ffffff;
+    /* Cream paper matches the trait-card surface so the PNG specimen
+       integrates with the card material instead of sitting on a stark
+       white inset. The pre-rendered traits are baked on white but the
+       biom takes up most of the cell so the surrounding paper-vs-white
+       seam reads only at the cell's outer edge. Still better than a
+       hard white block. (Long term: regen these PNGs with cream bg.) */
+    background: var(--paper);
     position: relative;
   }
   .trait-preview img {
