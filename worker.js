@@ -871,6 +871,236 @@ async function handleStateBatch(env, tokensParam, origin) {
   }, origin);
 }
 
+// ============================================================
+// SPECIMEN STATE — server-side port of specimen-engine.js
+// ============================================================
+// Mirrors the pure state-generation logic from specimen-engine.js so
+// the Worker can produce OpenSea-compatible metadata without spinning
+// up the full browser engine (which depends on DOM APIs).
+//
+// CRITICAL: weights/order/RNG semantics MUST match specimen-engine.js
+// byte-for-byte. The CI parity check (tests/rng_parity_check.sh)
+// catches drift between this port and the original; if you touch any
+// constant here, also update specimen-engine.js + tests/rng_parity.py.
+// ============================================================
+
+function _mulberry32(seed) {
+  let t = seed;
+  return function () {
+    t = (t + 0x6D2B79F5) | 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const _PALETTE_WEIGHTS = [
+  ['gramPositive', 20], ['gramNegative', 16], ['fluorescent', 14], ['methylene', 12],
+  ['darkfield', 8], ['acid_fast', 6], ['giemsa', 5], ['iridescent_aurora', 7],
+  ['ghost', 5], ['safranin', 3], ['india_ink', 3], ['gram_variable', 1],
+];
+const _MORPHOLOGY_WEIGHTS = [
+  ['coccus', 13], ['bacillus', 13], ['vibrio', 12], ['spirillum', 12],
+  ['filament', 10], ['cluster', 10], ['diplo', 10], ['streptobacillus', 8],
+  ['tetrad', 7], ['sarcina', 3], ['mycelium', 2],
+];
+const _RESERVE_WEIGHTS = [
+  ['none', 64], ['phb', 12], ['volutin', 10], ['magnetosomes', 7],
+  ['sulfur', 4], ['crystalline', 3],
+];
+const _LIFECYCLE_WEIGHTS = [
+  ['vegetative', 78], ['binary_fission', 10], ['sporulating', 6], ['heterocyst', 6],
+];
+
+function _pickW(weights, rng) {
+  const r = rng() * 100;
+  let acc = 0;
+  for (const [n, w] of weights) { acc += w; if (r < acc) return n; }
+  return weights[weights.length - 1][0];
+}
+
+const _NAME_PREFIX = [
+  'Halo','Aure','Lumi','Spiro','Vibrio','Coccu','Micro','Crypto',
+  'Polyspora','Sympha','Glia','Plasmo','Endo','Strepto',
+  'Acid','Chemo','Pheno','Pseudo','Auro','Cyto','Phago','Lipo',
+  'Astro','Cryo','Thermo','Photo','Carbo','Ferro','Magneto','Geo','Nano','Xeno',
+];
+const _NAME_SUFFIX = [
+  'philia','lensis','nescens','aria','caula','genia','nax',
+  'corymba','roteus','mensis','tarchus','lina','striga','thymos',
+  'bacter','coccus','monas','philis','mira','voraxa','geri',
+  'fila','ster','dictyon','helios','gena','sphaera','tuus','vorans','capsa','mantia','oides',
+];
+function _pickName(seed) {
+  const r = _mulberry32(seed);
+  return (_NAME_PREFIX[Math.floor(r() * 32)] + _NAME_SUFFIX[Math.floor(r() * 32)]).toUpperCase();
+}
+
+// EXACT mirror of specimen-engine.js → generateState(seed).
+// Output keys + order of rng() calls must stay identical or the
+// rendered visual will not match the metadata.
+function _generateState(seed) {
+  const rng = _mulberry32(seed);
+  const state = { seed, organelles: ['capsule'] };  // use Array instead of Set so JSON.stringify works
+  state.morphology = _pickW(_MORPHOLOGY_WEIGHTS, rng);
+  state.palette = _pickW(_PALETTE_WEIGHTS, rng);
+  state.cellCount = 1 + Math.floor(rng() * 6);
+  state.accentCount = Math.floor(rng() * 4);
+  if (rng() < 0.85) state.organelles.push('nucleoid');
+  if (rng() < 0.45) state.organelles.push('ribosomes');
+  if (rng() < 0.55) state.organelles.push('pili');
+  if (rng() < 0.30) state.organelles.push('flagellum');
+  if (rng() < 0.40) state.organelles.push('plasmid');
+  if (rng() < 0.15) state.organelles.push('endospore');
+  if (rng() < 0.20) state.organelles.push('inclusion');
+  if (rng() < 0.20) state.organelles.push('eyespot');
+  if (rng() < 0.15) state.organelles.push('axial');
+  state.reserveGranule = _pickW(_RESERVE_WEIGHTS, rng);
+  let lc = _pickW(_LIFECYCLE_WEIGHTS, rng);
+  if (lc === 'heterocyst' && state.morphology !== 'filament' && state.morphology !== 'mycelium') lc = 'vegetative';
+  state.lifecycle = lc;
+  state.phageAttached = rng() < 0.015;
+  state.endosymbiont = rng() < 0.01;
+  state.biofilmHalo  = rng() < 0.02;
+  return state;
+}
+
+// Human-readable trait labels (used in OpenSea attributes panel).
+// Kept terse — OpenSea trait values render on small chips.
+const _PALETTE_LABEL = {
+  gramPositive: 'Gram-positive purple',
+  gramNegative: 'Gram-negative pink',
+  fluorescent: 'Fluorescent green',
+  methylene: 'Methylene blue',
+  darkfield: 'Darkfield silver',
+  acid_fast: 'Acid-fast carmine',
+  giemsa: 'Giemsa indigo',
+  iridescent_aurora: 'Iridescent aurora',
+  ghost: 'Ghost',
+  safranin: 'Safranin orange',
+  india_ink: 'India ink negative',
+  gram_variable: 'Gram-variable',
+};
+const _MORPH_LABEL = {
+  coccus: 'Coccus', bacillus: 'Bacillus', vibrio: 'Vibrio',
+  spirillum: 'Spirillum', filament: 'Filament', cluster: 'Cluster',
+  diplo: 'Diplo', streptobacillus: 'Streptobacillus',
+  tetrad: 'Tetrad', sarcina: 'Sarcina', mycelium: 'Mycelium',
+};
+const _LIFECYCLE_LABEL = {
+  vegetative: 'Vegetative', binary_fission: 'Binary fission',
+  sporulating: 'Sporulating', heterocyst: 'Heterocyst',
+};
+const _RESERVE_LABEL = {
+  none: 'None', phb: 'PHB granules', volutin: 'Volutin',
+  magnetosomes: 'Magnetosomes', sulfur: 'Sulfur granules',
+  crystalline: 'Crystalline inclusions',
+};
+const _ORG_LABEL = {
+  capsule: 'Capsule', nucleoid: 'Nucleoid', ribosomes: 'Ribosomes',
+  pili: 'Pili', flagellum: 'Flagellum', plasmid: 'Plasmid',
+  endospore: 'Endospore', inclusion: 'Inclusion', eyespot: 'Eyespot',
+  axial: 'Axial filament',
+};
+
+function _tierForRank(rank) {
+  if (rank <= 1) return 'Genesis';
+  if (rank <= 3) return 'Hybrid';
+  if (rank <= 7) return 'Chimera';
+  return 'Phoenix';
+}
+
+// === OpenSea metadata builder ===
+// Returns the JSON object that lives at /api/metadata/<tokenId>.
+// Applies persistent mutations from D1 (from past crossbreed/burn
+// operations) so the rendered image stays in sync with what the
+// chain records show.
+async function buildMetadata(env, tokenId) {
+  const state = _generateState(tokenId);
+  const padded = String(tokenId).padStart(5, '0');
+  const name = _pickName(tokenId);
+
+  // Layer persistent mutations from the Lab (post-conjugate state).
+  // If the token has been burned in the Lab, the absorbed traits
+  // become part of its metadata. Defensive — if D1 is unreachable
+  // we serve the base specimen rather than 500'ing.
+  let mutations = {};
+  try {
+    const { mutations: m } = await loadTokenState(env, tokenId);
+    mutations = m || {};
+  } catch (_) { /* ignore */ }
+
+  // Effective state after mutations
+  const eff = { ...state, organelles: state.organelles.slice() };
+  if (mutations.receivedPalette) eff.palette = mutations.receivedPalette;
+  if (Array.isArray(mutations.receivedOrganelles)) {
+    for (const o of mutations.receivedOrganelles) if (!eff.organelles.includes(o)) eff.organelles.push(o);
+  }
+  if (Array.isArray(mutations.receivedAnomalies)) {
+    for (const a of mutations.receivedAnomalies) eff[a] = true;
+  }
+  if (mutations.receivedMorphology) eff.morphology = mutations.receivedMorphology;
+  if (mutations.receivedCellCount) eff.cellCount = mutations.receivedCellCount;
+  if (mutations.receivedLifecycle) eff.lifecycle = mutations.receivedLifecycle;
+  if (mutations.receivedReserve)   eff.reserveGranule = mutations.receivedReserve;
+  const rank = mutations.rank || 1;
+  const absorbed = mutations.burnsAbsorbed || 0;
+  const tier = _tierForRank(rank);
+
+  // Attributes — order matters for OpenSea grouping
+  const attributes = [
+    { trait_type: 'Tier',         value: tier },
+    { trait_type: 'Rank',         value: rank, display_type: 'number' },
+    { trait_type: 'Morphology',   value: _MORPH_LABEL[eff.morphology]    || eff.morphology },
+    { trait_type: 'Palette',      value: _PALETTE_LABEL[eff.palette]     || eff.palette },
+    { trait_type: 'Cell count',   value: eff.cellCount, display_type: 'number' },
+    { trait_type: 'Lifecycle',    value: _LIFECYCLE_LABEL[eff.lifecycle] || eff.lifecycle },
+    { trait_type: 'Reserve',      value: _RESERVE_LABEL[eff.reserveGranule] || eff.reserveGranule },
+  ];
+  // Each organelle as its own boolean-ish trait so collectors can
+  // filter "all bioms with flagellum" on OpenSea.
+  for (const o of eff.organelles) {
+    if (o === 'capsule') continue;  // every biom has one; not interesting
+    attributes.push({ trait_type: 'Organelle', value: _ORG_LABEL[o] || o });
+  }
+  // Anomalies — rare, important to surface
+  if (eff.phageAttached) attributes.push({ trait_type: 'Anomaly', value: 'Phage attached' });
+  if (eff.endosymbiont)  attributes.push({ trait_type: 'Anomaly', value: 'Endosymbiont' });
+  if (eff.biofilmHalo)   attributes.push({ trait_type: 'Anomaly', value: 'Biofilm halo' });
+  if (absorbed > 0) {
+    attributes.push({ trait_type: 'Burns absorbed', value: absorbed, display_type: 'number' });
+  }
+
+  return {
+    name: `${name} #${padded}`,
+    description: 'A living microbe from the Bioms collection — 3000 generative specimens that share traits, burn each other, and evolve. The survivors carry everything forward. thebioms.com',
+    image: `https://pngs.thebioms.com/preview/${padded}.png`,
+    image_url: `https://pngs.thebioms.com/preview/${padded}.png`,  // OpenSea legacy field
+    animation_url: `https://thebioms.com/preview.html?seed=${tokenId}`,
+    external_url: `https://thebioms.com/lab?seed=${tokenId}`,
+    attributes,
+    // OpenSea-specific: this lets the collection page show creator + royalty info
+    background_color: 'ECE9E0',  // matches site cream paper
+  };
+}
+
+async function handleMetadata(env, tokenIdStr, origin) {
+  const tokenId = parseInt(tokenIdStr, 10);
+  const maxId = maxTokenId(env);
+  if (!Number.isFinite(tokenId) || tokenId < 0 || tokenId > maxId) {
+    return error('bad_token_id', 400, origin);
+  }
+  const meta = await buildMetadata(env, tokenId);
+  return json(meta, {
+    headers: {
+      // Marketplaces poll metadata. Short cache so post-mutation
+      // changes propagate quickly without hammering the Worker.
+      'Cache-Control': 'public, max-age=300, s-maxage=300',
+      'Access-Control-Allow-Origin': '*',  // marketplaces fetch server-side
+    },
+  }, origin);
+}
+
 async function handleLog(env, url, origin) {
   const params = url.searchParams;
   const donor = params.get('donor');
@@ -1241,6 +1471,12 @@ export default {
       if (path.startsWith('/api/state/')) {
         const id = path.slice('/api/state/'.length);
         return await handleState(env, id, origin);
+      }
+      if (path.startsWith('/api/metadata/')) {
+        // OpenSea-compatible JSON for each tokenId.
+        // Contract baseURI should be: https://api.thebioms.com/api/metadata/
+        const id = path.slice('/api/metadata/'.length);
+        return await handleMetadata(env, id, origin);
       }
       if (path === '/api/conjugate' && req.method === 'POST') {
         return await handleConjugate(req, env, origin);
