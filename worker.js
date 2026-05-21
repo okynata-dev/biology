@@ -280,29 +280,135 @@ async function ownerOf(env, tokenId) {
   }
 }
 
-async function listOwned(env, address) {
+// Mask the Alchemy API key inside a URL before exposing the URL anywhere
+// user-facing. The key sits in the path segment between /v2/ or /nft/v3/
+// and the next slash. Replacement keeps the rest of the URL intact for
+// diagnostics, while making the secret unrecoverable from the debug output.
+function maskAlchemyKey(url) {
+  if (!url) return url;
+  return url
+    .replace(/\/nft\/v3\/[^/?]+/, '/nft/v3/<KEY>')
+    .replace(/\/v2\/[^/?]+/, '/v2/<KEY>');
+}
+
+async function listOwned(env, address, opts = {}) {
   // Strict hex-address validation (same standard as /api/health) so a
   // placeholder secret can't accidentally surface as "contract deployed".
   if (!/^0x[a-fA-F0-9]{40}$/.test(env.CONTRACT_ADDRESS || '') ||
       env.CONTRACT_ADDRESS.toLowerCase() === '0x0000000000000000000000000000000000000000') {
     return { tokens: [], contractDeployed: false };
   }
+
+  // ----- Primary path: Alchemy NFT API (indexed, fast, scales to 3000 supply) -----
   const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${env.ALCHEMY_KEY}/getNFTsForOwner` +
     `?owner=${address}&contractAddresses[]=${env.CONTRACT_ADDRESS}&withMetadata=false&pageSize=100`;
+  let primaryError = null;
+  let primaryStatus = null;
+  let primaryBody = null;
   try {
     const r = await fetchWithTimeout(url);
-    if (!r.ok) {
-      console.warn('listOwned Alchemy non-OK:', address, r.status);
-      return { tokens: [], contractDeployed: true, error: 'alchemy_error' };
+    primaryStatus = r.status;
+    if (r.ok) {
+      const data = await r.json();
+      const tokens = (data.ownedNfts || []).map(n => parseInt(n.tokenId, 10)).filter(n => Number.isFinite(n));
+      const result = { tokens, contractDeployed: true, source: 'alchemy-nft' };
+      if (opts.debug) result.debug = { url: maskAlchemyKey(url), status: r.status };
+      return result;
     }
-    const data = await r.json();
-    const tokens = (data.ownedNfts || []).map(n => parseInt(n.tokenId, 10)).filter(n => Number.isFinite(n));
-    return { tokens, contractDeployed: true };
+    // Non-OK from Alchemy NFT API. Capture the body so the debug
+    // endpoint can show the actual error (rate limit / not-indexed /
+    // unsupported contract type, etc).
+    primaryBody = await r.text().catch(() => '');
+    primaryError = 'alchemy_nft_api_status_' + r.status;
+    console.warn('listOwned Alchemy NFT-API non-OK:', address, r.status, primaryBody.slice(0, 200));
   } catch (e) {
-    const reason = e?.name === 'AbortError' ? 'timeout' : 'fetch_failed';
-    console.warn('listOwned exception:', address, reason, e?.message || e);
-    return { tokens: [], contractDeployed: true, error: reason };
+    primaryError = e?.name === 'AbortError' ? 'timeout' : 'fetch_failed';
+    console.warn('listOwned NFT-API exception:', address, primaryError, e?.message || e);
   }
+
+  // ----- Fallback: Transfer-log scan via Alchemy JSON-RPC -----
+  // The NFT API runs against Alchemy's indexed catalogue. New contracts
+  // (test deploys, hours-old mainnet deploys, contracts using non-standard
+  // patterns) often aren't in the index yet and the NFT API returns 4xx.
+  // The JSON-RPC path is on-chain truth — eth_getLogs against the Transfer
+  // event filtered by recipient gives us a deterministic owned-list.
+  //
+  // We then subtract any Transfers where the wallet was sender (out-going)
+  // to avoid counting tokens they already moved away. Result: the set of
+  // currently-held tokenIds.
+  if (env.ALCHEMY_KEY) {
+    try {
+      const padded = '0x' + address.toLowerCase().replace('0x', '').padStart(64, '0');
+      const rpcUrl = `https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_KEY}`;
+      const baseFilter = {
+        fromBlock: '0x0',
+        toBlock: 'latest',
+        address: env.CONTRACT_ADDRESS,
+        topics: [TRANSFER_TOPIC],
+      };
+      // 1. Incoming transfers — recipient (topic 2) is our wallet
+      const incomingReq = fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1, method: 'eth_getLogs',
+          params: [{ ...baseFilter, topics: [TRANSFER_TOPIC, null, padded] }],
+        }),
+      });
+      // 2. Outgoing transfers — sender (topic 1) is our wallet
+      const outgoingReq = fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 2, method: 'eth_getLogs',
+          params: [{ ...baseFilter, topics: [TRANSFER_TOPIC, padded] }],
+        }),
+      });
+      const [incoming, outgoing] = await Promise.all([incomingReq, outgoingReq]);
+      if (incoming.ok && outgoing.ok) {
+        const inLogs = (await incoming.json()).result || [];
+        const outLogs = (await outgoing.json()).result || [];
+        // Build a map tokenId -> latest block at which we received it.
+        // If any outgoing log has a higher block for the same tokenId,
+        // the token is no longer ours.
+        const received = new Map();
+        for (const l of inLogs) {
+          const idHex = l.topics[3];
+          if (!idHex) continue;
+          const id = parseInt(idHex, 16);
+          const block = parseInt(l.blockNumber, 16);
+          if (!received.has(id) || received.get(id) < block) received.set(id, block);
+        }
+        for (const l of outLogs) {
+          const idHex = l.topics[3];
+          if (!idHex) continue;
+          const id = parseInt(idHex, 16);
+          const block = parseInt(l.blockNumber, 16);
+          if (received.has(id) && block >= received.get(id)) received.delete(id);
+        }
+        const tokens = [...received.keys()].sort((a, b) => a - b);
+        const result = { tokens, contractDeployed: true, source: 'transfer-logs' };
+        if (opts.debug) {
+          result.debug = {
+            primary: { url: maskAlchemyKey(url), status: primaryStatus, error: primaryError, body: primaryBody?.slice(0, 400) },
+            fallback: { incomingLogs: inLogs.length, outgoingLogs: outLogs.length },
+          };
+        }
+        return result;
+      }
+      console.warn('listOwned fallback non-OK:', address, incoming.status, outgoing.status);
+    } catch (e) {
+      console.warn('listOwned fallback exception:', address, e?.message || e);
+    }
+  }
+
+  // Both paths failed — return empty set with the primary error so the
+  // UI can decide whether to retry or show a friendly fallback message.
+  const result = { tokens: [], contractDeployed: true, error: primaryError || 'unknown_error' };
+  if (opts.debug) {
+    result.debug = { primary: { url: maskAlchemyKey(url), status: primaryStatus, error: primaryError, body: primaryBody?.slice(0, 400) } };
+  }
+  return result;
 }
 
 // ----- Signature verification -----
@@ -870,9 +976,15 @@ async function handleBurn(req, env, ctx, origin) {
 }
 
 // ----- Route handlers -----
-async function handleOwned(env, address, origin) {
+async function handleOwned(env, address, origin, url) {
   if (!isAddress(address)) return error('bad_address', 400, origin);
-  const result = await listOwned(env, address);
+  // ?debug=1 surfaces the full Alchemy URL / status / response body — useful
+  // for triaging "No Bioms" complaints when an indexer is mis-behaving.
+  // Public, no auth: the address is already in the path and the URL +
+  // status are not secrets (the API key is masked inside the URL but the
+  // payload itself is harmless).
+  const debug = url && url.searchParams && url.searchParams.get('debug') === '1';
+  const result = await listOwned(env, address, { debug });
   return json(result, {}, origin);
 }
 
@@ -1672,7 +1784,7 @@ export default {
 
       if (path.startsWith('/api/owned/')) {
         const addr = path.slice('/api/owned/'.length);
-        return await handleOwned(env, addr, origin);
+        return await handleOwned(env, addr, origin, url);
       }
       if (path.startsWith('/api/state-batch')) {
         return await handleStateBatch(env, url.searchParams.get('tokens'), origin);
