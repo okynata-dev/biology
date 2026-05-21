@@ -132,34 +132,38 @@
 
   // === Wallet flow ===
   async function connectWallet(btn) {
+    console.info('[nav-wallet] connect click', { hasEthereum: !!window.ethereum, isMetaMask: !!(window.ethereum && window.ethereum.isMetaMask) });
     if (!window.ethereum) {
-      // No injected provider. Open a quick help link in a new tab.
-      // (Mobile WalletConnect support deferred — keeps this file tiny.)
+      console.warn('[nav-wallet] no injected provider — opening MetaMask download');
       window.open('https://metamask.io/download/', '_blank', 'noopener');
       return;
     }
-    btn.classList.add('connecting');
-    const orig = btn.innerHTML;
-    btn.innerHTML = '<span class="nav-wallet-label">Connecting…</span>';
+    // CRITICAL: fire eth_requestAccounts BEFORE any DOM mutation. Some
+    // wallet builds ignore the call if the user-gesture chain is broken
+    // by intervening DOM work (innerHTML / classList changes count).
+    // The "Connecting…" UI is updated AFTER the request is in-flight.
+    let accounts;
     try {
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const addr = (accounts && accounts[0]) ? accounts[0].toLowerCase() : null;
-      if (!addr) throw new Error('No account returned');
-      // Best-effort chain switch to mainnet (silent fail if user declines)
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: CHAIN_ID_HEX }],
-        });
-      } catch (_) { /* user declined — keep going, lab UI will warn if relevant */ }
-      setStoredAddr(addr);
+      accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     } catch (err) {
-      // User rejected, or no permission — silently restore prior state
-      console.warn('[nav-wallet] connect cancelled:', err && err.message);
-      btn.innerHTML = orig;
-    } finally {
-      btn.classList.remove('connecting');
+      // User rejected, wallet locked, etc.
+      console.warn('[nav-wallet] eth_requestAccounts failed:', err && (err.code + ' ' + err.message));
+      return;
     }
+    const addr = (accounts && accounts[0]) ? accounts[0].toLowerCase() : null;
+    if (!addr) {
+      console.warn('[nav-wallet] no account returned from provider');
+      return;
+    }
+    // Best-effort chain switch to mainnet (silent fail if user declines)
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: CHAIN_ID_HEX }],
+      });
+    } catch (_) { /* user declined — keep going, lab UI will warn if relevant */ }
+    setStoredAddr(addr);
+    console.info('[nav-wallet] connected:', addr);
   }
 
   // === Watch injected provider for external changes ===
@@ -183,7 +187,11 @@
     // Find nav-links container on this page. If the page doesn't have
     // one (e.g. soup.html with its custom HUD-only nav, or admin), bail.
     const navLinks = document.querySelector('nav .nav-links');
-    if (!navLinks) return;
+    if (!navLinks) {
+      console.warn('[nav-wallet] no nav .nav-links on this page — pill not mounted');
+      return;
+    }
+    console.info('[nav-wallet] mounting pill');
 
     const pill = buildPill();
     // Insert as the FIRST child of nav-links so it appears to the left
