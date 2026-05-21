@@ -13,7 +13,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
-<link rel="stylesheet" href="/nav-wallet.css?v=7">
+<link rel="stylesheet" href="/nav-wallet.css?v=8">
 <link rel="canonical" href="https://thebioms.com/lab">
 
 <meta property="og:type" content="website">
@@ -2179,7 +2179,12 @@ const Wallet = {
   syncing: false,
 
   // === Provider detection ===
-  hasProvider() { return typeof window.ethereum !== 'undefined'; },
+  // Prefer the provider already picked by nav-wallet (EIP-6963 picker
+  // in the header). Falls back to window.ethereum for legacy contexts.
+  // The header pill exposes `window.biomsWalletProvider` on successful
+  // connect — that's the EIP-1193 instance we should talk to.
+  getProvider() { return window.biomsWalletProvider || window.ethereum || null; },
+  hasProvider() { return !!this.getProvider(); },
 
   // === Worker health probe ===
   async probeWorker() {
@@ -2198,21 +2203,31 @@ const Wallet = {
 
   // === Connect ===
   async connect() {
-    if (!this.hasProvider()) {
+    // If the nav-wallet picker is available, route through it — same
+    // EIP-6963 multi-wallet UX as the header pill, so users only ever
+    // see one wallet-picker design. The picker fires
+    // `bioms-wallet-change` on success which the Lab listener (below)
+    // turns into a populated Wallet state.
+    if (typeof window.biomsOpenWalletPicker === 'function' && !window.biomsWalletProvider) {
+      window.biomsOpenWalletPicker();
+      return null;  // async — completion handled via event listener
+    }
+    const provider = this.getProvider();
+    if (!provider) {
       throw new Error('No Ethereum wallet detected. Install MetaMask or Rabby.');
     }
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const accounts = await provider.request({ method: 'eth_requestAccounts' });
     if (!accounts || !accounts.length) throw new Error('No account returned.');
     this.address = toChecksum(accounts[0]);
-    const chainHex = await window.ethereum.request({ method: 'eth_chainId' });
+    const chainHex = await provider.request({ method: 'eth_chainId' });
     this.chainId = parseInt(chainHex, 16);
-    // Mirror to the nav-wallet's shared localStorage key so the pill in
-    // the page header reflects the connection without a refresh.
+    // Mirror to nav-wallet's shared localStorage key so the pill in
+    // the header reflects the connection without a refresh.
     try { localStorage.setItem('bioms-wallet-addr', this.address.toLowerCase()); } catch (_) {}
     window.dispatchEvent(new CustomEvent('bioms-wallet-change', { detail: { addr: this.address.toLowerCase() } }));
     // Listen for changes
     if (!this._listenersBound) {
-      window.ethereum.on?.('accountsChanged', (accs) => {
+      provider.on?.('accountsChanged', (accs) => {
         if (!accs || !accs.length) this.disconnect();
         else {
           this.address = toChecksum(accs[0]);
@@ -2221,7 +2236,7 @@ const Wallet = {
           onWalletChange();
         }
       });
-      window.ethereum.on?.('chainChanged', (cidHex) => {
+      provider.on?.('chainChanged', (cidHex) => {
         this.chainId = parseInt(cidHex, 16);
         onWalletChange();
       });
@@ -2248,12 +2263,13 @@ const Wallet = {
 
   // === Try silent reconnect — checks if any accounts already authorised ===
   async tryReconnect() {
-    if (!this.hasProvider()) return false;
+    const provider = this.getProvider();
+    if (!provider) return false;
     try {
-      const accs = await window.ethereum.request({ method: 'eth_accounts' });
+      const accs = await provider.request({ method: 'eth_accounts' });
       if (!accs || !accs.length) return false;
       this.address = toChecksum(accs[0]);
-      const chainHex = await window.ethereum.request({ method: 'eth_chainId' });
+      const chainHex = await provider.request({ method: 'eth_chainId' });
       this.chainId = parseInt(chainHex, 16);
       return true;
     } catch { return false; }
@@ -2262,8 +2278,10 @@ const Wallet = {
   // === Ensure correct chain ===
   async ensureChain(targetChainId) {
     if (this.chainId === targetChainId) return true;
+    const provider = this.getProvider();
+    if (!provider) return false;
     try {
-      await window.ethereum.request({
+      await provider.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: '0x' + targetChainId.toString(16) }],
       });
@@ -2327,7 +2345,7 @@ const Wallet = {
         deadline: String(deadline),
       },
     };
-    return await window.ethereum.request({
+    return await this.getProvider().request({
       method: 'eth_signTypedData_v4',
       params: [this.address, JSON.stringify(typedData)],
     });
@@ -2392,7 +2410,7 @@ const Wallet = {
         deadline: String(deadline),
       },
     };
-    return await window.ethereum.request({
+    return await this.getProvider().request({
       method: 'eth_signTypedData_v4',
       params: [this.address, JSON.stringify(typedData)],
     });
@@ -2410,7 +2428,7 @@ const Wallet = {
     if (!this.config?.contractDeployed) throw new Error('Mint contract not yet deployed.');
     const tokenHex = BigInt(donorId).toString(16).padStart(64, '0');
     const data = '0x42966c68' + tokenHex;
-    const txHash = await window.ethereum.request({
+    const txHash = await this.getProvider().request({
       method: 'eth_sendTransaction',
       params: [{
         from: this.address,
@@ -2427,7 +2445,7 @@ const Wallet = {
   // for up to ~3 minutes (90 attempts). Most burns confirm in 12-30s.
   async waitForTx(txHash, maxAttempts = 90, intervalMs = 2000) {
     for (let i = 0; i < maxAttempts; i++) {
-      const receipt = await window.ethereum.request({
+      const receipt = await this.getProvider().request({
         method: 'eth_getTransactionReceipt',
         params: [txHash],
       });
@@ -5051,6 +5069,63 @@ collectionGrid.addEventListener('click', (e) => {
     else   showChooser({ pushState: false });
   });
 
+  // === Sync with nav-wallet pill ===
+  // nav-wallet.js (loaded as <script defer> in <head>) discovers
+  // wallets via EIP-6963, lets the user pick one in a modal, and
+  // exposes the picked provider as `window.biomsWalletProvider` +
+  // fires a `bioms-wallet-change` CustomEvent. We listen here so the
+  // Lab's "My wallet" tab reflects header-pill state without a
+  // page refresh — and so users only ever go through ONE picker.
+  async function _adoptHeaderWallet(addr) {
+    if (!addr) {
+      // User disconnected in the header pill — clear Lab's state too,
+      // but skip the full disconnect() chain (which writes to storage
+      // and would re-fire events). Direct-clear the address.
+      Wallet.address = null;
+      Wallet.chainId = null;
+      LabState.walletAddress = null;
+      LabState.ownedSeeds = [];
+      LabState.tokens = {};
+      try { Storage.save(LabState); } catch (_) {}
+      renderCollection();
+      renderWalletUI();
+      return;
+    }
+    // Adopt the connection. window.biomsWalletProvider is the EIP-1193
+    // instance nav-wallet picked; Wallet.getProvider() will find it.
+    try {
+      Wallet.address = toChecksum(addr);
+      // Best-effort chainId fetch
+      try {
+        const chainHex = await Wallet.getProvider().request({ method: 'eth_chainId' });
+        Wallet.chainId = parseInt(chainHex, 16);
+      } catch (_) { /* keep prior value */ }
+      // Sync owned tokens from worker
+      if (LabState.mode === 'wallet') {
+        await syncWalletData({ silent: false });
+      } else {
+        renderWalletUI();
+      }
+    } catch (e) {
+      console.warn('[lab] failed to adopt header-wallet connection:', e);
+    }
+  }
+  window.addEventListener('bioms-wallet-change', (e) => {
+    const addr = (e && e.detail && e.detail.addr) || null;
+    _adoptHeaderWallet(addr);
+  });
+  // Initial pickup: if nav-wallet already reconnected silently (likely
+  // after a page refresh), the change event may have fired before our
+  // listener was attached. Check localStorage + provider once on boot.
+  setTimeout(() => {
+    try {
+      const stored = localStorage.getItem('bioms-wallet-addr');
+      if (stored && /^0x[a-f0-9]{40}$/i.test(stored) && window.biomsWalletProvider && !Wallet.address) {
+        _adoptHeaderWallet(stored);
+      }
+    } catch (_) {}
+  }, 600);  // after nav-wallet's own 350ms DISCOVERY_WINDOW
+
   // Initial render: URL is the source of truth.
   const initial = modeFromUrl();
   if (initial) showMode(initial, { pushState: false });
@@ -5108,6 +5183,6 @@ collectionGrid.addEventListener('click', (e) => {
 })();
 </script>
 
-<script defer src="/nav-wallet.js?v=7"></script>
+<script defer src="/nav-wallet.js?v=8"></script>
 </body>
 </html>

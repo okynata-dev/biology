@@ -265,6 +265,11 @@
 
     activeProvider = entry.provider;
     setStoredWallet(addr, entry.info.rdns || '');
+    // Expose the picked provider globally so lab.html (and any other
+    // page-level wallet flow) can talk to the same EIP-1193 instance
+    // we just connected to, instead of fighting over window.ethereum.
+    window.biomsWalletProvider     = entry.provider;
+    window.biomsWalletProviderInfo = entry.info;
     updatePill(pillBtn, addr);
     bindProviderEvents(entry.provider, pillBtn);
     closeModal();
@@ -322,6 +327,8 @@
     document.body.appendChild(dropdownEl);
     dropdownEl.querySelector('.nav-wallet-dd-disconnect').addEventListener('click', () => {
       activeProvider = null;
+      window.biomsWalletProvider     = null;
+      window.biomsWalletProviderInfo = null;
       setStoredWallet(null, null);
       updatePill(pillBtn, null);
       closeDropdown();
@@ -361,6 +368,9 @@
       }
       activeProvider = entry.provider;
       setStoredWallet(addr, entry.info.rdns || '');
+      // Same as fresh connect: expose for lab.html and other consumers
+      window.biomsWalletProvider     = entry.provider;
+      window.biomsWalletProviderInfo = entry.info;
       updatePill(pillBtn, addr);
       bindProviderEvents(entry.provider, pillBtn);
     } catch (_) {
@@ -404,6 +414,11 @@
 
     // Give wallets a beat to announce, then attempt silent reconnect.
     setTimeout(() => tryReconnect(pill), DISCOVERY_WINDOW_MS);
+
+    // Expose a global so other parts of the page (lab.html in
+    // particular) can open the same picker modal instead of
+    // re-implementing wallet UX. The pill is captured in closure here.
+    window.biomsOpenWalletPicker = () => openModal(pill);
   }
 
   if (document.readyState === 'loading') {
