@@ -459,12 +459,17 @@
      same restraint as the gen-badge. Burn-donor swaps to rust. */
   .biom-card .role-tag {
     position: absolute;
-    top: 10px; right: 10px;
+    /* Moved further inset (14px from edges, was 10px) so there's
+       visibly clear paper between the card border and the chip top.
+       Even at low device-pixel-ratio / 80% browser zoom the gap reads
+       as deliberate space, not as the chip being clipped against the
+       card's top edge. */
+    top: 14px; right: 14px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.06em;
-    padding: 3px 9px;
+    padding: 4px 10px;
     border-radius: 999px;
     background: var(--ink);
     color: var(--bg);
@@ -490,12 +495,12 @@
      tokens stand out, originals (G0 = no badge) become collector items. */
   .biom-card .gen-badge {
     position: absolute;
-    top: 10px; left: 10px;
+    top: 14px; left: 14px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.04em;
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 999px;
     background: var(--ink);
     color: var(--bg);
