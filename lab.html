@@ -3301,12 +3301,15 @@ function _updateCardDynamic(card, seed, now) {
 
   // Role tag
   const roleEl = card.querySelector('.role-tag');
-  // "Absorb" instead of "Keep" — the recipient in a burn doesn't
-  // "stay the same", it inherits every trait from the donor. Only
-  // its tokenId is preserved. "Absorb" matches the conjugate button
-  // label ("Burn & Absorb") and is honest about what happens.
+  // In burn mode BOTH cards say "Burn" — uniform label to avoid the
+  // "Keep / Absorb / etc." cognitive load (user's call after seeing
+  // it live). Which one is the sacrifice vs the survivor is signalled
+  // by the chip background colour (rust for the donor that gets
+  // destroyed, ink for the absorber) and by the matching card border.
+  // Step banner copy already names the roles ("Pick a Biom to burn",
+  // "Pick a Biom to absorb it") for anyone who needs the words.
   const roleText = !isDonor && !isRecipient ? ''
-    : arenaMode === 'burn' ? (isDonor ? 'Burn' : 'Absorb')
+    : arenaMode === 'burn' ? 'Burn'
     : (isDonor ? 'A' : 'B');
   if (roleText) {
     roleEl.textContent = roleText;
