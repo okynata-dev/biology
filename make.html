@@ -898,54 +898,153 @@ function shuffleCollageSeeds() {
 }
 
 // =========================================================================
-// COLLAGE CELL CACHE — render each biom ONCE, reuse as <img>
+// COLLAGE CELL CACHE — real master thumbs (cream-stripped, bbox-cropped)
 // =========================================================================
-// The original collage live-renderer called BiomEngine.renderSpecimen
-// on every cell, which paints ~15 .panel DOM nodes per biom — each with
-// backdrop-filter: blur(18px), inset highlights, multi-layer box-shadows.
-// At 24+ cells the browser drops frames on scroll, drag, and gap slider
-// because every paint cycle recomposites every panel's blurred backdrop.
+// 2026-05-22: the original cache used renderSpecimenToCanvas — the engine's
+// 2D-canvas fallback path. That path is the "third kind" of biom render:
+// not the live DOM glass (with real backdrop-filter blur) and not the
+// pre-rendered master PNG (a real Chromium screenshot of preview.html).
+// It's a flat gradient approximation and at small cell sizes the user
+// described it as "уродские".
 //
-// Collage bioms are STATIC — they don't need live DOM. So we rasterise
-// each unique seed once via renderSpecimenToCanvas (the engine's 2D-
-// canvas path, identical to what export already uses) and stash the
-// resulting PNG as a data URL. Subsequent cells using that seed are
-// just <img src=…> — the browser shares one decoded bitmap across all
-// references, repaints are free, the page stays buttery.
+// Now we use the actual master thumbnails from R2 — 600×600 WebP
+// screenshots taken by batch_screenshots.py at mint time. Same DOM that
+// preview.html paints, same backdrop-filter glass. The thumb has a
+// cream card background + biom positioned slightly below the centre
+// (preview.html reserves head-room for a title) — we strip the cream
+// via 4-connected BFS flood-fill from the edges, find the bbox of the
+// surviving opaque pixels, and crop to a square centred on that bbox.
+// The result is a tightly-framed, clean specimen suitable for a
+// tightly-packed grid.
 //
-// 320 px square is generous for cells smaller than ~160 px (covers
-// most realistic collage sizes); CSS downscales cleanly. If the user
-// scales the whole collage up beyond ~2× we'd want a bigger source,
-// but that's a rare extreme and 320 still looks decent.
-const COLLAGE_CACHE_SIZE = 320;
-// Soft cap so repeated shuffles can't balloon memory unbounded. Map
-// preserves insertion order → first-key eviction is true LRU-by-insertion.
+// Falls back to the engine 2D-canvas path if the thumb fetch fails
+// (pre-reveal, R2 outage, transient network). Better an ugly cell than
+// a blank one.
 const COLLAGE_CACHE_MAX = 256;
 const collageCellCache = new Map();   // seed -> dataURL
 
-function _ensureCachedBiom(seed) {
+// Cream-tone predicate. Bright, warm-biased, low channel spread —
+// matches the gradient the preview-card layout paints behind every
+// specimen. See stripCardBackground() above for the full reasoning.
+function _isCreamPixel(px, i) {
+  const r = px[i], g = px[i + 1], b = px[i + 2];
+  return r >= 215 && g >= 210 && b >= 205
+      && r >= g && g >= b
+      && (r - b) <= 28 && (r - b) >= 0;
+}
+
+// Take a freshly-loaded thumb Image, knock out the cream background,
+// crop to the bbox of what remains, and return a square canvas.
+function _processThumb(img) {
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const work = document.createElement('canvas');
+  work.width = W; work.height = H;
+  const wctx = work.getContext('2d');
+  wctx.drawImage(img, 0, 0);
+  const id = wctx.getImageData(0, 0, W, H);
+  const px = id.data;
+
+  // BFS flood-fill of cream pixels reachable from any edge.
+  const visited = new Uint8Array(W * H);
+  const queue = new Int32Array(W * H);
+  let head = 0, tail = 0;
+  const enq = (x, y) => {
+    const p = y * W + x;
+    if (visited[p]) return;
+    if (!_isCreamPixel(px, p * 4)) return;
+    visited[p] = 1;
+    queue[tail++] = p;
+  };
+  for (let x = 0; x < W; x++) { enq(x, 0); enq(x, H - 1); }
+  for (let y = 0; y < H; y++) { enq(0, y); enq(W - 1, y); }
+  while (head < tail) {
+    const p = queue[head++];
+    const x = p % W, y = (p / W) | 0;
+    if (x > 0)     { const n = p - 1; if (!visited[n] && _isCreamPixel(px, n * 4)) { visited[n] = 1; queue[tail++] = n; } }
+    if (x < W - 1) { const n = p + 1; if (!visited[n] && _isCreamPixel(px, n * 4)) { visited[n] = 1; queue[tail++] = n; } }
+    if (y > 0)     { const n = p - W; if (!visited[n] && _isCreamPixel(px, n * 4)) { visited[n] = 1; queue[tail++] = n; } }
+    if (y < H - 1) { const n = p + W; if (!visited[n] && _isCreamPixel(px, n * 4)) { visited[n] = 1; queue[tail++] = n; } }
+  }
+
+  // Knock flood-filled cream to transparent + compute bbox of survivors.
+  let minX = W, minY = H, maxX = -1, maxY = -1;
+  for (let p = 0; p < visited.length; p++) {
+    if (visited[p]) {
+      px[p * 4 + 3] = 0;
+    } else if (px[p * 4 + 3] > 0) {
+      const x = p % W, y = (p / W) | 0;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+  }
+  wctx.putImageData(id, 0, 0);
+  if (maxX < 0) return work;  // entire image was cream — return as-is (shouldn't happen)
+
+  // Pad the bbox a touch so panel halos breathe, then centre it inside
+  // a square output canvas (so the <img> displays uniformly in a square cell).
+  const bw = maxX - minX + 1;
+  const bh = maxY - minY + 1;
+  const pad = Math.round(Math.max(bw, bh) * 0.05);
+  const cx = Math.max(0, minX - pad);
+  const cy = Math.max(0, minY - pad);
+  const cw = Math.min(W - cx, bw + 2 * pad);
+  const ch = Math.min(H - cy, bh + 2 * pad);
+  const side = Math.max(cw, ch);
+  const out = document.createElement('canvas');
+  out.width = out.height = side;
+  const octx = out.getContext('2d');
+  octx.drawImage(work, cx, cy, cw, ch, (side - cw) / 2, (side - ch) / 2, cw, ch);
+  return out;
+}
+
+// Engine 2D-canvas render — fallback when the thumb fetch can't happen.
+function _engineFallbackDataURL(seed) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 320;
+  window.BiomEngine.renderSpecimenToCanvas(c, seed, {
+    specSize: 320, background: 'transparent',
+  });
+  return c.toDataURL('image/png');
+}
+
+async function _ensureCachedBiom(seed) {
   let url = collageCellCache.get(seed);
   if (url) {
-    // Touch — move to most-recent slot for LRU.
+    // Touch — move to most-recent slot for LRU eviction.
     collageCellCache.delete(seed);
     collageCellCache.set(seed, url);
     return url;
   }
-  // Rasterise on a throwaway canvas. Transparent background so cells
-  // can sit on whatever canvas-wrap background the page uses, and so
-  // the export path's adjacent-cell halo bleed is preserved.
-  const c = document.createElement('canvas');
-  c.width = c.height = COLLAGE_CACHE_SIZE;
-  window.BiomEngine.renderSpecimenToCanvas(c, seed, {
-    specSize: COLLAGE_CACHE_SIZE,
-    background: 'transparent',
-  });
-  url = c.toDataURL('image/png');
+  // Pre-reveal: skip the R2 fetch entirely (snipe-proofing). Engine fallback.
+  if (window.BiomEngine && window.BiomEngine.REVEAL === false) {
+    url = _engineFallbackDataURL(seed);
+    collageCellCache.set(seed, url);
+    if (collageCellCache.size > COLLAGE_CACHE_MAX) {
+      collageCellCache.delete(collageCellCache.keys().next().value);
+    }
+    return url;
+  }
+  // Fetch the WebP thumb. CORS: pngs.thebioms.com sends Access-Control-
+  // Allow-Origin: * for static assets so crossOrigin='anonymous' works
+  // and we can call getImageData / toDataURL on the canvas.
+  const padded = String(seed).padStart(5, '0');
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.crossOrigin = 'anonymous';
+      i.onload  = () => resolve(i);
+      i.onerror = () => reject(new Error(`thumb load failed: ${seed}`));
+      i.src = `${PNG_BASE}/thumb/${padded}.webp`;
+    });
+    const processed = _processThumb(img);
+    url = processed.toDataURL('image/png');
+  } catch (e) {
+    console.warn('[make] thumb fetch failed → engine fallback:', seed, e.message);
+    url = _engineFallbackDataURL(seed);
+  }
   collageCellCache.set(seed, url);
-  // Evict oldest if over cap.
   if (collageCellCache.size > COLLAGE_CACHE_MAX) {
-    const oldestKey = collageCellCache.keys().next().value;
-    collageCellCache.delete(oldestKey);
+    collageCellCache.delete(collageCellCache.keys().next().value);
   }
   return url;
 }
@@ -953,39 +1052,54 @@ function _ensureCachedBiom(seed) {
 // =========================================================================
 // LIVE RENDER — branch by mode
 // =========================================================================
-function renderLive() {
+// Generation token: each new renderLive call bumps this. Async work
+// (thumb fetch + process) checks the token before attaching cells, so
+// if the user shuffles or changes mode mid-flight the in-flight cells
+// don't overwrite the newer state.
+let _collageRenderGen = 0;
+
+async function renderLive() {
   if (!window.BiomEngine) return;
   if (state.mode === 'collage') {
     _resizeCollageSeeds();
-    // Build CSS grid of cells inside #liveComp. Each cell is a static
-    // <img> referencing the per-seed cached PNG — no live DOM render,
-    // no backdrop-filter compositing, scroll & drag stay smooth.
+    const gen = ++_collageRenderGen;
+    const seeds = state.collageSeeds.slice();  // snapshot
+
+    // Hint loading state if any seed isn't cached yet.
+    const cold = seeds.filter(s => !collageCellCache.has(s)).length;
+    if (cold > 0) {
+      metaSeed.textContent = `COLLAGE · loading ${cold} biom${cold > 1 ? 's' : ''}…`;
+    }
+
+    // Fetch + process all uncached thumbs in parallel.
+    await Promise.all(seeds.map(_ensureCachedBiom));
+    if (gen !== _collageRenderGen) return;  // superseded — bail
+
+    // Build CSS grid. Each cell is a static <img> referencing the per-
+    // seed cached PNG (real master thumb, cream-stripped, bbox-cropped).
+    // No backdrop-filter compositing in the live preview → smooth at any cell count.
     liveComp.innerHTML = '';
     liveComp.classList.add('collage-grid');
     liveComp.style.gridTemplateColumns = `repeat(${state.gridCols}, 1fr)`;
     liveComp.style.gridTemplateRows    = `repeat(${state.gridRows}, 1fr)`;
-    // liveComp.style.gap is set inside applyTransform() — it's pixel-
-    // exact and depends on the current canvas size + scale + cellGapPct,
-    // so keeping it in one place avoids drift between preview and export.
+    // liveComp.style.gap is set inside applyTransform().
 
-    // DocumentFragment so the grid attaches in one DOM op, not 144 of them.
     const frag = document.createDocumentFragment();
-    for (let i = 0; i < state.collageSeeds.length; i++) {
+    for (let i = 0; i < seeds.length; i++) {
       const cell = document.createElement('div');
       cell.className = 'collage-cell';
       const img = document.createElement('img');
-      img.src = _ensureCachedBiom(state.collageSeeds[i]);
+      img.src = collageCellCache.get(seeds[i]);
       img.alt = '';
       img.draggable = false;
-      // 100%/100% lets the cell control sizing; the source bitmap is a
-      // fixed 320 px square downscaled by the browser's GPU sampler.
-      img.style.cssText = 'width:100%;height:100%;display:block;pointer-events:none;';
+      img.style.cssText = 'width:100%;height:100%;display:block;pointer-events:none;object-fit:contain;';
       cell.appendChild(img);
       frag.appendChild(cell);
     }
     liveComp.appendChild(frag);
-    metaSeed.textContent = `COLLAGE · ${state.gridCols}×${state.gridRows} (${state.collageSeeds.length} bioms)`;
+    metaSeed.textContent = `COLLAGE · ${state.gridCols}×${state.gridRows} (${seeds.length} bioms)`;
   } else {
+    _collageRenderGen++;  // cancel any in-flight collage work
     liveComp.classList.remove('collage-grid');
     liveComp.style.gridTemplateColumns = '';
     liveComp.style.gridTemplateRows    = '';
@@ -1436,15 +1550,32 @@ function localRender(seed, w, h, opts) {
 // =========================================================================
 // COLLAGE EXPORT — N×M whole bioms onto one canvas, transform applied as a unit
 // =========================================================================
-// We render each cell into its own temp canvas at cell-pixel resolution
-// (engine renders into the canvas centred), then drawImage the temp into
-// the master canvas at the cell position. The outer translate/rotate/scale/
-// flip is applied via the master canvas matrix so the whole grid moves as
-// one — same drag/scale numbers from state work identically.
+// Uses the SAME per-seed cached images that the live preview uses (real
+// master thumbs, cream-stripped, bbox-cropped) — so preview ↔ download
+// are pixel-identical by construction. Each cell becomes a single
+// drawImage of the cached PNG at the target cell size; outer translate/
+// rotate/scale/flip is one canvas matrix transform around all of them.
 //
-// Background is forced opaque white before the matrix so the collage sits
-// on a flat field (matches single-mode export).
-function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
+// Cached thumbs are 600 px square max (after bbox crop, often smaller).
+// At a 4 K Desktop export with a 6-col grid that's 640 px per cell —
+// modest upscale, still crisp because the source is a real Chromium
+// render with the full glass effect baked in.
+async function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
+  // Make sure every seed in the grid has a cached thumb ready.
+  await Promise.all(seeds.map(_ensureCachedBiom));
+
+  // Materialise each cached data URL as an HTMLImageElement we can
+  // drawImage. Browser image cache shares the decoded bitmap across
+  // identical srcs, so duplicates within the grid don't cost extra.
+  const cellImgs = await Promise.all(seeds.map((seed) => {
+    return new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload  = () => resolve(i);
+      i.onerror = () => reject(new Error(`cached img decode failed: ${seed}`));
+      i.src = collageCellCache.get(seed);
+    });
+  }));
+
   return new Promise((resolve, reject) => {
     try {
       const c = document.createElement('canvas');
@@ -1453,65 +1584,49 @@ function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, w, h);
 
-      // Untransformed collage geometry. Pick the cell px size so the
-      // natural grid fits the canvas's short edge — exactly like the
-      // DOM applyTransform path does.
-      const cellFit = Math.min(w / cols, h / rows);
+      // Same geometry math as applyTransform's collage branch so the
+      // exported grid matches the on-screen preview exactly.
+      const gp = gapPct / 100;
+      const widthDiv  = cols + (cols - 1) * gp;
+      const heightDiv = rows + (rows - 1) * gp;
+      const cellFit = Math.min(w / widthDiv, h / heightDiv);
       const cellPx  = cellFit * opts.scale;
-      const gapPx   = cellPx * (gapPct / 100);
-      // Total grid size, including (cols-1)*gap horizontally, (rows-1)*gap vertically.
+      const gapPx   = cellPx * gp;
       const totalW = cellPx * cols + gapPx * (cols - 1);
       const totalH = cellPx * rows + gapPx * (rows - 1);
 
-      // Outer transform matches the CSS chain on .specimen-host:
-      //   translate(-50%,-50%) translate(tx,ty) scale(flipX,flipY) rotate(rot)
-      // Translated into canvas matrix ops:
+      // Outer transform — see applyTransform / CSS for the chain.
       const baseSize = Math.min(w, h);
       const txPx = opts.tx * baseSize / 100;
       const tyPx = opts.ty * baseSize / 100;
 
       ctx.save();
-      ctx.translate(w / 2 + txPx, h / 2 + tyPx);          // canvas centre, then user offset
-      ctx.scale(opts.flipX, opts.flipY);                  // mirror about centre
-      ctx.rotate(opts.rotation * Math.PI / 180);          // rotate around centre
-      // Now origin is the collage's centre. Top-left of the grid:
+      ctx.translate(w / 2 + txPx, h / 2 + tyPx);
+      ctx.scale(opts.flipX, opts.flipY);
+      ctx.rotate(opts.rotation * Math.PI / 180);
       const gridLeft = -totalW / 2;
       const gridTop  = -totalH / 2;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
 
-      // Each cell — temp canvas → renderSpecimenToCanvas (transparent bg)
-      // → drawImage at its slot. We round cellPx to integer per-cell so a
-      // collage with non-integer cellPx doesn't drift the grid by sub-px
-      // accumulations (would manifest as 1-px gaps at corners on large
-      // grids).
+      // Round cell + gap to integer px so a collage with non-integer
+      // cellPx doesn't drift the grid by accumulating sub-px (would
+      // show as 1-px seams between cells on large grids).
       const cellPxI = Math.max(1, Math.round(cellPx));
       const gapPxI  = Math.round(gapPx);
       for (let r = 0; r < rows; r++) {
         for (let col = 0; col < cols; col++) {
           const idx = r * cols + col;
-          const seed = seeds[idx];
-          if (seed == null) continue;
-
-          // Per-cell temp canvas. The engine paints a SQUARE specimen
-          // sized to specSize (= cellPxI); we want transparent background
-          // so cell halos can bleed into adjacent space without leaving
-          // a square cream/white card behind.
-          const tmp = document.createElement('canvas');
-          tmp.width = cellPxI; tmp.height = cellPxI;
-          window.BiomEngine.renderSpecimenToCanvas(tmp, seed, {
-            specSize: cellPxI,
-            background: 'transparent',
-            tx: 0, ty: 0,
-            scale: 1,
-            rotation: 0,
-            flipX: 1, flipY: 1,
-          });
-
+          if (idx >= cellImgs.length || !cellImgs[idx]) continue;
           const cx = gridLeft + col * (cellPxI + gapPxI);
           const cy = gridTop  + r   * (cellPxI + gapPxI);
-          ctx.drawImage(tmp, cx, cy);
+          // drawImage with explicit dest size scales the cached image
+          // into the cell rectangle. object-fit: contain semantics are
+          // unnecessary here because _processThumb already produced a
+          // square output canvas.
+          ctx.drawImage(cellImgs[idx], cx, cy, cellPxI, cellPxI);
         }
       }
-
       ctx.restore();
 
       c.toBlob((blob) => {
