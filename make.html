@@ -772,6 +772,48 @@ function stripCardBackground(img) {
     }
 
     ctx.putImageData(id, 0, 0);
+
+    // ----- 2026-05-22: recenter the biom on its actual bbox -----
+    // Master PNGs are rendered with the biom shifted DOWN ~15% from
+    // image center (the original preview.html composition has the
+    // specimen sit lower in the frame to leave room for the title row).
+    // When hqRender drops the whole PNG into a banner centered-at-center,
+    // the biom lands well below the banner's vertical centre. Preview
+    // (DOM panels) doesn't have this offset — it renders panels centered
+    // — so users see a centered biom in preview but an off-screen one in
+    // the export.
+    //
+    // Fix: find the bbox of non-transparent pixels, compute its centre,
+    // and re-paste the image into a fresh canvas SHIFTED so that the
+    // biom bbox centre lands at the canvas centre. The output canvas
+    // keeps the same WxH; only the content is translated.
+    let bxMin = W, bxMax = -1, byMin = H, byMax = -1;
+    for (let y = 0; y < H; y += 2) {
+      for (let x = 0; x < W; x += 2) {
+        const i = (y * W + x) * 4;
+        if (px[i + 3] === 0) continue;
+        if (x < bxMin) bxMin = x;
+        if (x > bxMax) bxMax = x;
+        if (y < byMin) byMin = y;
+        if (y > byMax) byMax = y;
+      }
+    }
+    if (bxMax >= bxMin && byMax >= byMin) {
+      const bbCx = (bxMin + bxMax) / 2;
+      const bbCy = (byMin + byMax) / 2;
+      const shiftX = Math.round(W / 2 - bbCx);
+      const shiftY = Math.round(H / 2 - bbCy);
+      // If the shift is meaningful (>2px), re-paste onto a centered canvas.
+      if (Math.abs(shiftX) > 2 || Math.abs(shiftY) > 2) {
+        const c2 = document.createElement('canvas');
+        c2.width = W; c2.height = H;
+        const ctx2 = c2.getContext('2d');
+        // Transparent background by default. Draw the stripped image
+        // at the shift offset so the biom centre lands at canvas centre.
+        ctx2.drawImage(c, shiftX, shiftY);
+        return c2;
+      }
+    }
     return c;
   } catch (e) {
     console.warn('[make] bg strip failed (likely CORS) — using raw PNG:', e);
