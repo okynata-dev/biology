@@ -1084,12 +1084,11 @@ resetBtn.addEventListener('click', () => {
   scaleSlider.value = 100; scaleVal.textContent = '100%';
   rotSlider.value = 0; rotVal.textContent = '0°';
   applyTransform();
-  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.id === 'center'));
 });
 
-function deselectTemplates() {
-  document.querySelectorAll('.template-btn.active').forEach(b => b.classList.remove('active'));
-}
+// deselectTemplates() removed with the Layouts grid — kept as a noop
+// so any leftover call sites (drag handler etc.) don't ReferenceError.
+function deselectTemplates() { /* no-op — no template buttons */ }
 
 seedInput.addEventListener('change', () => {
   const s = Math.max(0, Math.min(2999, parseInt(seedInput.value, 10) || 0));
