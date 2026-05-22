@@ -157,17 +157,99 @@
     margin: 0;
   }
 
-  /* === MODE TOGGLE ===
-     Ive-pass: the mode bar used to be a heavy paper strip with a
-     border-bottom that read as an admin toolbar. It now sits on the
-     same cream paper as the page body — just a hairline below — so
-     the working area feels like one continuous surface. */
+  /* === MODE TOGGLE === (2026-05-22 redesign)
+     Old design: equal-weight "Demo" / "My wallet" tabs treated both
+     modes as peers. But for a Bioms holder, demo is irrelevant; for
+     a curious visitor, demo IS the experience. Equal-weight wasted
+     attention on both audiences.
+     New design: My-wallet status is the primary surface (chip +
+     connect/disconnect controls). Demo lives as a single quiet text
+     link in the corner ("Just looking? Try demo →"). Two audiences,
+     two distinct calls — no toggle to switch between, just states. */
   .mode-bar {
     padding: 18px 32px;
     background: transparent;
     border-bottom: 1px solid var(--rule);
     position: relative; z-index: 2;
   }
+  /* Holdings peek — horizontal row of mini biom thumbnails sitting
+     right under the wallet status row. Shows up the moment /api/owned
+     resolves, so a connected holder sees their bioms BEFORE scrolling
+     past the mode chooser. Each thumb is a tappable square that opens
+     preview.html in a new tab. */
+  .wallet-holdings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .wallet-holdings.empty { display: none; }
+  .wallet-holdings .holding-thumb {
+    width: 56px; height: 56px;
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    cursor: pointer;
+    flex: 0 0 auto;
+    position: relative;
+    display: block;
+    text-decoration: none;
+    transition: transform var(--t-fast) var(--ease),
+                border-color var(--t-fast) var(--ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .wallet-holdings .holding-thumb:hover {
+    transform: translateY(-1px);
+    border-color: var(--ink);
+  }
+  .wallet-holdings .holding-thumb img,
+  .wallet-holdings .holding-thumb .holding-inline {
+    width: 100%; height: 100%;
+    display: block;
+    object-fit: cover;
+    background: var(--paper);
+  }
+  .wallet-holdings .holding-inline {
+    position: relative;
+    overflow: hidden;
+  }
+  .wallet-holdings .holding-inline .composition {
+    position: absolute; inset: 0;
+  }
+  .wallet-holdings .holding-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px; height: 56px;
+    border-radius: var(--r-sm);
+    background: var(--paper);
+    border: 1px dashed var(--rule);
+    color: var(--ink-3);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    flex: 0 0 auto;
+  }
+
+  /* Quiet demo entry — a single understated link in the corner of
+     the mode-bar. Default state is "Try demo →"; once the user has
+     entered demo, swaps to "← Connect a wallet" pointing back. */
+  .demo-toggle {
+    margin-left: auto;
+    background: transparent;
+    border: 0;
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink-3);
+    cursor: pointer;
+    padding: 6px 4px;
+    border-radius: 4px;
+    transition: color var(--t-fast) var(--ease);
+    -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+  }
+  .demo-toggle:hover { color: var(--ink); }
   .mode-bar-wrap {
     max-width: 1240px;
     margin: 0 auto;
@@ -1955,19 +2037,29 @@
   </div>
 </section>
 
+<!-- Mode bar — My wallet is the default & primary surface.
+     Demo is accessible via the quiet text link in the corner; hidden
+     #modeDemoBtn / #modeWalletBtn buttons preserved so existing JS that
+     toggles state continues to work without rewriting the controller. -->
 <div class="mode-bar">
   <div class="mode-bar-wrap">
-    <div class="mode-switch" role="tablist" aria-label="Lab mode">
-      <button class="mode-btn active" id="modeDemoBtn" role="tab" aria-selected="true">Demo</button>
-      <button class="mode-btn" id="modeWalletBtn" role="tab" aria-selected="false">My wallet</button>
+    <div class="mode-switch" role="tablist" aria-label="Lab mode" hidden>
+      <button class="mode-btn" id="modeDemoBtn" role="tab" aria-selected="false">Demo</button>
+      <button class="mode-btn active" id="modeWalletBtn" role="tab" aria-selected="true">My wallet</button>
     </div>
-    <span class="mode-note" id="modeNote">Practice with any seed. State stays in this browser.</span>
-    <div class="wallet-block" id="walletBlock">
+    <div class="wallet-block visible" id="walletBlock">
       <span class="wallet-status" id="walletStatus">Not connected.</span>
       <button class="wallet-btn" id="walletConnectBtn" type="button">Connect wallet</button>
       <button class="wallet-btn ghost" id="walletRefreshBtn" type="button" hidden>Refresh</button>
       <button class="wallet-btn ghost" id="walletDisconnectBtn" type="button" hidden>Disconnect</button>
+      <!-- Holdings preview — small horizontal row of the user's actual
+           Bioms thumbnails, populated once /api/owned returns. Gives
+           immediate visual confirmation "yes, your bioms are here"
+           without scrolling past the mode chooser to the collection
+           section. Click any thumb → opens that token's preview.html. -->
+      <div class="wallet-holdings" id="walletHoldings" hidden></div>
     </div>
+    <button type="button" class="demo-toggle" id="demoToggleBtn">Just looking? Try demo →</button>
   </div>
 </div>
 
@@ -2247,11 +2339,16 @@ const Storage = {
 Storage.migrate();
 
 // Decide initial mode from the most-recently-written cache.
+// 2026-05-22: default flipped to 'wallet' — Bioms holders are the
+// primary audience for /lab. Casual visitors can opt into demo via
+// the "Just looking? Try demo →" link. The previous default-to-demo
+// pushed every holder through an unnecessary mode toggle on first visit.
+// Only honour 'demo' if user previously chose it (cached state present).
 function pickInitialMode() {
-  const demoExists = localStorage.getItem(DEMO_STORAGE_KEY);
+  const demoExists  = localStorage.getItem(DEMO_STORAGE_KEY);
   const walletExists = localStorage.getItem(WALLET_STORAGE_KEY);
-  if (walletExists && !demoExists) return 'wallet';
-  return 'demo';
+  if (demoExists && !walletExists) return 'demo';
+  return 'wallet';
 }
 let LabState = Storage.load(pickInitialMode());
 
@@ -2656,12 +2753,79 @@ async function syncWalletData(opts = {}) {
     if (donorSeed !== null && !LabState.ownedSeeds.includes(donorSeed)) clearSlot('donor');
     if (recipientSeed !== null && !LabState.ownedSeeds.includes(recipientSeed)) clearSlot('recipient');
     renderCollection();
+    renderWalletHoldings();
   } catch (e) {
     setStatus(`Sync failed: ${e.message}`, 'fail');
   } finally {
     Wallet.syncing = false;
     renderWalletUI();
   }
+}
+
+// Holdings peek under the wallet status — shows the user's actual
+// Bioms as a horizontal row of mini thumbnails the moment /api/owned
+// returns. Without this, a connected holder saw "1 Biom synced" but
+// no visual confirmation, and had to scroll past the mode chooser to
+// the collection grid to see their actual tokens.
+//
+// For base (un-mutated) tokens we use the pre-rendered 600px thumb
+// PNG from R2. For mutated tokens we use the inline DOM-panel render
+// (same as collection thumbs) so the post-burn / post-crossbreed
+// state is reflected. Click any thumb → opens that token's preview
+// in a new tab. Caps at 12 thumbs + a "+N more" tile.
+function renderWalletHoldings() {
+  const el = document.getElementById('walletHoldings');
+  if (!el) return;
+  const seeds = (LabState.mode === 'wallet' && Array.isArray(LabState.ownedSeeds))
+    ? LabState.ownedSeeds.slice() : [];
+  if (seeds.length === 0) {
+    el.hidden = true;
+    el.classList.add('empty');
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+  el.classList.remove('empty');
+  const CAP = 12;
+  const visible = seeds.slice(0, CAP);
+  const extra = seeds.length - visible.length;
+  el.innerHTML = visible.map(seed => {
+    const t = LabState.tokens[seed];
+    const isMutated = t && (
+      (t.absorbedSeeds && t.absorbedSeeds.length > 0) ||
+      t.receivedPalette || (t.receivedOrganelles && t.receivedOrganelles.length > 0) ||
+      (t.receivedAnomalies && t.receivedAnomalies.length > 0)
+    );
+    const padded = String(seed).padStart(5, '0');
+    const label = `BIOM #${seed}`;
+    if (isMutated) {
+      return `<a class="holding-thumb" href="/preview.html?seed=${seed}" target="_blank" rel="noopener" aria-label="${label}" data-seed="${seed}" data-mutated="1"><div class="holding-inline"><div class="composition"></div></div></a>`;
+    }
+    return `<a class="holding-thumb" href="/preview.html?seed=${seed}" target="_blank" rel="noopener" aria-label="${label}"><img src="https://pngs.thebioms.com/thumb/${padded}.webp" alt="" decoding="async" loading="lazy"></a>`;
+  }).join('') + (extra > 0 ? `<span class="holding-more">+${extra}</span>` : '');
+  // Hydrate mutated thumbs with DOM-panel render so the visible image
+  // reflects post-burn / post-crossbreed state. Base thumbs stay as
+  // <img> for cache efficiency.
+  el.querySelectorAll('[data-mutated="1"]').forEach(node => {
+    const seed = parseInt(node.dataset.seed, 10);
+    const comp = node.querySelector('.composition');
+    if (!comp || !Number.isFinite(seed) || !window.BiomEngine) return;
+    const t = LabState.tokens[seed];
+    const state = {};
+    if (t.receivedPalette) state.palette = t.receivedPalette;
+    if (t.receivedOrganelles && t.receivedOrganelles.length) {
+      const base = window.BiomEngine.effectiveState
+        ? window.BiomEngine.effectiveState(seed) : null;
+      const baseOrg = base && base.organelles ? Array.from(base.organelles) : [];
+      const merged = new Set(baseOrg);
+      for (const o of t.receivedOrganelles) merged.add(o);
+      state.organelles = merged;
+    }
+    if (t.receivedAnomalies) for (const a of t.receivedAnomalies) state[a] = true;
+    try {
+      window.BiomEngine.renderSpecimen(comp, seed, { state });
+    } catch (_) {}
+  });
 }
 
 // Convert worker's { mutations, depletions } shape to LabState.tokens[seed] shape.
@@ -3702,6 +3866,43 @@ function _renderOutcomeSnapshot(seed, state) {
   return url;
 }
 
+// Real-glass biom render INSIDE a result card. Canvas snapshot above
+// is fast but loses the glass backdrop-filter + multi-layer sheen that
+// make a biom read as luminous — the user's "уродский упрощенный"
+// complaint. This DOM-panel render is the SAME one the collection thumbs
+// use (.biom-thumb-inline class), so the visual language matches
+// everywhere.
+//
+// Cost: ~30-80ms per render (engine creates ~10-40 absolute-positioned
+// .panel divs, each with their own gradient + shadow stack). Faster
+// than an iframe (300-800ms), slower than canvas (10-20ms), but the
+// visual gain is decisive for the burn/crossbreed result moment.
+//
+// Returns the markup string ready to be dropped into innerHTML; the
+// caller then runs `_hydrateOutcomeInline(targetEl, seed, state)` to
+// invoke renderSpecimen against the .composition node.
+function _outcomeInlineMarkup(extraClass) {
+  return `<div class="biom-thumb-inline ${extraClass || ''}">
+    <div class="scene"><div class="composition"></div></div>
+  </div>`;
+}
+function _hydrateOutcomeInline(rootEl, seed, state) {
+  const comp = rootEl.querySelector('.composition');
+  if (!comp || !window.BiomEngine) return;
+  let palette = state && state.palette;
+  if (typeof palette === 'string' && palette.includes('+')) {
+    const parts = palette.split('+').filter(Boolean);
+    palette = window.BiomEngine.mixPalettes(...parts);
+  }
+  try {
+    window.BiomEngine.renderSpecimen(comp, seed, {
+      state: state ? { ...state, palette } : null,
+    });
+  } catch (err) {
+    console.warn('outcome inline render failed for', seed, err);
+  }
+}
+
 function renderOutcomes() {
   // Hide entirely until both slots are filled
   if (donorSeed === null || recipientSeed === null) {
@@ -3762,22 +3963,24 @@ function renderOutcomes() {
     // snapshot does the same composition in 10-20ms and the result is
     // a static image — no JS context, no animation thread.
     //
-    // Trade-off: snapshot doesn't carry the live glass backdrop-filter,
-    // only the multi-layer shadow approximation. For a single result
-    // preview the trade is right; if we ever want to promote this to
-    // live-preview after commit, we can swap to iframe at that point.
-    const burnSnap = _renderOutcomeSnapshot(recipientSeed, next);
+    // Real DOM-panel render (glass backdrop + multi-layer sheen) —
+    // 2026-05-22: was a canvas snapshot which dropped the luminous glass
+    // feel and read as "упрощённый/уродский". The burn result moment
+    // deserves the full visual; cost is +30-50ms per render, well within
+    // budget for a one-off card.
     outcomesGrid.innerHTML = `
       <div class="burn-preview-card">
-        <div class="outcome-frame">
-          <img src="${burnSnap}" alt="" decoding="async">
-        </div>
+        <div class="outcome-frame">${_outcomeInlineMarkup('outcome-inline-real')}</div>
         <div class="outcome-meta">
           <div class="outcome-name">${window.BiomEngine.label(recipientSeed)} after absorbing ${window.BiomEngine.label(donorSeed)}</div>
           <div class="outcome-caption">${gainText}</div>
         </div>
       </div>
     `;
+    _hydrateOutcomeInline(
+      outcomesGrid.querySelector('.outcome-frame'),
+      recipientSeed, next,
+    );
     selectedTrait = 'burn-merge';
     return;
   }
@@ -3820,12 +4023,10 @@ function renderOutcomes() {
   // we don't actually persist anything until performCrossbreed is called.
   const aPostState = _simulatePostState(donorSeed, auto.apply);
   const bPostState = _simulatePostState(recipientSeed, auto.apply);
-  // Canvas snapshots instead of iframes — two preview.html iframes per
-  // pair-change was burning 400-1000ms on the main thread on each click.
-  // Snapshots paint in 20-30ms total. We lose live glass-blur fidelity
-  // but the dual-preview is comparison shopping anyway, not the hero.
-  const aImg = _renderOutcomeSnapshot(donorSeed, aPostState);
-  const bImg = _renderOutcomeSnapshot(recipientSeed, bPostState);
+  // Real DOM-panel render with full glass effect for BOTH halves.
+  // 2026-05-22: replaced canvas snapshots — even in dual-preview the
+  // user wants the luminous specimens, not flat snapshots. Two
+  // DOM-panel renders cost ~60-120ms total, still well under iframe.
 
   const donorLabel = window.BiomEngine.label(donorSeed);
   const recipLabel = window.BiomEngine.label(recipientSeed);
@@ -3838,20 +4039,20 @@ function renderOutcomes() {
   outcomesGrid.innerHTML = `
     <div class="crossbreed-result-card">
       <div class="crossbreed-pair">
-        <div class="crossbreed-half">
+        <div class="crossbreed-half" data-half="a">
           <div class="outcome-frame">
             <span class="half-pill ${aDesc.stays ? 'stays' : ''}">${aDesc.pill}</span>
-            <img src="${aImg}" alt="${donorLabel} after crossbreed" decoding="async">
+            ${_outcomeInlineMarkup('outcome-inline-real')}
           </div>
           <div class="half-label">
             <div class="half-name">${donorLabel}</div>
             <div class="half-change ${aDesc.stays ? 'stays' : ''}">${aDesc.text}</div>
           </div>
         </div>
-        <div class="crossbreed-half">
+        <div class="crossbreed-half" data-half="b">
           <div class="outcome-frame">
             <span class="half-pill ${bDesc.stays ? 'stays' : ''}">${bDesc.pill}</span>
-            <img src="${bImg}" alt="${recipLabel} after crossbreed" decoding="async">
+            ${_outcomeInlineMarkup('outcome-inline-real')}
           </div>
           <div class="half-label">
             <div class="half-name">${recipLabel}</div>
@@ -3865,6 +4066,11 @@ function renderOutcomes() {
       </div>
     </div>
   `;
+  // Hydrate both halves with the real DOM-panel render.
+  const halfA = outcomesGrid.querySelector('[data-half="a"] .outcome-frame');
+  const halfB = outcomesGrid.querySelector('[data-half="b"] .outcome-frame');
+  if (halfA) _hydrateOutcomeInline(halfA, donorSeed, aPostState);
+  if (halfB) _hydrateOutcomeInline(halfB, recipientSeed, bPostState);
 }
 
 // === Simulate what a Biom looks like AFTER an outcome.apply ===
@@ -4415,12 +4621,37 @@ function renderLog() {
 // ============================================================
 const modeDemoBtn         = document.getElementById('modeDemoBtn');
 const modeWalletBtn       = document.getElementById('modeWalletBtn');
-const modeNote            = document.getElementById('modeNote');
+// modeNote removed from DOM in the 2026-05-22 mode-bar redesign —
+// the demo-toggle link carries the equivalent affordance now. Stub
+// preserves call sites (modeNote?.textContent = ...) without errors.
+const modeNote            = { textContent: '', style: {} };
 const walletBlock         = document.getElementById('walletBlock');
 const walletStatus        = document.getElementById('walletStatus');
 const walletConnectBtn    = document.getElementById('walletConnectBtn');
 const walletRefreshBtn    = document.getElementById('walletRefreshBtn');
 const walletDisconnectBtn = document.getElementById('walletDisconnectBtn');
+const demoToggleBtn       = document.getElementById('demoToggleBtn');
+
+// Demo entry — bidirectional link in mode-bar.
+//   wallet mode  → "Just looking? Try demo →"
+//   demo mode    → "← Back to my wallet"
+// Click flips setMode() to the other side.
+function _refreshDemoToggle() {
+  if (!demoToggleBtn) return;
+  if (LabState.mode === 'demo') {
+    demoToggleBtn.textContent = '← Back to my wallet';
+    demoToggleBtn.setAttribute('aria-label', 'Switch to wallet mode');
+  } else {
+    demoToggleBtn.textContent = 'Just looking? Try demo →';
+    demoToggleBtn.setAttribute('aria-label', 'Try the demo without a wallet');
+  }
+}
+if (demoToggleBtn) {
+  demoToggleBtn.addEventListener('click', () => {
+    const next = LabState.mode === 'demo' ? 'wallet' : 'demo';
+    setMode(next);
+  });
+}
 
 function shortAddr(a) {
   if (!a) return '';
@@ -4551,6 +4782,8 @@ async function setMode(newMode) {
       renderWalletUI();
     }
   }
+  _refreshDemoToggle();
+  renderWalletHoldings();
 }
 
 // Used by boot path to apply visual state for the loaded mode without
@@ -4569,6 +4802,7 @@ function applyMode() {
     modeNote.textContent = 'Practice with any seed. State stays in this browser.';
   }
   renderWalletUI();
+  _refreshDemoToggle();
 }
 
 modeDemoBtn.addEventListener('click',   () => { setMode('demo'); });
@@ -5198,6 +5432,7 @@ collectionGrid.addEventListener('click', (e) => {
       try { Storage.save(LabState); } catch (_) {}
       renderCollection();
       renderWalletUI();
+      renderWalletHoldings();
       return;
     }
     // Adopt the connection. window.biomsWalletProvider is the EIP-1193
