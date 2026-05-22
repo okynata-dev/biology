@@ -386,22 +386,20 @@
     letter-spacing: -0.02em;
     font-weight: 500;
   }
-  /* Catalog grid — fluid columns, fluid gap. One auto-FILL clamp pair
-     scales the layout from 1 column on a phone to 4+ on a desktop
-     without a single media-query break.
-       — auto-FILL (not auto-fit): underfilled last rows keep their
-         original cell size with empty tracks to the right, instead of
-         stretching the orphans to full row width. With 12 cells, a
-         5-column desktop layout produces 5+5+2 with the last 2 sized
-         like the rest, not blown up to 50% each.
-       — min(220px, 100%) lets a sub-220px phone still render one
-         intact column instead of overflowing.
-     This was the regression Ive caught in the second walk-through:
-     auto-fit was producing absurdly large orphan cells on the last
-     row that visually crashed into the next section. */
+  /* Catalog grid — fluid columns, fluid gap. Capped at 4 columns on
+     the widest desktop to keep the 12-cell catalog tidy:
+       4 cols × 3 rows = 12 (perfect, no orphans)
+     Previously the cell minimum was 220px which let 5 columns fit on
+     wide screens → 5+5+2 with three visible empty cells in the last
+     row. Bumped the min to 280px so floor(1240/280) = 4 max columns,
+     each cell ~290-310px wide — also visually crisper than the old
+     ~240px size.
+       — auto-FILL keeps empty tracks instead of stretching orphans
+       — min(280px, 100%) lets sub-280px phones still render 1 column
+     One source of truth, no media-query breakpoints. */
   .catalog-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
     gap: clamp(10px, 1.4vw, 18px);
     margin-top: 40px;
     /* The grid is below the fold — skip its render until visible. */
