@@ -494,7 +494,11 @@ async function loadList() {
   if (!token) return showAuth();
   rowsEl.innerHTML = '<tr><td colspan="4" class="loading">Loading…</td></tr>';
   try {
-    const r = await fetch(`${WORKER_URL}/api/admin/waitlist?token=${encodeURIComponent(token)}`);
+    // Token goes in x-admin-token HEADER (not query string) so it
+    // doesn't land in Cloudflare access logs or browser history.
+    const r = await fetch(`${WORKER_URL}/api/admin/waitlist`, {
+      headers: { 'x-admin-token': token },
+    });
     if (r.status === 403 || r.status === 401) {
       clearToken();
       showAuth('Wrong token. Try again.');
@@ -541,17 +545,39 @@ refreshBtn.addEventListener('click', loadList);
 downloadBtn.addEventListener('click', async () => {
   const token = getToken();
   if (!token) return showAuth();
-  // Open in a new tab so the browser handles the download via the
-  // Content-Disposition header. Filename comes from the worker.
-  const url = `${WORKER_URL}/api/admin/waitlist?token=${encodeURIComponent(token)}&format=csv`;
-  // Use a temporary anchor to trigger download without leaving this tab
-  const a = document.createElement('a');
-  a.href = url;
-  a.target = '_blank';
-  a.rel = 'noopener';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  // Token must travel in header, not URL — anchor href can't carry
+  // custom headers, so we fetch the CSV, wrap the response as a Blob,
+  // and trigger download from a Blob URL. Filename mirrors the
+  // Content-Disposition the worker would have set.
+  const originalLabel = downloadBtn.textContent;
+  downloadBtn.disabled = true;
+  downloadBtn.textContent = 'Preparing…';
+  try {
+    const r = await fetch(`${WORKER_URL}/api/admin/waitlist?format=csv`, {
+      headers: { 'x-admin-token': token },
+    });
+    if (r.status === 403 || r.status === 401) {
+      clearToken();
+      showAuth('Wrong token. Try again.');
+      return;
+    }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bioms-waitlist-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Release the Blob URL on next tick so the download starts cleanly.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (err) {
+    alert('Download failed: ' + (err.message || err));
+  } finally {
+    downloadBtn.disabled = false;
+    downloadBtn.textContent = originalLabel;
+  }
 });
 
 logoutBtn.addEventListener('click', () => {

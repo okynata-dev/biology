@@ -248,6 +248,19 @@ function openseaKey(env) {
   return env.OPENSEA_API_KEY || env.OPENSEA_KEY || '';
 }
 
+// Constant-time string compare for admin token. For a 256-bit token
+// over HTTPS, the timing-attack window is negligible — but this is
+// the canonical pattern and the cost is zero. Returns false on any
+// length mismatch (length is not secret, an attacker who can probe
+// length cannot derive any byte from the secret).
+function _constantTimeEquals(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return mismatch === 0;
+}
+
 // ERC-721 Transfer event signature — used to detect a burn from a tx
 // receipt. The topic hash is keccak256("Transfer(address,address,uint256)").
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
@@ -625,12 +638,22 @@ async function handleConjugate(req, env, ctx, origin) {
 
   // 6. Roll for rejection — verifiable RNG derived from the signed payload.
   //    Server has no degree of freedom; player can recompute and audit.
-  const rejectionRate = parseFloat(env.REJECTION_RATE || '0.15');
+  //    Defensive parse: parseFloat('') is NaN, and `roll < NaN === false`
+  //    would silently mean "no rejection ever". Fallback to the documented
+  //    default if env is missing or malformed.
+  const _rrParsed = parseFloat(env.REJECTION_RATE);
+  const rejectionRate = Number.isFinite(_rrParsed) && _rrParsed >= 0 && _rrParsed <= 1
+    ? _rrParsed : 0.15;
   const { roll, hex: rollHex } = await verifiableRoll(signature, nonce, donorId, recipientId);
   const rejected = roll < rejectionRate;
   const ts = Date.now();
   const tsSec = Math.floor(ts / 1000);
-  const cooldownSec = parseInt(env.COOLDOWN_SECONDS || '2592000', 10); // 30 days default
+  // Same defensive parse: parseInt('abc') is NaN, and tsSec + NaN = NaN,
+  // which binds as NULL in D1 → `regenerates_at > now` evaluates NULL/false
+  // → depletion treated as already-regenerated → cooldown bypassed.
+  const _csParsed = parseInt(env.COOLDOWN_SECONDS, 10);
+  const cooldownSec = Number.isFinite(_csParsed) && _csParsed > 0
+    ? _csParsed : 2592000; // 30 days default
 
   // 7. Compute recipient's post-mutation state (only used if !rejected)
   const recipientData = await loadTokenState(env, recipientId);
@@ -1009,6 +1032,10 @@ async function handleState(env, tokenIdStr, origin) {
 
 async function handleStateBatch(env, tokensParam, origin) {
   const maxId = maxTokenId(env);
+  // Cap the raw input length BEFORE .split() — otherwise a multi-MB
+  // "1,1,1,…" query string allocates a giant array (DOS). 100 ids
+  // × 5 chars each + 99 commas = 599 max, so 1024 is generous.
+  if ((tokensParam || '').length > 1024) return error('tokens_too_long', 400, origin);
   const ids = (tokensParam || '').split(',').map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n >= 0 && n <= maxId).slice(0, 100);
   if (ids.length === 0) return json({ states: {} }, {}, origin);
   const entries = await Promise.all(ids.map(async id => [id, await loadTokenState(env, id)]));
@@ -1387,10 +1414,9 @@ async function renderTokenMaster(env, tokenId) {
 
 async function handleAdminRegen(req, env, tokenIdStr, origin) {
   // Token-gated. Same ADMIN_TOKEN as the other /api/admin/* routes.
+  if (!env.ADMIN_TOKEN) return error('admin_token_not_set', 503, origin);
   const token = req.headers.get('x-admin-token') || '';
-  if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) {
-    return error('unauthorized', 401, origin);
-  }
+  if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('unauthorized', 401, origin);
   const tokenId = parseInt(tokenIdStr, 10);
   const maxId = maxTokenId(env);
   if (!Number.isFinite(tokenId) || tokenId < 0 || tokenId > maxId) {
@@ -1536,6 +1562,11 @@ async function handleWaitlistAdd(req, env, origin) {
   // bounces.
   let value = body && body.value;
   if (typeof value !== 'string') return error('bad_value', 400, origin);
+  // Hard length cap BEFORE regex / ENS resolution. A multi-MB string
+  // would otherwise feed into the ENS regex (which is fast but linear)
+  // and then to ENS resolution. 256 chars is plenty for any real
+  // wallet address or ENS name.
+  if (value.length > 256) return error('value_too_long', 400, origin);
   value = value.trim().toLowerCase();
   if (body && body.kind && body.kind !== 'address') {
     return error('bad_kind', 400, origin);
@@ -1598,6 +1629,9 @@ async function handleWaitlistCheck(req, env, origin) {
   const url = new URL(req.url);
   let q = (url.searchParams.get('address') || '').trim().toLowerCase();
   if (!q) return error('bad_value', 400, origin);
+  // Same length cap as the POST endpoint — prevents huge ENS regex
+  // probes from a single-IP DOS attempt.
+  if (q.length > 256) return error('value_too_long', 400, origin);
 
   let resolved = null;
   if (RE_ETH_ADDR.test(q)) {
@@ -1634,8 +1668,9 @@ async function handleAdminDelete(req, env, origin) {
   try { body = await req.json(); }
   catch { return error('invalid_json', 400, origin); }
   const { token, value } = body || {};
-  if (!token || token !== env.ADMIN_TOKEN) return error('forbidden', 403, origin);
+  if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('forbidden', 403, origin);
   if (typeof value !== 'string' || !value.trim()) return error('bad_value', 400, origin);
+  if (value.length > 256) return error('value_too_long', 400, origin);
   const v = value.trim().toLowerCase();
   const result = await env.DB.prepare(
     'DELETE FROM waitlist WHERE value = ?'
@@ -1664,11 +1699,20 @@ async function handleAdminDelete(req, env, origin) {
 // Add &format=csv to download as spreadsheet-friendly CSV.
 async function handleAdminWaitlist(req, env, origin) {
   if (!env.ADMIN_TOKEN) return error('admin_token_not_set', 503, origin);
+  if (req.method !== 'GET') return error('method_not_allowed', 405, origin);
+  // Token must come via x-admin-token header — NOT query string.
+  // URL query params land in Cloudflare access logs AND browser history;
+  // pulling a download was effectively leaking the token to both. Header
+  // form is the canonical pattern used by /api/admin/regen too.
+  const token = req.headers.get('x-admin-token') || '';
+  if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('forbidden', 403, origin);
   const url = new URL(req.url);
-  const token = url.searchParams.get('token') || '';
-  if (token !== env.ADMIN_TOKEN) return error('forbidden', 403, origin);
   const format = (url.searchParams.get('format') || 'json').toLowerCase();
-  const limit = Math.min(10000, parseInt(url.searchParams.get('limit') || '5000', 10));
+  const rawLimit = parseInt(url.searchParams.get('limit') || '5000', 10);
+  // parseInt('abc') is NaN — Math.min(10000, NaN) === NaN, ".bind(NaN)"
+  // would land as NULL in D1 and LIMIT NULL means "no limit". Clamp.
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0
+    ? Math.min(10000, rawLimit) : 5000;
 
   const { results } = await env.DB.prepare(
     'SELECT id, kind, value, ts FROM waitlist ORDER BY ts DESC LIMIT ?'
@@ -1741,12 +1785,43 @@ async function handleWaitlistCount(env, origin) {
 }
 
 // ----- Main dispatcher -----
+//
+// CRITICAL: the third parameter is `ctx`. handleConjugate + handleBurn use
+// `ctx.waitUntil(...)` to fire the Browser Rendering regen job in the
+// background after returning the response to the user. Forgetting the
+// parameter doesn't break those handlers (they guard with
+// `if (ctx && typeof ctx.waitUntil === 'function')`) BUT the dispatcher
+// below passes `ctx` as an argument to both — referencing an undeclared
+// `ctx` throws ReferenceError, the outer catch converts to 500
+// `internal_error`, and every real wallet-mode burn or conjugate fails.
+// Caught by a pre-drop audit before any real signer hit the path.
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const origin = req.headers.get('Origin') || '';
     if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders(origin) });
 
     const url = new URL(req.url);
+
+    // ----- Body size + CSRF guard on state-changing POSTs -----
+    // CF Workers buffer up to ~100MB before req.json() rejects, plenty
+    // of room for a CPU-exhaustion attack via a huge JSON.parse. 32KB
+    // is generous (signatures + tokenId + nonce ≈ 1KB).
+    // Cross-site POSTs that ship the right Content-Type bypass CORS
+    // preflight; reject early if Origin is set and isn't allowed.
+    if (req.method === 'POST') {
+      const cl = parseInt(req.headers.get('Content-Length') || '0', 10);
+      if (Number.isFinite(cl) && cl > 32 * 1024) {
+        return error('body_too_large', 413, origin);
+      }
+      const reqOrigin = req.headers.get('Origin') || '';
+      // Allow missing Origin (curl, server-to-server, webhooks). Reject
+      // mismatched Origin to block cross-site POSTs from arbitrary
+      // websites — CORS response-header allowlist doesn't help here
+      // because the side effect happens before the browser checks it.
+      if (reqOrigin && !ALLOWED_ORIGINS.includes(reqOrigin)) {
+        return error('forbidden_origin', 403, origin);
+      }
+    }
     const path = url.pathname;
 
     try {
