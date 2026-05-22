@@ -34,9 +34,12 @@ upload_one() {
   local file="$1"
   local base=$(basename "$file")
   local ext="${base##*.}"
+  # Default behaviour of `wrangler r2 object put` is remote (--remote
+  # was renamed away in 3.x; passing it now errors out). Adding --local
+  # would target the local persistence store.
   npx wrangler r2 object put "${BUCKET}/cutout/${base}" \
-    --file="$file" --content-type="image/${ext}" --remote 2>&1 \
-    | grep -E "Creating|Error|✓" | head -1
+    --file="$file" --content-type="image/${ext}" 2>&1 \
+    | grep -E "Creating|Error|Upload" | head -1
 }
 export -f upload_one
 export BUCKET

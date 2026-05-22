@@ -105,9 +105,19 @@ def crop_to_bbox(img: Image.Image, pad_pct: float = 0.05) -> Image.Image:
 
 
 def render_one(playwright_ctx, port: int, seed: int, render_size: int,
-               webp_quality: int, settle_ms: int, write_png: bool):
-    """Open the preview page for `seed`, screenshot transparent, crop, save.
-    Returns (seed, ok, error_msg)."""
+               webp_quality: int, settle_ms: int, write_png: bool, do_crop: bool):
+    """Open the preview page for `seed`, screenshot transparent, save.
+    Returns (seed, ok, error_msg).
+
+    do_crop=False (the default) is what the user wants for collage:
+        save the FULL transparent screenshot — biom in its natural card
+        position with all the surrounding breathing room and accent
+        organelles intact. The cell looks like a Single-mode preview,
+        pixel-identical, only static.
+
+    do_crop=True saves a bbox-cropped square — tighter packing but the
+    biom's halo / outer accents get clipped near the edges. Kept as a
+    flag for any future use case that wants tight thumbnail packing."""
     browser, page = playwright_ctx
     url = f"http://127.0.0.1:{port}/preview.html?seed={seed}&cutout=1&static=1&fit=1"
     try:
@@ -121,18 +131,20 @@ def render_one(playwright_ctx, port: int, seed: int, render_size: int,
             type="png",
         )
         img = Image.open(io.BytesIO(png_bytes))
-        cropped = crop_to_bbox(img, pad_pct=0.05)
+        if do_crop:
+            img = crop_to_bbox(img, pad_pct=0.05)
         padded = f"{seed:05d}"
         if write_png:
-            cropped.save(DST / f"{padded}.png", "PNG", optimize=True)
-        cropped.save(DST / f"{padded}.webp", "WEBP", quality=webp_quality, method=6)
+            img.save(DST / f"{padded}.png", "PNG", optimize=True)
+        img.save(DST / f"{padded}.webp", "WEBP", quality=webp_quality, method=6)
         return (seed, True, None)
     except Exception as e:
         return (seed, False, f"{type(e).__name__}: {e}")
 
 
 def worker_run(worker_idx: int, seeds_chunk, port: int, render_size: int,
-               webp_quality: int, settle_ms: int, write_png: bool, chrome_path):
+               webp_quality: int, settle_ms: int, write_png: bool, chrome_path,
+               do_crop: bool):
     results = []
     with sync_playwright() as p:
         launch_args = {"headless": True}
@@ -143,7 +155,8 @@ def worker_run(worker_idx: int, seeds_chunk, port: int, render_size: int,
             ctx = browser.new_context(viewport={"width": render_size, "height": render_size})
             page = ctx.new_page()
             for i, seed in enumerate(seeds_chunk):
-                r = render_one((browser, page), port, seed, render_size, webp_quality, settle_ms, write_png)
+                r = render_one((browser, page), port, seed, render_size,
+                               webp_quality, settle_ms, write_png, do_crop)
                 results.append(r)
                 if (i + 1) % 25 == 0:
                     ok_so_far = sum(1 for _, ok, _ in results if ok)
@@ -163,6 +176,9 @@ def main():
     ap.add_argument("--webp-quality", type=int, default=88)
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--skip-png", action="store_true", help="Skip PNG fallback (webp only)")
+    ap.add_argument("--crop", action="store_true",
+                    help="Bbox-crop the biom (tighter packing). Default OFF — saves the "
+                         "full square frame so the biom looks identical to Single-mode preview.")
     args = ap.parse_args()
 
     if args.only:
@@ -189,7 +205,8 @@ def main():
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = [
             pool.submit(worker_run, i, chunk, args.port, args.size,
-                        args.webp_quality, args.settle, not args.skip_png, chrome)
+                        args.webp_quality, args.settle, not args.skip_png, chrome,
+                        args.crop)
             for i, chunk in enumerate(chunks) if chunk
         ]
         for f in as_completed(futures):

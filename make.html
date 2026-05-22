@@ -1040,19 +1040,23 @@ async function _ensureCachedBiom(seed) {
 
   const padded = String(seed).padStart(5, '0');
 
-  // PRIMARY — /cutout/. Pre-rendered alpha PNG via Playwright with
-  // omit_background=True, bbox-cropped server-side. No JS post-
-  // processing needed → no flood-fill artefacts, ever. The cache
-  // stores the URL directly (the browser HTTP cache shares the
-  // decoded bitmap across every <img> and drawImage reference).
+  // PRIMARY — /cutout/. Pre-rendered transparent WebP via Playwright
+  // with omit_background=True. The biom sits in its NATURAL Single-mode
+  // card position (full halo, accent organelles, breathing room) on a
+  // fully transparent background — no JS post-processing, no cropping,
+  // no flood-fill artefacts. The cache stores the URL directly: the
+  // browser HTTP cache shares one decoded bitmap across every <img>
+  // and drawImage reference, including duplicates within the grid.
   //
-  // ?v=… cache-buster: when we first deployed the /cutout/ path some
-  // seeds had been previously fetched (and 404'd) before the upload
-  // landed, leaving negative-cache entries on the CF edge for the
-  // bare URL. Tagging the URL routes around any stale negatives
-  // without disabling caching on the 200 responses — once "?v=1"
-  // is requested it caches normally, just under a fresh key.
-  const cutoutUrl = `${PNG_BASE}/cutout/${padded}.png?v=1`;
+  // WebP over PNG: ~75% smaller (380 KB → 85 KB per cell typical).
+  // 3 000-seed collection at 85 KB = ~250 MB total R2 storage, much
+  // friendlier on network for a fully-loaded grid.
+  //
+  // ?v=… cache-buster: bumped whenever the cutout pipeline changes
+  // shape (bbox-crop → no-crop is v=2). Forces every browser + the
+  // CF edge to re-fetch, sidestepping any cached 404s from the
+  // pre-upload window.
+  const cutoutUrl = `${PNG_BASE}/cutout/${padded}.webp?v=2`;
   try {
     await _tryLoad(cutoutUrl);
     url = cutoutUrl;
