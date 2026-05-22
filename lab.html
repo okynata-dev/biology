@@ -232,24 +232,8 @@
     flex: 0 0 auto;
   }
 
-  /* Quiet demo entry — a single understated link in the corner of
-     the mode-bar. Default state is "Try demo →"; once the user has
-     entered demo, swaps to "← Connect a wallet" pointing back. */
-  .demo-toggle {
-    margin-left: auto;
-    background: transparent;
-    border: 0;
-    font: inherit;
-    font-size: 13px;
-    color: var(--ink-3);
-    cursor: pointer;
-    padding: 6px 4px;
-    border-radius: 4px;
-    transition: color var(--t-fast) var(--ease);
-    -webkit-tap-highlight-color: transparent;
-    white-space: nowrap;
-  }
-  .demo-toggle:hover { color: var(--ink); }
+  /* .demo-toggle CSS removed 2026-05-22 — demo entry is gone, Lab is
+     wallet-only. */
   .mode-bar-wrap {
     max-width: 1240px;
     margin: 0 auto;
@@ -2037,15 +2021,16 @@
   </div>
 </section>
 
-<!-- Mode bar — My wallet is the default & primary surface.
-     Demo is accessible via the quiet text link in the corner; hidden
-     #modeDemoBtn / #modeWalletBtn buttons preserved so existing JS that
-     toggles state continues to work without rewriting the controller. -->
+<!-- Mode bar — wallet-only. Demo was removed 2026-05-22; Lab is now
+     exclusively a holder surface. Hidden #modeDemoBtn / #modeWalletBtn
+     stubs preserved because the existing setMode() controller still
+     references them, and surgical-removing them would touch a dozen
+     call sites with no functional gain. -->
 <div class="mode-bar">
   <div class="mode-bar-wrap">
     <div class="mode-switch" role="tablist" aria-label="Lab mode" hidden>
-      <button class="mode-btn" id="modeDemoBtn" role="tab" aria-selected="false">Demo</button>
-      <button class="mode-btn active" id="modeWalletBtn" role="tab" aria-selected="true">My wallet</button>
+      <button class="mode-btn" id="modeDemoBtn" role="tab" aria-selected="false" tabindex="-1">Demo</button>
+      <button class="mode-btn active" id="modeWalletBtn" role="tab" aria-selected="true" tabindex="-1">My wallet</button>
     </div>
     <div class="wallet-block visible" id="walletBlock">
       <span class="wallet-status" id="walletStatus">Not connected.</span>
@@ -2059,7 +2044,6 @@
            section. Click any thumb → opens that token's preview.html. -->
       <div class="wallet-holdings" id="walletHoldings" hidden></div>
     </div>
-    <button type="button" class="demo-toggle" id="demoToggleBtn">Just looking? Try demo →</button>
   </div>
 </div>
 
@@ -2338,18 +2322,13 @@ const Storage = {
 };
 Storage.migrate();
 
-// Decide initial mode from the most-recently-written cache.
-// 2026-05-22: default flipped to 'wallet' — Bioms holders are the
-// primary audience for /lab. Casual visitors can opt into demo via
-// the "Just looking? Try demo →" link. The previous default-to-demo
-// pushed every holder through an unnecessary mode toggle on first visit.
-// Only honour 'demo' if user previously chose it (cached state present).
-function pickInitialMode() {
-  const demoExists  = localStorage.getItem(DEMO_STORAGE_KEY);
-  const walletExists = localStorage.getItem(WALLET_STORAGE_KEY);
-  if (demoExists && !walletExists) return 'demo';
-  return 'wallet';
-}
+// Lab is wallet-only as of 2026-05-22. The function name + 'wallet'
+// return preserved because LabState.mode is referenced everywhere and
+// removing the field would force a sprawling refactor. Calling code
+// can keep asking for the "initial mode"; the answer is always wallet.
+// (Cached demo state still lives in localStorage for users who used
+// demo before the removal — we just never load it.)
+function pickInitialMode() { return 'wallet'; }
 let LabState = Storage.load(pickInitialMode());
 
 // In-memory selection (not persisted)
@@ -4630,28 +4609,10 @@ const walletStatus        = document.getElementById('walletStatus');
 const walletConnectBtn    = document.getElementById('walletConnectBtn');
 const walletRefreshBtn    = document.getElementById('walletRefreshBtn');
 const walletDisconnectBtn = document.getElementById('walletDisconnectBtn');
-const demoToggleBtn       = document.getElementById('demoToggleBtn');
-
-// Demo entry — bidirectional link in mode-bar.
-//   wallet mode  → "Just looking? Try demo →"
-//   demo mode    → "← Back to my wallet"
-// Click flips setMode() to the other side.
-function _refreshDemoToggle() {
-  if (!demoToggleBtn) return;
-  if (LabState.mode === 'demo') {
-    demoToggleBtn.textContent = '← Back to my wallet';
-    demoToggleBtn.setAttribute('aria-label', 'Switch to wallet mode');
-  } else {
-    demoToggleBtn.textContent = 'Just looking? Try demo →';
-    demoToggleBtn.setAttribute('aria-label', 'Try the demo without a wallet');
-  }
-}
-if (demoToggleBtn) {
-  demoToggleBtn.addEventListener('click', () => {
-    const next = LabState.mode === 'demo' ? 'wallet' : 'demo';
-    setMode(next);
-  });
-}
+// Demo toggle removed 2026-05-22 — Lab is wallet-only. Stub kept so
+// existing call sites (`_refreshDemoToggle()` inside setMode/applyMode)
+// no-op gracefully without an `if (typeof X === 'function')` guard.
+function _refreshDemoToggle() { /* no-op — demo entry removed */ }
 
 function shortAddr(a) {
   if (!a) return '';
