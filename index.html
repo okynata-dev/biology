@@ -14,7 +14,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
 <link rel="stylesheet" href="/nav-wallet.css?v=9">
-<link rel="stylesheet" href="/design.css?v=3">
+<link rel="stylesheet" href="/design.css?v=4">
 <link rel="canonical" href="https://thebioms.com/">
 
 <meta property="og:type" content="website">
@@ -792,7 +792,7 @@
            to screen readers. The iframe lives inside but doesn't steal
            focus; clicks on it are absorbed by the .hero-stage-overlay
            sibling that sits z-index above it. -->
-      <button type="button" class="hero-stage petri-dish-lg" id="heroSpecimen"
+      <button type="button" class="hero-stage petri-dish-lg petri-specimen" id="heroSpecimen"
               aria-label="Tap to see another Biom"></button>
       <div class="hero-text">
         <h1 class="hero-title">Bioms</h1>
@@ -822,10 +822,10 @@
   <div class="wrap">
     <div class="lab-grid">
       <div class="lab-visual" aria-hidden="true">
-        <div class="lab-pane lab-pane-genesis petri-dish-sm">
+        <div class="lab-pane lab-pane-genesis petri-dish-sm petri-specimen">
           <div class="lab-pane-render" data-lab-seed="genesis"></div>
         </div>
-        <div class="lab-pane lab-pane-phoenix petri-dish-lg">
+        <div class="lab-pane lab-pane-phoenix petri-dish-lg petri-specimen">
           <div class="lab-pane-render" data-lab-seed="phoenix"></div>
         </div>
       </div>
@@ -1083,7 +1083,7 @@ if (catalogGrid) {
   // display size we use for the grid cells.
   for (const seed of CATALOG_SEEDS) {
     const a = document.createElement('a');
-    a.className = 'catalog-cell petri-dish-sm';
+    a.className = 'catalog-cell petri-dish-sm petri-specimen';
     a.href = `preview.html?seed=${seed}`;
     a.target = '_blank';
     a.rel = 'noopener';

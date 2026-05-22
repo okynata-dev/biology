@@ -100,42 +100,68 @@
     radial-gradient(ellipse at 50% 12%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 50%),
     /* Agar gradient — slightly darker at the bottom like medium
        settling under gravity. */
-    linear-gradient(180deg, var(--paper) 0%, #efece3 100%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+    linear-gradient(180deg, var(--paper) 0%, #ebe7dd 100%);
+  /* The visible glass rim — a 2px hairline at the very edge of the dish.
+     Bumped from 1px to 2px because specimens fill the interior and the
+     only place the dish identity reads is at the boundary. The colour
+     is a warm ink at 14% alpha so it reads as a glass cross-section, not
+     a hard border. */
+  border: 2px solid rgba(28, 26, 22, 0.14);
   border-radius: var(--r-lg);
   position: relative;
   isolation: isolate;
 }
 .petri-dish {
   box-shadow:
+    /* Inner ring — the cross-section of the glass wall, visible as
+       a 1px darkening just inside the border. Reads as dish thickness. */
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
     /* Lip catch-light along the top inner edge — the glass rim. */
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.85),
+    inset 0 2px 0 rgba(255, 255, 255, 0.9),
     /* Floor shadow along the bottom inner edge — the dish has depth. */
-    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
     /* Tight contact shadow — the dish sits ON something. */
     0 1px 2px rgba(28, 26, 22, 0.05),
     /* Soft cast shadow — dish rests on a counter, light from above. */
-    0 14px 28px -10px rgba(28, 26, 22, 0.10);
+    0 14px 28px -10px rgba(28, 26, 22, 0.12);
 }
 .petri-dish-sm {
-  /* Smaller dishes (catalog cells, lab panes) get a tighter shadow
-     stack — they're crowded next to siblings and would over-emphasise
-     individually with full feature-shadow. */
+  /* Smaller dishes (catalog cells, lab panes) — same dish anatomy as
+     the default but tighter shadow. */
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.75),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
-    0 1px 1px rgba(28, 26, 22, 0.04),
-    0 6px 14px -6px rgba(28, 26, 22, 0.08);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.5),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+    0 1px 1px rgba(28, 26, 22, 0.05),
+    0 8px 18px -8px rgba(28, 26, 22, 0.12);
 }
 .petri-dish-lg {
-  /* Hero + drop — feature elevation, the dish is THE moment. */
+  /* Hero + drop — feature dish, the moment. */
   box-shadow:
-    inset 0 2px 0 rgba(255, 255, 255, 0.92),
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.06),
-    0 1px 2px rgba(28, 26, 22, 0.05),
-    0 24px 56px -16px rgba(28, 26, 22, 0.16),
-    0 10px 24px -8px rgba(28, 26, 22, 0.10);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    inset 0 2.5px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(28, 26, 22, 0.06),
+    0 28px 60px -16px rgba(28, 26, 22, 0.20),
+    0 12px 28px -10px rgba(28, 26, 22, 0.12);
 }
+/* Specimen-bearing dishes need a visible rim around the specimen so
+   the dish identity reads. Without this internal padding the iframe
+   or img fills 100% and the rim/agar disappear — looks like a plain
+   card. Padding pulls the specimen inward by a small amount; the
+   visible "rim of agar" surrounding it sells the dish metaphor. */
+.petri-dish-sm.petri-specimen { padding: 6px; }
+.petri-dish-lg.petri-specimen { padding: 10px; }
+/* When the specimen sits at inset:0 absolute (iframes, full-bleed imgs),
+   the padding alone doesn't push it. Apply inset shift to those too. */
+.petri-dish-sm.petri-specimen > iframe,
+.petri-dish-sm.petri-specimen > .composition,
+.petri-dish-sm.petri-specimen > .lab-pane-render,
+.petri-dish-sm.petri-specimen > .cell-render,
+.petri-dish-sm.petri-specimen > picture { border-radius: calc(var(--r-md) - 6px); overflow: hidden; }
+.petri-dish-lg.petri-specimen > iframe,
+.petri-dish-lg.petri-specimen > .composition,
+.petri-dish-lg.petri-specimen > .lab-pane-render { border-radius: calc(var(--r-lg) - 10px); overflow: hidden; }
 /* Diagonal sheen — applied via ::after so it sits ABOVE backgrounds but
    below content (which gets z-index:1 from .petri-dish * rules). */
 .petri-dish::after,
