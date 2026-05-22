@@ -7,5 +7,9 @@ Disallow: /asset-template.html
 # /soup is built but hidden pre-drop — don't index until we surface it
 Disallow: /soup
 Disallow: /soup.html
+# /list — operator's waitlist download view, page still works at the URL
+# but doesn't need to be indexed or surfaced in search results
+Disallow: /list
+Disallow: /list.html
 
 Sitemap: https://thebioms.com/sitemap.xml
