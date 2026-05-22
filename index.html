@@ -14,7 +14,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
 <link rel="stylesheet" href="/nav-wallet.css?v=9">
-<link rel="stylesheet" href="/design.css?v=2">
+<link rel="stylesheet" href="/design.css?v=3">
 <link rel="canonical" href="https://thebioms.com/">
 
 <meta property="og:type" content="website">
@@ -251,10 +251,9 @@
     /* <button> reset — the element is a button now so the whole
        surface is keyboard-focusable + announces its action, but we
        need to strip the default UA chrome (font, padding, border,
-       text-align) so it still renders as our cream paper card. */
+       text-align) so it still renders as our Petri dish. */
     font: inherit;
     color: inherit;
-    border: 0;
     padding: 0;
     text-align: inherit;
     -webkit-appearance: none;
@@ -267,20 +266,13 @@
     /* On wide screens cap stage height so it stays inside the viewport. */
     max-height: 76vh;
     margin: 0 auto;
-    border-radius: var(--r-lg);
     overflow: hidden;
-    background: var(--paper);
-    /* Hero is the only feature-level surface on the landing — pulls
-       the deepest shadow token from the system. */
-    box-shadow: var(--shadow-feature);
-    /* The whole stage is clickable — tap anywhere on the specimen to
-       roll the next one. cursor:pointer is the affordance; the actual
-       click goes through the overlay below (iframes swallow pointer
-       events on their content area). */
+    /* Petri dish material — full recipe lives in /design.css under
+       .petri-dish-lg. Hero is the featured specimen on the counter,
+       gets the deepest dish shadow. The dish background + lip + agar
+       gradient + sheen all come from the shared class. */
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-    /* will-change hints to the compositor that transform will animate,
-       avoiding repaint cost on first hover. */
     will-change: transform;
   }
   /* Transparent click-catcher on top of the iframe — without this the
@@ -408,13 +400,14 @@
   }
   .catalog-cell {
     aspect-ratio: 1;
-    position: relative;
-    border-radius: var(--r-md);
     overflow: hidden;
-    background: var(--paper);
     display: block;
     text-decoration: none;
-    box-shadow: var(--shadow-rest);
+    /* Petri dish material — these are the 12 small dishes on the
+       counter. Class .petri-dish-sm in /design.css provides the lip,
+       agar gradient, and tight shadow stack. Local CSS only overrides
+       border-radius (--r-md, smaller than the dish default --r-lg). */
+    border-radius: var(--r-md);
     /* Use the global easing curve so every card on every page lifts
        with the same gesture. */
     transition: transform var(--t-base) var(--ease),
@@ -543,16 +536,20 @@
     width: 38%;
     aspect-ratio: 1;
     z-index: 1;
-    box-shadow: var(--shadow-rest);
+    /* Petri dish via .petri-dish-sm utility on the markup — background,
+       sheen, rim, agar are all from /design.css. */
   }
   .lab-pane-phoenix {
     bottom: 0; right: 0;
     width: 76%;
     aspect-ratio: 1;
     z-index: 2;
+    /* Phoenix's warm gold agar — override the default --paper fill so
+       it reads as a higher-rank specimen's brighter culture medium.
+       The dish lip + sheen still come from .petri-dish-lg. */
     background:
+      radial-gradient(ellipse at 50% 12%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 50%),
       radial-gradient(circle at 50% 50%, #fff5e6 0%, #f4ead4 45%, #efebe2 100%);
-    box-shadow: var(--shadow-hover);
   }
   /* Inline render slot — DOM panels (preserves glass effect). */
   .lab-pane-render {
@@ -655,57 +652,20 @@
     .lab-cta { margin-top: 40px; }
   }
 
-  /* === DROP — closing block, now elevated onto a glass panel.
+  /* === DROP — closing block, the largest dish on the counter.
      The Reserve CTA is the single most important action on the entire
-     landing page. Previously it sat on plain cream paper with no
-     visual emphasis — eye slid past it. Now: a translucent glass
-     card lifts the whole block, the type sits above an inner sheen,
-     a soft feature-shadow grounds it. Same glass language used by
-     the biom specimen panels — visual continuity, not novelty. */
+     landing page; sitting it on a Petri dish ties the announcement
+     to the same brand container the biom specimens live in.
+     Style comes from .petri-dish-lg in /design.css. This block adds
+     only the layout (max-width + padding + centering). */
   .drop { padding: clamp(72px, 10vw, 140px) clamp(20px, 4vw, 32px); }
   .drop-block {
     max-width: 620px;
     margin: 0 auto;
     text-align: center;
-    position: relative;
-    /* Glass panel: translucent paper fill, hairline rim, sheen overlay,
-       deep drop shadow. backdrop-filter saturates anything behind so
-       the panel reads as a held-up pane of glass, not a card. */
-    background: linear-gradient(160deg,
-                  rgba(244, 241, 232, 0.72) 0%,
-                  rgba(236, 233, 224, 0.55) 100%);
-    -webkit-backdrop-filter: blur(18px) saturate(1.4);
-    backdrop-filter: blur(18px) saturate(1.4);
-    border: 1px solid rgba(255, 255, 255, 0.7);
-    border-radius: var(--r-lg);
     padding: clamp(48px, 7vw, 80px) clamp(32px, 5vw, 64px);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.95),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.06),
-      0 1px 2px rgba(28, 26, 22, 0.04),
-      0 28px 56px -16px rgba(28, 26, 22, 0.16),
-      0 12px 28px -10px rgba(28, 26, 22, 0.10);
     overflow: hidden;
   }
-  /* Diagonal sheen across the top of the glass, like light catching
-     the edge of a pane. Subtle — at 22% opacity it's a hint of
-     reflection, not a band of colour. */
-  .drop-block::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg,
-                  rgba(255, 255, 255, 0) 0%,
-                  rgba(255, 255, 255, 0.22) 32%,
-                  rgba(255, 255, 255, 0.40) 42%,
-                  rgba(255, 255, 255, 0.12) 56%,
-                  rgba(255, 255, 255, 0) 72%);
-    mix-blend-mode: overlay;
-    pointer-events: none;
-    border-radius: inherit;
-  }
-  /* Lift the actual content above the sheen layer. */
-  .drop-block > * { position: relative; z-index: 1; }
 
   .drop-block h2 {
     margin: 0 0 16px;
@@ -832,7 +792,7 @@
            to screen readers. The iframe lives inside but doesn't steal
            focus; clicks on it are absorbed by the .hero-stage-overlay
            sibling that sits z-index above it. -->
-      <button type="button" class="hero-stage" id="heroSpecimen"
+      <button type="button" class="hero-stage petri-dish-lg" id="heroSpecimen"
               aria-label="Tap to see another Biom"></button>
       <div class="hero-text">
         <h1 class="hero-title">Bioms</h1>
@@ -862,10 +822,10 @@
   <div class="wrap">
     <div class="lab-grid">
       <div class="lab-visual" aria-hidden="true">
-        <div class="lab-pane lab-pane-genesis">
+        <div class="lab-pane lab-pane-genesis petri-dish-sm">
           <div class="lab-pane-render" data-lab-seed="genesis"></div>
         </div>
-        <div class="lab-pane lab-pane-phoenix">
+        <div class="lab-pane lab-pane-phoenix petri-dish-lg">
           <div class="lab-pane-render" data-lab-seed="phoenix"></div>
         </div>
       </div>
@@ -901,7 +861,7 @@
 
 <section class="drop" data-cv-auto>
   <div class="wrap">
-    <div class="drop-block">
+    <div class="drop-block petri-dish-lg">
       <h2>The drop.</h2>
       <p>ERC-721 on Ethereum. Supply, date, and price announced soon.</p>
       <div class="cta-row drop-cta">
@@ -1123,7 +1083,7 @@ if (catalogGrid) {
   // display size we use for the grid cells.
   for (const seed of CATALOG_SEEDS) {
     const a = document.createElement('a');
-    a.className = 'catalog-cell';
+    a.className = 'catalog-cell petri-dish-sm';
     a.href = `preview.html?seed=${seed}`;
     a.target = '_blank';
     a.rel = 'noopener';

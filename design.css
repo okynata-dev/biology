@@ -68,6 +68,97 @@
   --pad-x: clamp(20px, 4vw, 32px);
 }
 
+/* =========================================================================
+   PETRI DISH MATERIAL — brand container metaphor
+   --------------------------------------------------------------------------
+   Bioms are bacterial specimens; their natural container is the petri
+   dish. The hero, catalog cells, lab panes, and drop CTA all sit on a
+   shared "dish" surface so the site reads as a microscope lab counter
+   rather than a generic NFT marketing page.
+
+   The recipe avoids backdrop-filter on purpose — it's a heavy GPU effect
+   that compounds painfully when applied to multiple elements scrolling
+   together (especially mobile Safari). Instead we layer:
+     1. radial-gradient top reflection — the dome catching light
+     2. linear agar fill — the medium settling under the lid
+     3. inset top rim catch-light — the glass lip
+     4. inset bottom hairline — the dish floor edge
+     5. outer hairline — the dish wall against the counter
+     6. tight grounding shadow + soft cast shadow — the dish sits on
+        something, not painted on it
+
+   Three sizes: .petri-dish (default), .petri-dish-sm (catalog cells),
+   .petri-dish-lg (hero, drop). They differ only in shadow depth — the
+   inner light language is identical so the family reads.
+   ========================================================================= */
+.petri-dish,
+.petri-dish-sm,
+.petri-dish-lg {
+  background:
+    /* Top catch-light — a soft elliptical highlight in the upper third
+       where a glass lid would catch a ceiling light. */
+    radial-gradient(ellipse at 50% 12%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 50%),
+    /* Agar gradient — slightly darker at the bottom like medium
+       settling under gravity. */
+    linear-gradient(180deg, var(--paper) 0%, #efece3 100%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--r-lg);
+  position: relative;
+  isolation: isolate;
+}
+.petri-dish {
+  box-shadow:
+    /* Lip catch-light along the top inner edge — the glass rim. */
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.85),
+    /* Floor shadow along the bottom inner edge — the dish has depth. */
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+    /* Tight contact shadow — the dish sits ON something. */
+    0 1px 2px rgba(28, 26, 22, 0.05),
+    /* Soft cast shadow — dish rests on a counter, light from above. */
+    0 14px 28px -10px rgba(28, 26, 22, 0.10);
+}
+.petri-dish-sm {
+  /* Smaller dishes (catalog cells, lab panes) get a tighter shadow
+     stack — they're crowded next to siblings and would over-emphasise
+     individually with full feature-shadow. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    0 1px 1px rgba(28, 26, 22, 0.04),
+    0 6px 14px -6px rgba(28, 26, 22, 0.08);
+}
+.petri-dish-lg {
+  /* Hero + drop — feature elevation, the dish is THE moment. */
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(28, 26, 22, 0.05),
+    0 24px 56px -16px rgba(28, 26, 22, 0.16),
+    0 10px 24px -8px rgba(28, 26, 22, 0.10);
+}
+/* Diagonal sheen — applied via ::after so it sits ABOVE backgrounds but
+   below content (which gets z-index:1 from .petri-dish * rules). */
+.petri-dish::after,
+.petri-dish-sm::after,
+.petri-dish-lg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg,
+              rgba(255,255,255,0) 0%,
+              rgba(255,255,255,0.18) 28%,
+              rgba(255,255,255,0.32) 38%,
+              rgba(255,255,255,0.10) 50%,
+              rgba(255,255,255,0) 64%);
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
+}
+.petri-dish > *,
+.petri-dish-sm > *,
+.petri-dish-lg > * { position: relative; z-index: 1; }
+
 /* ---- Global motion baseline ---- */
 html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
