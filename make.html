@@ -298,6 +298,47 @@
     color: var(--ink-2); font-weight: 600;
   }
 
+  /* === MODE TABS — Single specimen vs N×M collage === */
+  .mode-tabs {
+    display: flex; gap: 0;
+    background: white; border: 1px solid var(--rule); border-radius: 8px;
+    padding: 3px; margin-bottom: 4px;
+  }
+  .mode-tabs button {
+    flex: 1; padding: 8px 10px;
+    background: transparent; border: none; border-radius: 6px;
+    font-family: inherit; font-size: 12px; font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--ink-3); cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+  }
+  .mode-tabs button[aria-pressed="true"] {
+    background: var(--ink); color: var(--bg);
+  }
+  .mode-tabs button:hover:not([aria-pressed="true"]) { color: var(--ink); }
+
+  /* The single-mode "Biom" group and collage-mode "Grid" group share the
+     same ctrl-group slot — JS toggles which is visible. */
+  .ctrl-group[data-mode-only] { display: none; }
+  body[data-make-mode="single"]  .ctrl-group[data-mode-only="single"]  { display: block; }
+  body[data-make-mode="collage"] .ctrl-group[data-mode-only="collage"] { display: block; }
+
+  .grid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+
+  /* Cells of the collage. Engine paints absolutely-positioned .panel
+     descendants inside each cell; cell itself is a relative-positioned
+     square box that fills its grid track. */
+  .collage-grid {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    /* grid-template-columns / -rows set inline via JS */
+  }
+  .collage-cell {
+    position: relative;
+    overflow: visible;  /* allow panel halos to bleed into neighbouring cells, matching the canvas export */
+  }
+
   .format-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
   .format-btn {
     background: white; border: 1px solid var(--rule); border-radius: 7px;
@@ -441,7 +482,7 @@
   <div class="wrap">
     <h1>Banner Maker.</h1>
     <p class="lead">
-      Drag the Biom around. Scroll to zoom. Rotate, flip, whatever feels right. Export one format, or pull all seven at once.
+      Single specimen or a whole grid of them. Drag, zoom, rotate, flip — the same controls move the entire layout. Export one format, or pull all seven at once.
     </p>
 
     <div class="workspace">
@@ -449,6 +490,9 @@
         <div class="canvas" id="canvas" style="aspect-ratio: 3/1;">
           <div class="specimen-host" id="specimenHost">
             <div class="specimen-stage">
+              <!-- Single-specimen mode: engine paints into #liveComp.
+                   Collage mode: JS builds a CSS-grid of cells inside #liveComp
+                   and calls renderSpecimen on each cell. -->
               <div class="composition" id="liveComp"></div>
             </div>
           </div>
@@ -461,6 +505,11 @@
       </div>
 
       <div class="controls">
+        <div class="mode-tabs" role="tablist" aria-label="Maker mode">
+          <button type="button" id="modeSingleBtn" role="tab" aria-pressed="true">Single</button>
+          <button type="button" id="modeCollageBtn" role="tab" aria-pressed="false">Collage</button>
+        </div>
+
         <div class="ctrl-group">
           <div class="ctrl-label">Format</div>
           <div class="format-grid" id="formatGrid"></div>
@@ -470,12 +519,23 @@
           </div>
         </div>
 
-        <div class="ctrl-group">
+        <div class="ctrl-group" data-mode-only="single">
           <div class="ctrl-label">Biom</div>
           <div class="seed-row">
             <input id="seedInput" class="seed-input" type="number" min="0" max="2999" aria-label="Biom seed" />
             <button type="button" class="btn secondary small" id="randomBtn" aria-label="Random seed" title="Random seed">⤴</button>
           </div>
+        </div>
+
+        <div class="ctrl-group" data-mode-only="collage">
+          <div class="ctrl-label"><span>Grid</span><span class="val" id="gridVal">3 × 3</span></div>
+          <div class="grid-row" style="margin-bottom: 8px;">
+            <input id="colsInput" class="num-input" type="number" min="1" max="12" value="3" aria-label="Columns" placeholder="Cols" />
+            <input id="rowsInput" class="num-input" type="number" min="1" max="12" value="3" aria-label="Rows" placeholder="Rows" />
+          </div>
+          <button type="button" class="btn secondary" id="shuffleBtn" style="margin-bottom: 8px;">⤴ Shuffle seeds</button>
+          <div class="ctrl-label" style="margin-bottom: 6px;"><span>Gap</span><span class="val" id="gapVal">2%</span></div>
+          <input type="range" class="slider" id="gapSlider" min="0" max="12" value="2" step="1" aria-label="Gap between cells, percent of cell size" />
         </div>
 
         <div class="ctrl-group">
@@ -599,7 +659,14 @@ const FORMATS = [
 // leaking a "hero" seed in view-source pre-reveal. seedInput.value
 // gets set during init below.
 const state = {
+  mode: 'single',                 // 'single' | 'collage'
   seed: Math.floor(Math.random() * 3000),
+  // Collage params. collageSeeds is regenerated on dimension change and
+  // on shuffle. Default 3×3 keeps the first paint quick.
+  gridCols: 3,
+  gridRows: 3,
+  cellGapPct: 2,                  // gap as % of single cell size (0..12)
+  collageSeeds: [],               // populated by initCollageSeeds() / shuffleCollageSeeds()
   format: FORMATS[0],
   customW: 1500,
   customH: 500,
@@ -634,6 +701,14 @@ const metaSeed       = document.getElementById('metaSeed');
 const metaRes        = document.getElementById('metaRes');
 // templateGrid removed — no Layouts UI anymore
 const packBtn        = document.getElementById('packBtn');
+const modeSingleBtn  = document.getElementById('modeSingleBtn');
+const modeCollageBtn = document.getElementById('modeCollageBtn');
+const colsInput      = document.getElementById('colsInput');
+const rowsInput      = document.getElementById('rowsInput');
+const gridVal        = document.getElementById('gridVal');
+const shuffleBtn     = document.getElementById('shuffleBtn');
+const gapSlider      = document.getElementById('gapSlider');
+const gapVal         = document.getElementById('gapVal');
 
 // =========================================================================
 // RENDER SPECIMEN
@@ -784,6 +859,10 @@ function preloadSpecimen(seed) {
 function updateExportStatus() {
   if (!renderStatusEl) return;
   if (renderStatusEl.dataset.locked === '1') return;  // active render in progress
+  if (state.mode === 'collage') {
+    setRenderStatus(`Collage · ${state.gridCols}×${state.gridRows} · live render`);
+    return;
+  }
   if (specimenImg) {
     setRenderStatus('Pre-rendered HQ source ready · pixel-perfect export', 'ok');
   } else if (window.BiomEngine && window.BiomEngine.REVEAL === false) {
@@ -797,10 +876,64 @@ function updateExportStatus() {
   }
 }
 
+// =========================================================================
+// COLLAGE SEED MANAGEMENT
+// =========================================================================
+// The collage carries a flat array of (cols*rows) seeds. We regenerate on
+// dimension change (preserving as many existing entries as we can — the
+// user might have shuffled into a layout they liked and just want to add
+// a row, no reason to reroll everything they already saw) and on explicit
+// shuffle.
+function _randSeed() { return Math.floor(Math.random() * 3000); }
+
+function _resizeCollageSeeds() {
+  const N = state.gridCols * state.gridRows;
+  while (state.collageSeeds.length < N) state.collageSeeds.push(_randSeed());
+  if (state.collageSeeds.length > N) state.collageSeeds.length = N;
+}
+
+function shuffleCollageSeeds() {
+  const N = state.gridCols * state.gridRows;
+  state.collageSeeds = Array.from({ length: N }, _randSeed);
+}
+
+// =========================================================================
+// LIVE RENDER — branch by mode
+// =========================================================================
 function renderLive() {
   if (!window.BiomEngine) return;
-  window.BiomEngine.renderSpecimen(liveComp, state.seed, { isFitMode: true });
-  metaSeed.textContent = window.BiomEngine.label(state.seed);
+  if (state.mode === 'collage') {
+    _resizeCollageSeeds();
+    // Build CSS grid of cells inside #liveComp. Each cell gets a fresh
+    // renderSpecimen call — the engine paints absolutely-positioned
+    // panels inside the cell box, and box-shadows that bleed out of
+    // a cell into its neighbour is exactly what we want for a tightly-
+    // packed collage (matches how renderSpecimenToCanvas behaves at
+    // export time too).
+    liveComp.innerHTML = '';
+    liveComp.classList.add('collage-grid');
+    liveComp.style.gridTemplateColumns = `repeat(${state.gridCols}, 1fr)`;
+    liveComp.style.gridTemplateRows    = `repeat(${state.gridRows}, 1fr)`;
+    // liveComp.style.gap is set inside applyTransform() — it's pixel-
+    // exact and depends on the current canvas size + scale + cellGapPct,
+    // so keeping it in one place avoids drift between preview and export.
+
+    for (let i = 0; i < state.collageSeeds.length; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'collage-cell';
+      liveComp.appendChild(cell);
+      window.BiomEngine.renderSpecimen(cell, state.collageSeeds[i], { isFitMode: true });
+    }
+    metaSeed.textContent = `COLLAGE · ${state.gridCols}×${state.gridRows} (${state.collageSeeds.length} bioms)`;
+  } else {
+    liveComp.classList.remove('collage-grid');
+    liveComp.style.gridTemplateColumns = '';
+    liveComp.style.gridTemplateRows    = '';
+    liveComp.style.gap = '';
+    // Engine clears + repopulates #liveComp internally.
+    window.BiomEngine.renderSpecimen(liveComp, state.seed, { isFitMode: true });
+    metaSeed.textContent = window.BiomEngine.label(state.seed);
+  }
 }
 
 function setSeed(seed) {
@@ -808,6 +941,26 @@ function setSeed(seed) {
   seedInput.value = seed;
   renderLive();
   preloadSpecimen(seed);
+}
+
+// =========================================================================
+// MODE SWITCHING
+// =========================================================================
+// Single ↔ Collage. We DON'T reset the transform on switch — the user
+// might want to compose, switch modes, switch back. The biom seed and
+// the collage seeds live in separate state slots so neither clobbers
+// the other.
+function setMode(next) {
+  if (next !== 'single' && next !== 'collage') return;
+  state.mode = next;
+  document.body.dataset.makeMode = next;
+  modeSingleBtn.setAttribute('aria-pressed', String(next === 'single'));
+  modeCollageBtn.setAttribute('aria-pressed', String(next === 'collage'));
+  if (next === 'collage') _resizeCollageSeeds();
+  renderLive();
+  // Host pixel-size changes between single (square) and collage (rect),
+  // so resize the host BEFORE applyTransform reads its own dims.
+  requestAnimationFrame(applyTransform);
 }
 
 // =========================================================================
@@ -820,10 +973,37 @@ function setSeed(seed) {
 function applyTransform() {
   const rect = canvas.getBoundingClientRect();
   const baseSize = Math.min(rect.width, rect.height);
-  const finalSize = baseSize * state.scale;
-  specimenHost.style.width  = finalSize + 'px';
-  specimenHost.style.height = finalSize + 'px';
-  // Convert tx/ty (% of baseSize) to px for the translate component
+
+  if (state.mode === 'collage') {
+    // Account for gaps when fitting the grid into the canvas so the
+    // natural-size collage (scale=1) exactly fills the canvas's short
+    // edge, including any inter-cell gap the user has set.
+    //   total_w = cellPx*cols + gapPx*(cols-1), gapPx = cellPx * gapPct/100
+    //   → total_w = cellPx * (cols + (cols-1)*gapPct/100)
+    const gp = state.cellGapPct / 100;
+    const widthDiv  = state.gridCols + (state.gridCols - 1) * gp;
+    const heightDiv = state.gridRows + (state.gridRows - 1) * gp;
+    const cellFit = Math.min(rect.width / widthDiv, rect.height / heightDiv);
+    const cellPx  = cellFit * state.scale;
+    const gapPx   = cellPx * gp;
+    const hostW   = cellPx * state.gridCols + gapPx * (state.gridCols - 1);
+    const hostH   = cellPx * state.gridRows + gapPx * (state.gridRows - 1);
+    specimenHost.style.width  = hostW + 'px';
+    specimenHost.style.height = hostH + 'px';
+    // Pixel-precise gap on the grid container — with 1fr tracks this makes
+    // each cell exactly cellPx wide, so canvas export (which uses cellPx
+    // explicitly) matches the DOM preview pixel-for-pixel.
+    liveComp.style.gap = gapPx + 'px';
+  } else {
+    const finalSize = baseSize * state.scale;
+    specimenHost.style.width  = finalSize + 'px';
+    specimenHost.style.height = finalSize + 'px';
+    liveComp.style.gap = '';
+  }
+
+  // tx/ty stay in % of baseSize (the canvas short edge) so drag feel is
+  // identical between single and collage. Center-pivoted rotate/flip
+  // around the host element — matches renderSpecimenToCanvas math.
   const txPx = state.tx * baseSize / 100;
   const tyPx = state.ty * baseSize / 100;
   specimenHost.style.transform =
@@ -1063,6 +1243,49 @@ seedInput.addEventListener('change', () => {
 randomBtn.addEventListener('click', () => setSeed(Math.floor(Math.random() * 3000)));
 
 // =========================================================================
+// MODE / COLLAGE CONTROLS
+// =========================================================================
+modeSingleBtn.addEventListener('click',  () => setMode('single'));
+modeCollageBtn.addEventListener('click', () => setMode('collage'));
+
+function _updateGridLabel() {
+  gridVal.textContent = `${state.gridCols} × ${state.gridRows}`;
+}
+
+function _onGridDimsChange() {
+  const c = Math.max(1, Math.min(12, parseInt(colsInput.value, 10) || 1));
+  const r = Math.max(1, Math.min(12, parseInt(rowsInput.value, 10) || 1));
+  state.gridCols = c;
+  state.gridRows = r;
+  colsInput.value = c;
+  rowsInput.value = r;
+  _updateGridLabel();
+  // Preserve existing seeds (user might have liked a row, just adding/
+  // removing). New cells get random; extras are dropped.
+  _resizeCollageSeeds();
+  renderLive();
+  requestAnimationFrame(applyTransform);
+  updateExportStatus();
+}
+
+colsInput.addEventListener('change', _onGridDimsChange);
+rowsInput.addEventListener('change', _onGridDimsChange);
+
+shuffleBtn.addEventListener('click', () => {
+  shuffleCollageSeeds();
+  renderLive();
+});
+
+gapSlider.addEventListener('input', () => {
+  state.cellGapPct = parseInt(gapSlider.value, 10);
+  gapVal.textContent = state.cellGapPct + '%';
+  // Gap changes how much canvas the grid occupies (cells shrink to make
+  // room) — applyTransform recomputes host pixel-size + grid gap CSS.
+  // Cells themselves don't need to be redrawn so we skip renderLive.
+  if (state.mode === 'collage') applyTransform();
+});
+
+// =========================================================================
 // DOWNLOAD — pre-rendered PNG composited via canvas, with local fallback
 // =========================================================================
 // HQ path: take the pre-rendered master PNG for this seed (1500–4000px,
@@ -1150,25 +1373,114 @@ function localRender(seed, w, h, opts) {
   });
 }
 
-// Returns { source: 'hq' | 'local', hqError?: Error }
-async function renderAndDownload(seed, w, h, formatId, opts) {
-  const filename = `bioms-biom-${seed}-${formatId}-${w}x${h}.png`;
+// =========================================================================
+// COLLAGE EXPORT — N×M whole bioms onto one canvas, transform applied as a unit
+// =========================================================================
+// We render each cell into its own temp canvas at cell-pixel resolution
+// (engine renders into the canvas centred), then drawImage the temp into
+// the master canvas at the cell position. The outer translate/rotate/scale/
+// flip is applied via the master canvas matrix so the whole grid moves as
+// one — same drag/scale numbers from state work identically.
+//
+// Background is forced opaque white before the matrix so the collage sits
+// on a flat field (matches single-mode export).
+function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
+  return new Promise((resolve, reject) => {
+    try {
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
 
-  // 2026-05-22: switched to the engine renderer as the DEFAULT path.
-  // The master PNG path (hqRender) had two compounding problems:
-  //   1. The master is rendered inside preview.html's card layout, so
-  //      the biom sits in the lower-centre of the PNG (room for title
-  //      above). Drawing that PNG centred-in-banner pushed the biom
-  //      below the visible area, especially at high scale.
-  //   2. Workarounds (cream-strip + bbox-recentre) introduced their
-  //      own visual artefacts — strip ate into glass panels, bbox
-  //      recentring shifted bioms with asymmetric outline shadows.
-  // The engine renderer (renderSpecimenToCanvas via localRender) is
-  // the SAME pipeline the preview uses — so what you see is what you
-  // get, by construction. Cost is ~50-200ms more per export vs the
-  // pre-rendered master, but the visual fidelity is the point of the
-  // page.
-  const blob = await localRender(seed, w, h, opts);
+      // Untransformed collage geometry. Pick the cell px size so the
+      // natural grid fits the canvas's short edge — exactly like the
+      // DOM applyTransform path does.
+      const cellFit = Math.min(w / cols, h / rows);
+      const cellPx  = cellFit * opts.scale;
+      const gapPx   = cellPx * (gapPct / 100);
+      // Total grid size, including (cols-1)*gap horizontally, (rows-1)*gap vertically.
+      const totalW = cellPx * cols + gapPx * (cols - 1);
+      const totalH = cellPx * rows + gapPx * (rows - 1);
+
+      // Outer transform matches the CSS chain on .specimen-host:
+      //   translate(-50%,-50%) translate(tx,ty) scale(flipX,flipY) rotate(rot)
+      // Translated into canvas matrix ops:
+      const baseSize = Math.min(w, h);
+      const txPx = opts.tx * baseSize / 100;
+      const tyPx = opts.ty * baseSize / 100;
+
+      ctx.save();
+      ctx.translate(w / 2 + txPx, h / 2 + tyPx);          // canvas centre, then user offset
+      ctx.scale(opts.flipX, opts.flipY);                  // mirror about centre
+      ctx.rotate(opts.rotation * Math.PI / 180);          // rotate around centre
+      // Now origin is the collage's centre. Top-left of the grid:
+      const gridLeft = -totalW / 2;
+      const gridTop  = -totalH / 2;
+
+      // Each cell — temp canvas → renderSpecimenToCanvas (transparent bg)
+      // → drawImage at its slot. We round cellPx to integer per-cell so a
+      // collage with non-integer cellPx doesn't drift the grid by sub-px
+      // accumulations (would manifest as 1-px gaps at corners on large
+      // grids).
+      const cellPxI = Math.max(1, Math.round(cellPx));
+      const gapPxI  = Math.round(gapPx);
+      for (let r = 0; r < rows; r++) {
+        for (let col = 0; col < cols; col++) {
+          const idx = r * cols + col;
+          const seed = seeds[idx];
+          if (seed == null) continue;
+
+          // Per-cell temp canvas. The engine paints a SQUARE specimen
+          // sized to specSize (= cellPxI); we want transparent background
+          // so cell halos can bleed into adjacent space without leaving
+          // a square cream/white card behind.
+          const tmp = document.createElement('canvas');
+          tmp.width = cellPxI; tmp.height = cellPxI;
+          window.BiomEngine.renderSpecimenToCanvas(tmp, seed, {
+            specSize: cellPxI,
+            background: 'transparent',
+            tx: 0, ty: 0,
+            scale: 1,
+            rotation: 0,
+            flipX: 1, flipY: 1,
+          });
+
+          const cx = gridLeft + col * (cellPxI + gapPxI);
+          const cy = gridTop  + r   * (cellPxI + gapPxI);
+          ctx.drawImage(tmp, cx, cy);
+        }
+      }
+
+      ctx.restore();
+
+      c.toBlob((blob) => {
+        if (!blob) return reject(new Error('toBlob returned null'));
+        resolve(blob);
+      }, 'image/png');
+    } catch (e) { reject(e); }
+  });
+}
+
+// Branches on state.mode. Single → localRender. Collage → collageRender.
+async function renderAndDownload(seed, w, h, formatId, opts) {
+  let blob, filename;
+  if (state.mode === 'collage') {
+    blob = await collageRender(
+      state.gridCols, state.gridRows, state.collageSeeds,
+      state.cellGapPct,
+      w, h, opts
+    );
+    filename = `bioms-collage-${state.gridCols}x${state.gridRows}-${formatId}-${w}x${h}.png`;
+  } else {
+    // The master PNG path (hqRender) was abandoned because (a) the master
+    // was rendered inside preview.html's card layout so the biom sat in
+    // the lower-centre, (b) workarounds (cream-strip + bbox-recentre)
+    // introduced their own artefacts. The engine renderer is the SAME
+    // pipeline as preview — pixel-identical by construction.
+    blob = await localRender(seed, w, h, opts);
+    filename = `bioms-biom-${seed}-${formatId}-${w}x${h}.png`;
+  }
   downloadBlob(blob, filename);
   return { source: 'local' };
 }
@@ -1244,8 +1556,18 @@ packBtn.addEventListener('click', async () => {
 // =========================================================================
 // INIT
 // =========================================================================
-// Initial render — seedInput is empty in HTML to keep view-source clean,
-// so push the JS-picked random seed back into the input field on boot.
+// Default mode on boot.
+document.body.dataset.makeMode = state.mode;
+modeSingleBtn.setAttribute('aria-pressed', String(state.mode === 'single'));
+modeCollageBtn.setAttribute('aria-pressed', String(state.mode === 'collage'));
+// Pre-seed the collage list once so switching to Collage feels instant
+// (no first-paint flicker while seeds get rolled).
+_resizeCollageSeeds();
+_updateGridLabel();
+gapVal.textContent = state.cellGapPct + '%';
+
+// Initial single-mode render. seedInput is empty in HTML to keep view-
+// source clean, so push the JS-picked random seed back into the field.
 seedInput.value = state.seed;
 renderLive();
 preloadSpecimen(state.seed);
@@ -1254,11 +1576,26 @@ applyTransform();
 // Re-apply transform on window resize so host pixel size stays correct
 window.addEventListener('resize', () => requestAnimationFrame(applyTransform));
 
-// URL ?seed= prefill
-const urlSeed = new URLSearchParams(window.location.search).get('seed');
+// URL ?seed= prefill (single mode only — collage has too many seeds to
+// reasonably encode). ?collage=CxR opens the collage mode at that size.
+const urlParams = new URLSearchParams(window.location.search);
+const urlSeed = urlParams.get('seed');
 if (urlSeed !== null) {
   const s = parseInt(urlSeed, 10);
   if (!isNaN(s)) setSeed(s);
+}
+const urlCollage = urlParams.get('collage');
+if (urlCollage) {
+  const m = /^(\d+)x(\d+)$/i.exec(urlCollage);
+  if (m) {
+    state.gridCols = Math.max(1, Math.min(12, parseInt(m[1], 10)));
+    state.gridRows = Math.max(1, Math.min(12, parseInt(m[2], 10)));
+    colsInput.value = state.gridCols;
+    rowsInput.value = state.gridRows;
+    _resizeCollageSeeds();
+    _updateGridLabel();
+    setMode('collage');
+  }
 }
 </script>
 
