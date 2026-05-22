@@ -361,30 +361,8 @@
   .btn.secondary { background: transparent; color: var(--ink); }
   .btn.small { padding: 8px 10px; font-size: 11px; width: auto; }
 
-  .template-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;
-  }
-  .template-btn {
-    background: white; border: 1px solid var(--rule); border-radius: 7px;
-    aspect-ratio: 1; cursor: pointer; position: relative; overflow: hidden;
-    padding: 0; transition: border-color 0.15s;
-  }
-  .template-btn:hover { border-color: var(--ink-2); }
-  .template-btn.active { border-color: var(--ink); border-width: 2px; }
-  .template-btn .ticon {
-    position: absolute;
-    background: rgba(28,26,22,0.65);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-  }
-  .template-btn .tlabel {
-    position: absolute;
-    bottom: 2px; left: 0; right: 0;
-    text-align: center;
-    font-size: 8px; letter-spacing: 0.04em;
-    color: var(--ink-3); text-transform: uppercase; font-weight: 500;
-  }
-  .template-btn.active .tlabel { color: var(--ink); }
+  /* .template-grid / .template-btn CSS removed 2026-05-22 with the
+     Layouts section. */
 
   /* Hidden render stage — same .panel CSS applies thanks to global styles */
   .render-stage {
@@ -518,17 +496,15 @@
           </div>
         </div>
 
-        <div class="ctrl-group">
-          <div class="ctrl-label">Layouts</div>
-          <div class="template-grid" id="templateGrid"></div>
-        </div>
+        <!-- "Layouts" preset grid removed 2026-05-22 — the canned
+             positions (Center / Hero / Left / Right / Corner / etc.)
+             rarely fit any real banner well, so the recommendation
+             was to drag the biom manually. The grid was wasted real
+             estate, often actively misleading. -->
 
         <button type="button" class="btn secondary" id="resetBtn">Reset transform</button>
         <button type="button" class="btn" id="downloadBtn">Download PNG</button>
-        <button type="button" class="btn secondary" id="packBtn" title="Download all 7 standard formats in one go. Each gets its own smart auto-layout.">Download all 7 formats</button>
-        <div style="font-size: 10px; color: var(--ink-3); text-align: center; letter-spacing: 0.04em; margin-top: -4px; text-transform: uppercase;">
-          Pack picks the right crop for each format
-        </div>
+        <button type="button" class="btn secondary" id="packBtn" title="Download all 7 standard formats, each using the current transform.">Download all 7 formats</button>
         <div id="renderStatus" style="font-size: 11px; color: var(--ink-3); text-align: center; min-height: 16px; margin-top: 4px;"></div>
       </div>
     </div>
@@ -593,7 +569,7 @@ const PNG_BASE = 'https://pngs.thebioms.com';
 const PNG_PATH = (seed) => `${PNG_BASE}/preview/${String(seed).padStart(5, '0')}.png`;
 
 // =========================================================================
-// FORMATS + TEMPLATES
+// FORMATS
 // =========================================================================
 const FORMATS = [
   { id: 'twitter_header', label: 'Twitter Header', w: 1500, h: 500 },
@@ -606,31 +582,12 @@ const FORMATS = [
   { id: 'custom',         label: 'Custom...',      w: null, h: null },
 ];
 
-const TEMPLATES = [
-  { id: 'center',    label: 'Center',   x:   0, y:   0, scale: 1.0, rot:   0, fx: 1, fy: 1 },
-  { id: 'hero',      label: 'Hero',     x:   0, y:   0, scale: 1.3, rot:   0, fx: 1, fy: 1 },
-  { id: 'left',      label: 'Left',     x: -28, y:   0, scale: 0.85, rot:   0, fx: 1, fy: 1 },
-  { id: 'right',     label: 'Right',    x:  28, y:   0, scale: 0.85, rot:   0, fx: 1, fy: 1 },
-  { id: 'top',       label: 'Top',      x:   0, y: -22, scale: 0.85, rot:   0, fx: 1, fy: 1 },
-  { id: 'corner',    label: 'Corner',   x:  28, y: -22, scale: 0.55, rot:  12, fx: 1, fy: 1 },
-  { id: 'tilt',      label: 'Tilt',     x: -15, y: -12, scale: 0.9, rot: -15, fx: 1, fy: 1 },
-  { id: 'lying',     label: 'Lying',    x:   0, y:   0, scale: 1.0, rot:  90, fx: 1, fy: 1 },
-  { id: 'mirror',    label: 'Mirror',   x: -18, y:   0, scale: 0.85, rot:   0, fx:-1, fy: 1 },
-  { id: 'small',     label: 'Small',    x:   0, y:   0, scale: 0.5, rot:   0, fx: 1, fy: 1 },
-  { id: 'flip',      label: 'Flip',     x:   0, y:   0, scale: 1.0, rot:   0, fx: 1, fy:-1 },
-  { id: 'diagonal',  label: 'Diagonal', x:  18, y: -12, scale: 0.85, rot:  30, fx: 1, fy: 1 },
-];
-
-const FORMAT_DEFAULTS = {
-  twitter_header: 'right',
-  twitter_post:   'center',
-  opensea_banner: 'center',
-  opensea_pfp:    'hero',
-  instagram_sq:   'hero',
-  phone:          'top',
-  desktop_4k:     'center',
-  custom:         'center',
-};
+// TEMPLATES + FORMAT_DEFAULTS removed 2026-05-22 — pre-set layouts
+// (center/hero/left/right/corner/tilt/...) rarely matched what users
+// actually wanted for any specific banner, and the auto-apply on
+// format change was overwriting the user's manual positioning. Now
+// every format selection preserves the current transform; user
+// drags / zooms / rotates to taste.
 
 // =========================================================================
 // STATE
@@ -675,7 +632,7 @@ const resetBtn       = document.getElementById('resetBtn');
 const downloadBtn    = document.getElementById('downloadBtn');
 const metaSeed       = document.getElementById('metaSeed');
 const metaRes        = document.getElementById('metaRes');
-const templateGrid   = document.getElementById('templateGrid');
+// templateGrid removed — no Layouts UI anymore
 const packBtn        = document.getElementById('packBtn');
 
 // =========================================================================
@@ -936,11 +893,11 @@ function selectFormat(f) {
     updateCanvasAspect(f.w, f.h);
     updateMeta(f.w, f.h, f.label);
   }
-  // Auto-apply best layout AFTER canvas resizes (otherwise baseSize is wrong)
-  requestAnimationFrame(() => {
-    const def = TEMPLATES.find(t => t.id === (FORMAT_DEFAULTS[f.id] || 'center'));
-    if (def) applyTemplate(def);
-  });
+  // Preserve current transform across format changes — the previous
+  // auto-apply-from-TEMPLATES behaviour was overriding the user's
+  // manual positioning every time they switched format. Re-running
+  // applyTransform inside rAF lets the canvas finish resizing first.
+  requestAnimationFrame(applyTransform);
 }
 
 function updateCanvasAspect(w, h) {
@@ -973,30 +930,12 @@ function updateMeta(w, h, label) {
   });
 });
 
-// =========================================================================
-// TEMPLATE BUTTONS
-// =========================================================================
-function buildTemplateButtons() {
-  TEMPLATES.forEach((t) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'template-btn';
-    btn.dataset.id = t.id;
-    btn.title = t.label;
-    btn.setAttribute('aria-label', `Layout: ${t.label}`);
-    const iconLeft  = 50 + (t.x / 2);
-    const iconTop   = 50 + (t.y / 2);
-    const iconSize  = Math.max(15, Math.min(70, t.scale * 35));
-    btn.innerHTML = `
-      <span class="ticon" style="left: ${iconLeft}%; top: ${iconTop}%; width: ${iconSize}%; height: ${iconSize}%; transform: translate(-50%, -50%) rotate(${t.rot}deg) scale(${t.fx}, ${t.fy});"></span>
-      <span class="tlabel">${t.label}</span>
-    `;
-    btn.addEventListener('click', () => applyTemplate(t));
-    templateGrid.appendChild(btn);
-  });
-}
-
-function applyTemplate(t) {
+// buildTemplateButtons + applyTemplate removed 2026-05-22 with the
+// Layouts section. resetBtn still uses the in-line snippet below to
+// drop transform back to defaults.
+// Apply a {x, y, scale, rot, fx, fy} transform onto state. Used only
+// by the resetBtn handler now that the Layouts grid is gone.
+function _applyTransformValues(t) {
   state.tx = t.x; state.ty = t.y;
   state.scale = t.scale;
   state.rotation = t.rot;
@@ -1005,7 +944,6 @@ function applyTemplate(t) {
   scaleVal.textContent = Math.round(t.scale * 100) + '%';
   rotSlider.value = t.rot;
   rotVal.textContent = t.rot + '°';
-  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.id === t.id));
   applyTransform();
 }
 
@@ -1325,13 +1263,15 @@ packBtn.addEventListener('click', async () => {
   try {
     for (let i = 0; i < formats.length; i++) {
       const f = formats[i];
-      const tpl = TEMPLATES.find(t => t.id === (FORMAT_DEFAULTS[f.id] || 'center'));
       packBtn.textContent = `Pack ${i + 1}/${formats.length} · ${f.label}`;
       setRenderStatus(`Rendering ${f.label} (${i + 1}/${formats.length})…`);
+      // Pack uses the CURRENT transform for every format — was previously
+      // pulling a per-format preset from TEMPLATES (which the user never
+      // chose and rarely matched intent). User now positions once, packs.
       const result = await renderAndDownload(state.seed, f.w, f.h, f.id, {
-        tx: tpl.x, ty: tpl.y,
-        scale: tpl.scale, rotation: tpl.rot,
-        flipX: tpl.fx, flipY: tpl.fy,
+        tx: state.tx, ty: state.ty,
+        scale: state.scale, rotation: state.rotation,
+        flipX: state.flipX, flipY: state.flipY,
       });
       if (result.source === 'hq') hqCount++; else localCount++;
       // small gap so the browser handles each download cleanly
@@ -1365,15 +1305,12 @@ packBtn.addEventListener('click', async () => {
 // =========================================================================
 // INIT
 // =========================================================================
-buildTemplateButtons();
-
 // Initial render — seedInput is empty in HTML to keep view-source clean,
 // so push the JS-picked random seed back into the input field on boot.
 seedInput.value = state.seed;
 renderLive();
 preloadSpecimen(state.seed);
 applyTransform();
-document.querySelector('.template-btn[data-id="center"]').classList.add('active');
 
 // Re-apply transform on window resize so host pixel size stays correct
 window.addEventListener('resize', () => requestAnimationFrame(applyTransform));
