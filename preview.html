@@ -70,6 +70,24 @@
   body.bare .pfp-card { background: transparent; }
   body.bare .pfp-card::before { display: none; }
 
+  /* === CUTOUT MODE — used by batch screenshot tooling to produce
+   * fully-transparent PNGs of just the biom (no cream card, no noise
+   * overlay, no download CTA). Combined with Playwright's
+   * omit_background=True, the output is a clean alpha cutout suitable
+   * for collages, banners, and any future cross-page placement that
+   * needs a non-rectangular source. Activated by ?cutout=1.
+   *
+   * Important: html.cutout AND body.cutout — the html element also
+   * carries the page background (line 18, "html, body { background: … }"),
+   * and Playwright's omit_background only hides the browser-default
+   * white field, NOT CSS-set backgrounds. We have to make every
+   * background-painting layer transparent for the screenshot to come
+   * back with a clean alpha channel. === */
+  html.cutout, body.cutout { background: transparent; }
+  body.cutout .pfp-card { background: transparent; }
+  body.cutout .pfp-card::before { display: none; }
+  body.cutout .download-cta { display: none !important; }
+
   .corner-tl, .corner-tr, .corner-bl, .corner-br {
     position: absolute;
     z-index: 5;
@@ -1812,6 +1830,17 @@ const IS_FIT_MODE = new URLSearchParams(window.location.search).get('fit') === '
 // "card inside a card" visual.
 if (new URLSearchParams(window.location.search).get('bare') === '1') {
   document.body.classList.add('bare');
+}
+
+// Cutout mode — body + card backgrounds go transparent, noise overlay
+// hidden, download CTA hidden. Used by the offline cutout-screenshot
+// pipeline (batch run + omit_background=True) to produce alpha PNGs
+// of just the biom. We add the class to BOTH html and body so the
+// page-background rule in line 18 ("html, body { background: #ece9e0 }")
+// gets overridden on both elements.
+if (new URLSearchParams(window.location.search).get('cutout') === '1') {
+  document.documentElement.classList.add('cutout');
+  document.body.classList.add('cutout');
 }
 
 // Init — use URL seed if given, otherwise random

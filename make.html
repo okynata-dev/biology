@@ -1007,6 +1007,19 @@ function _engineFallbackDataURL(seed) {
   return c.toDataURL('image/png');
 }
 
+// Load a URL as a CORS-clean Image. Resolves with the Image on success;
+// rejects silently on 4xx / 5xx so callers can chain fallbacks without
+// a flood of console.errors when a cutout hasn't been generated yet.
+function _tryLoad(url) {
+  return new Promise((resolve, reject) => {
+    const i = new Image();
+    i.crossOrigin = 'anonymous';
+    i.onload  = () => resolve(i);
+    i.onerror = () => reject(new Error(url));
+    i.src = url;
+  });
+}
+
 async function _ensureCachedBiom(seed) {
   let url = collageCellCache.get(seed);
   if (url) {
@@ -1024,18 +1037,39 @@ async function _ensureCachedBiom(seed) {
     }
     return url;
   }
-  // Fetch the WebP thumb. CORS: pngs.thebioms.com sends Access-Control-
-  // Allow-Origin: * for static assets so crossOrigin='anonymous' works
-  // and we can call getImageData / toDataURL on the canvas.
+
   const padded = String(seed).padStart(5, '0');
+
+  // PRIMARY — /cutout/. Pre-rendered alpha PNG via Playwright with
+  // omit_background=True, bbox-cropped server-side. No JS post-
+  // processing needed → no flood-fill artefacts, ever. The cache
+  // stores the URL directly (the browser HTTP cache shares the
+  // decoded bitmap across every <img> and drawImage reference).
+  //
+  // ?v=… cache-buster: when we first deployed the /cutout/ path some
+  // seeds had been previously fetched (and 404'd) before the upload
+  // landed, leaving negative-cache entries on the CF edge for the
+  // bare URL. Tagging the URL routes around any stale negatives
+  // without disabling caching on the 200 responses — once "?v=1"
+  // is requested it caches normally, just under a fresh key.
+  const cutoutUrl = `${PNG_BASE}/cutout/${padded}.png?v=1`;
   try {
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image();
-      i.crossOrigin = 'anonymous';
-      i.onload  = () => resolve(i);
-      i.onerror = () => reject(new Error(`thumb load failed: ${seed}`));
-      i.src = `${PNG_BASE}/thumb/${padded}.webp`;
-    });
+    await _tryLoad(cutoutUrl);
+    url = cutoutUrl;
+    collageCellCache.set(seed, url);
+    if (collageCellCache.size > COLLAGE_CACHE_MAX) {
+      collageCellCache.delete(collageCellCache.keys().next().value);
+    }
+    return url;
+  } catch (_) { /* fall through to /thumb/ fallback */ }
+
+  // FALLBACK — /thumb/ + JS flood-fill. Worked, but the strip is a
+  // heuristic and left visible artefacts at high zoom. Kept for the
+  // window between deploying this build and finishing the /cutout/
+  // batch upload, so users don't see engine 2D-canvas fallbacks for
+  // seeds whose cutout hasn't landed yet.
+  try {
+    const img = await _tryLoad(`${PNG_BASE}/thumb/${padded}.webp`);
     const processed = _processThumb(img);
     url = processed.toDataURL('image/png');
   } catch (e) {
@@ -1564,12 +1598,18 @@ async function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
   // Make sure every seed in the grid has a cached thumb ready.
   await Promise.all(seeds.map(_ensureCachedBiom));
 
-  // Materialise each cached data URL as an HTMLImageElement we can
-  // drawImage. Browser image cache shares the decoded bitmap across
-  // identical srcs, so duplicates within the grid don't cost extra.
+  // Materialise each cached entry as an HTMLImageElement we can
+  // drawImage onto the canvas. Cached entry may be a remote URL
+  // (/cutout/) or a data: URL (thumb fallback / engine fallback) —
+  // both work as <img src>. crossOrigin='anonymous' is required so
+  // the remote URLs don't taint the canvas; for data: URLs it's a
+  // no-op. Browser HTTP cache + image-decode cache share decoded
+  // bitmaps across every reference, so repeated seeds in a grid
+  // don't cost extra fetch or decode work.
   const cellImgs = await Promise.all(seeds.map((seed) => {
     return new Promise((resolve, reject) => {
       const i = new Image();
+      i.crossOrigin = 'anonymous';
       i.onload  = () => resolve(i);
       i.onerror = () => reject(new Error(`cached img decode failed: ${seed}`));
       i.src = collageCellCache.get(seed);
