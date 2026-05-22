@@ -248,6 +248,18 @@
     .hero-grid { grid-template-columns: 1fr; gap: 36px; }
   }
   .hero-stage {
+    /* <button> reset — the element is a button now so the whole
+       surface is keyboard-focusable + announces its action, but we
+       need to strip the default UA chrome (font, padding, border,
+       text-align) so it still renders as our cream paper card. */
+    font: inherit;
+    color: inherit;
+    border: 0;
+    padding: 0;
+    text-align: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+
     position: relative;
     width: 100%;
     aspect-ratio: 1;
@@ -261,6 +273,45 @@
     /* Hero is the only feature-level surface on the landing — pulls
        the deepest shadow token from the system. */
     box-shadow: var(--shadow-feature);
+    /* The whole stage is clickable — tap anywhere on the specimen to
+       roll the next one. cursor:pointer is the affordance; the actual
+       click goes through the overlay below (iframes swallow pointer
+       events on their content area). */
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    /* will-change hints to the compositor that transform will animate,
+       avoiding repaint cost on first hover. */
+    will-change: transform;
+  }
+  /* Transparent click-catcher on top of the iframe — without this the
+     iframe's document captures pointer events and the user's tap on the
+     biom does nothing. The overlay is the same size as the stage,
+     fully transparent, and sits above the iframe (z-index 2). */
+  .hero-stage .hero-stage-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    /* Hover affordance — biom subtly lifts under the pointer so users
+       discover the gesture without copy. Tiny scale so it doesn't
+       conflict with the inner specimen's own breathing animation. */
+    transition: transform var(--t-base) var(--ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Lift effect lives on the STAGE (not the overlay) so the iframe
+     moves with it. The overlay is just the click target. */
+  @media (hover: hover) {
+    .hero-stage:hover {
+      transform: scale(1.005);
+      transition: transform var(--t-base) var(--ease);
+    }
+  }
+  .hero-stage:active { transform: scale(0.997); }
+  .hero-stage:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 4px;
   }
   .hero-text { max-width: 460px; }
   /* Hero title — the word IS the brand mark. Slightly tighter tracking
@@ -763,7 +814,13 @@
 <section class="hero" id="main">
   <div class="wrap">
     <div class="hero-grid">
-      <div class="hero-stage" id="heroSpecimen" aria-label="Live Biom specimen"></div>
+      <!-- hero-stage is a <button> so the entire surface is keyboard-
+           focusable and announces its action ("Generate next specimen")
+           to screen readers. The iframe lives inside but doesn't steal
+           focus; clicks on it are absorbed by the .hero-stage-overlay
+           sibling that sits z-index above it. -->
+      <button type="button" class="hero-stage" id="heroSpecimen"
+              aria-label="Tap to see another Biom"></button>
       <div class="hero-text">
         <h1 class="hero-title">Bioms</h1>
         <p class="hero-tag">Three thousand living microbes. They share traits. They burn each other. The survivors carry everything forward.</p>
@@ -897,9 +954,16 @@ const masterUrl = (seed) => `${PNG_BASE}/preview/${padSeed(seed)}.png`;
 const thumbUrl  = (seed) => `${PNG_BASE}/thumb/${padSeed(seed)}.webp`;
 const thumbPngFallback = (seed) => `${PNG_BASE}/thumb/${padSeed(seed)}.png`;
 
-// Hero — mounts the live preview.html in an iframe. Canvas snapshots
-// lose the glass backdrop-filter + multi-layer shadows that make the
-// biom look luminous, so iframes stay even though they're heavier.
+// Hero — mounts the live preview.html in an iframe + a transparent
+// click-overlay on top. Canvas snapshots lose the glass backdrop-
+// filter + multi-layer shadows that make the biom look luminous, so
+// iframes stay even though they're heavier.
+//
+// The overlay (`.hero-stage-overlay`) sits z-index above the iframe
+// and absorbs all pointer events on the stage. Without it, the iframe's
+// own document captures clicks and the user's tap on the biom does
+// nothing. The overlay is fully transparent + pointer-events:auto so
+// the cursor:pointer affordance reads while taps reach JS.
 function mountHero(el, seed) {
   el.innerHTML = '';
   const iframe = document.createElement('iframe');
@@ -909,11 +973,17 @@ function mountHero(el, seed) {
   // "untitled frame". The hero specimen is the main visual block so
   // it needs to identify itself.
   iframe.title = 'Live Biom specimen';
-  iframe.style.cssText = 'width:100%;height:100%;border:0;display:block;';
+  iframe.style.cssText = 'width:100%;height:100%;border:0;display:block;position:absolute;inset:0;';
   // bare=1 strips the inner card frame so the specimen sits on the
   // hero-stage paper background directly.
   iframe.src = `preview.html?seed=${seed}&bare=1`;
   el.appendChild(iframe);
+  // Click-catcher. Kept as a separate element so it can be removed
+  // independently or upgraded with hover preview UI later.
+  const overlay = document.createElement('div');
+  overlay.className = 'hero-stage-overlay';
+  overlay.setAttribute('aria-hidden', 'true');
+  el.appendChild(overlay);
 }
 
 const heroEl = document.getElementById('heroSpecimen');
@@ -957,14 +1027,30 @@ if (REVEAL) {
   if (seedChipSep) seedChipSep.hidden = true;
 }
 
-document.getElementById('rollBtn').addEventListener('click', () => {
-  // Avoid landing on the same seed twice in a row.
+// Two entry-points to the same "roll next" action:
+//   1. Tap anywhere on the hero specimen itself (heroEl is a <button>)
+//      — primary, discoverable affordance now that the stage has
+//      cursor:pointer + hover-lift
+//   2. The "Next ›" caption button — explicit + keyboard-friendly,
+//      kept for users who don't try clicking the art
+// Both rotate to a fresh random seed, never repeating the current one.
+function rollHero() {
   let next;
   do { next = Math.floor(Math.random() * 3000); } while (next === currentSeed);
   currentSeed = next;
   _storeSeed(currentSeed);
   mountHero(heroEl, currentSeed);
   if (REVEAL) seedDisplay.textContent = String(currentSeed);
+}
+heroEl.addEventListener('click', rollHero);
+document.getElementById('rollBtn').addEventListener('click', (e) => {
+  // Stop propagation so the caption-button click doesn't bubble
+  // through to a parent that might also handle it. Defensive — the
+  // rollBtn isn't a descendant of heroEl in current markup, but
+  // keeping the guard means the two handlers stay independent if
+  // someone moves the markup later.
+  e.stopPropagation();
+  rollHero();
 });
 
 // Lab section diptych — small recessive Genesis upper-left, large
