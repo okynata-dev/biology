@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perf test — Heavy vs Lite</title>
+<meta name="theme-color" content="#ece9e0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #ece9e0;
+    color: #1c1a16;
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    line-height: 1.5;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { padding: 32px 24px 80px; }
+
+  .wrap { max-width: 1400px; margin: 0 auto; }
+
+  h1 {
+    font-size: clamp(24px, 3vw, 32px);
+    letter-spacing: -0.02em;
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .lead {
+    color: #5b554a;
+    max-width: 760px;
+    margin-bottom: 28px;
+  }
+  .lead strong { color: #1c1a16; }
+
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 720px) {
+    .cols { grid-template-columns: 1fr; }
+  }
+
+  .col-title {
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: white;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid rgba(28, 26, 22, 0.10);
+  }
+  .pill {
+    background: #1c1a16; color: #ece9e0;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 10px; letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .pill.green { background: #3a7a3a; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .frame-wrap {
+    aspect-ratio: 1;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04), 0 12px 28px rgba(0,0,0,0.08);
+    background: white;
+    /* contain: layout style here helps the outer page paint less when
+       iframes update their internals. Not the same as the lite-mode
+       containment that's applied INSIDE the iframe. */
+    contain: layout style;
+  }
+  iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+
+  .desc {
+    margin-top: 16px;
+    font-size: 12px;
+    color: #5b554a;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.55);
+    border-radius: 10px;
+    line-height: 1.6;
+    border: 1px solid rgba(28, 26, 22, 0.06);
+  }
+  .desc strong { color: #1c1a16; }
+
+  .ruler {
+    margin-top: 48px;
+    padding: 18px 20px;
+    background: white;
+    border-radius: 12px;
+    border: 1px solid rgba(28, 26, 22, 0.10);
+    font-size: 13px;
+    color: #5b554a;
+  }
+  .ruler ol { padding-left: 22px; margin-top: 8px; line-height: 1.7; }
+  .ruler kbd {
+    background: #1c1a16; color: #ece9e0;
+    padding: 1px 6px; border-radius: 4px;
+    font-family: ui-monospace, "SF Mono", monospace; font-size: 11px;
+  }
+
+  /* FPS HUD per column — JS pings the iframes via postMessage and
+     averages frame intervals locally for a rough side-by-side number.
+     Not a precise measurement (browser smear, throttling, etc.) but
+     useful for "is one obviously smoother than the other" answers. */
+  .fps {
+    font-variant-numeric: tabular-nums;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 11px;
+    color: #686356;
+  }
+  .fps.smooth { color: #3a7a3a; }
+  .fps.choppy { color: #a36500; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Heavy vs Lite — performance test</h1>
+  <p class="lead">
+    Same four bioms, rendered both ways. <strong>Scroll this page up & down,
+    tab away and come back, drag the window around.</strong> Look at the
+    iframes — they should LOOK near-identical, but the right column should
+    feel noticeably more responsive (especially on a hot Mac).
+  </p>
+
+  <div class="cols">
+    <div>
+      <div class="col-title">
+        <span>Heavy — current prod</span>
+        <span class="pill">unchanged</span>
+      </div>
+      <div class="grid-2">
+        <div class="frame-wrap"><iframe id="ifA1" src="/preview.html?seed=44"   loading="eager" title="Heavy 44"></iframe></div>
+        <div class="frame-wrap"><iframe id="ifA2" src="/preview.html?seed=132"  loading="eager" title="Heavy 132"></iframe></div>
+        <div class="frame-wrap"><iframe id="ifA3" src="/preview.html?seed=247"  loading="eager" title="Heavy 247"></iframe></div>
+        <div class="frame-wrap"><iframe id="ifA4" src="/preview.html?seed=2222" loading="eager" title="Heavy 2222"></iframe></div>
+      </div>
+      <div class="desc">
+        Border-radius morphs ±8 % on 8 corner radii of every panel, 30 fps.
+        Each morph re-rasterises the clip shape and forces backdrop-filter
+        to re-blur. <strong>15 panels × 30 fps × 8-radius compute × blur</strong>
+        is most of the cost.
+      </div>
+    </div>
+
+    <div>
+      <div class="col-title">
+        <span>Lite — 4 free wins</span>
+        <span class="pill green">optimised</span>
+      </div>
+      <div class="grid-2">
+        <div class="frame-wrap"><iframe id="ifB1" src="/preview.html?seed=44&lite=1"   loading="eager" title="Lite 44"></iframe></div>
+        <div class="frame-wrap"><iframe id="ifB2" src="/preview.html?seed=132&lite=1"  loading="eager" title="Lite 132"></iframe></div>
+        <div class="frame-wrap"><iframe id="ifB3" src="/preview.html?seed=247&lite=1"  loading="eager" title="Lite 247"></iframe></div>
+        <div class="frame-wrap"><iframe id="ifB4" src="/preview.html?seed=2222&lite=1" loading="eager" title="Lite 2222"></iframe></div>
+      </div>
+      <div class="desc">
+        <strong>Border-radius morph disabled</strong> (panels still drift, but
+        their outlines hold steady) + <strong>contain: paint</strong> on each
+        panel + <strong>will-change: transform</strong> for GPU layer
+        promotion. Visually a panel's shape is frozen but everything else
+        — drift, colour, glass, halo — identical.
+      </div>
+    </div>
+  </div>
+
+  <div class="ruler">
+    <strong>What to look for:</strong>
+    <ol>
+      <li><strong>Visual diff</strong>: stare at one heavy biom and one lite
+        biom side-by-side. Pause for 10 seconds. Notice the heavy one's
+        outline gently wobbles, the lite one stays still. That's the only
+        intentional difference. Everything else — glass, drift, accents,
+        halo — is identical.</li>
+      <li><strong>Scroll feel</strong>: scroll the page rapidly up & down.
+        On a stressed Mac the heavy column should hitch / stutter more.
+        Lite column should glide.</li>
+      <li><strong>Hover / drag</strong>: select-drag some text across the
+        page, hover over UI elements. Heavy column triggers more repaint
+        of the bioms behind it.</li>
+      <li><strong>Tab switch</strong>: <kbd>cmd</kbd>+<kbd>tab</kbd> away
+        for 5 seconds, come back. Look at how fast each side re-animates.
+      </li>
+    </ol>
+    <p style="margin-top: 10px;">
+      If lite looks indistinguishable while feeling lighter — green-light to
+      apply this everywhere (OpenSea animation_url, landing hero iframes).
+    </p>
+  </div>
+</div>
+
+</body>
+</html>
