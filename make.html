@@ -898,18 +898,68 @@ function shuffleCollageSeeds() {
 }
 
 // =========================================================================
+// COLLAGE CELL CACHE — render each biom ONCE, reuse as <img>
+// =========================================================================
+// The original collage live-renderer called BiomEngine.renderSpecimen
+// on every cell, which paints ~15 .panel DOM nodes per biom — each with
+// backdrop-filter: blur(18px), inset highlights, multi-layer box-shadows.
+// At 24+ cells the browser drops frames on scroll, drag, and gap slider
+// because every paint cycle recomposites every panel's blurred backdrop.
+//
+// Collage bioms are STATIC — they don't need live DOM. So we rasterise
+// each unique seed once via renderSpecimenToCanvas (the engine's 2D-
+// canvas path, identical to what export already uses) and stash the
+// resulting PNG as a data URL. Subsequent cells using that seed are
+// just <img src=…> — the browser shares one decoded bitmap across all
+// references, repaints are free, the page stays buttery.
+//
+// 320 px square is generous for cells smaller than ~160 px (covers
+// most realistic collage sizes); CSS downscales cleanly. If the user
+// scales the whole collage up beyond ~2× we'd want a bigger source,
+// but that's a rare extreme and 320 still looks decent.
+const COLLAGE_CACHE_SIZE = 320;
+// Soft cap so repeated shuffles can't balloon memory unbounded. Map
+// preserves insertion order → first-key eviction is true LRU-by-insertion.
+const COLLAGE_CACHE_MAX = 256;
+const collageCellCache = new Map();   // seed -> dataURL
+
+function _ensureCachedBiom(seed) {
+  let url = collageCellCache.get(seed);
+  if (url) {
+    // Touch — move to most-recent slot for LRU.
+    collageCellCache.delete(seed);
+    collageCellCache.set(seed, url);
+    return url;
+  }
+  // Rasterise on a throwaway canvas. Transparent background so cells
+  // can sit on whatever canvas-wrap background the page uses, and so
+  // the export path's adjacent-cell halo bleed is preserved.
+  const c = document.createElement('canvas');
+  c.width = c.height = COLLAGE_CACHE_SIZE;
+  window.BiomEngine.renderSpecimenToCanvas(c, seed, {
+    specSize: COLLAGE_CACHE_SIZE,
+    background: 'transparent',
+  });
+  url = c.toDataURL('image/png');
+  collageCellCache.set(seed, url);
+  // Evict oldest if over cap.
+  if (collageCellCache.size > COLLAGE_CACHE_MAX) {
+    const oldestKey = collageCellCache.keys().next().value;
+    collageCellCache.delete(oldestKey);
+  }
+  return url;
+}
+
+// =========================================================================
 // LIVE RENDER — branch by mode
 // =========================================================================
 function renderLive() {
   if (!window.BiomEngine) return;
   if (state.mode === 'collage') {
     _resizeCollageSeeds();
-    // Build CSS grid of cells inside #liveComp. Each cell gets a fresh
-    // renderSpecimen call — the engine paints absolutely-positioned
-    // panels inside the cell box, and box-shadows that bleed out of
-    // a cell into its neighbour is exactly what we want for a tightly-
-    // packed collage (matches how renderSpecimenToCanvas behaves at
-    // export time too).
+    // Build CSS grid of cells inside #liveComp. Each cell is a static
+    // <img> referencing the per-seed cached PNG — no live DOM render,
+    // no backdrop-filter compositing, scroll & drag stay smooth.
     liveComp.innerHTML = '';
     liveComp.classList.add('collage-grid');
     liveComp.style.gridTemplateColumns = `repeat(${state.gridCols}, 1fr)`;
@@ -918,12 +968,22 @@ function renderLive() {
     // exact and depends on the current canvas size + scale + cellGapPct,
     // so keeping it in one place avoids drift between preview and export.
 
+    // DocumentFragment so the grid attaches in one DOM op, not 144 of them.
+    const frag = document.createDocumentFragment();
     for (let i = 0; i < state.collageSeeds.length; i++) {
       const cell = document.createElement('div');
       cell.className = 'collage-cell';
-      liveComp.appendChild(cell);
-      window.BiomEngine.renderSpecimen(cell, state.collageSeeds[i], { isFitMode: true });
+      const img = document.createElement('img');
+      img.src = _ensureCachedBiom(state.collageSeeds[i]);
+      img.alt = '';
+      img.draggable = false;
+      // 100%/100% lets the cell control sizing; the source bitmap is a
+      // fixed 320 px square downscaled by the browser's GPU sampler.
+      img.style.cssText = 'width:100%;height:100%;display:block;pointer-events:none;';
+      cell.appendChild(img);
+      frag.appendChild(cell);
     }
+    liveComp.appendChild(frag);
     metaSeed.textContent = `COLLAGE · ${state.gridCols}×${state.gridRows} (${state.collageSeeds.length} bioms)`;
   } else {
     liveComp.classList.remove('collage-grid');
