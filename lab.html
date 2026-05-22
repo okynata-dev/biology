@@ -375,7 +375,16 @@
       0 0 0 1px rgba(0, 0, 0, 0.02),
       0 14px 28px rgba(0, 0, 0, 0.10);
   }
-  body.mode-burn .biom-card.selected-donor {
+  /* In burn mode BOTH selected cards are part of the same destructive
+     act (one is the donor, one is the recipient — but both chips read
+     "Burn" so people don't have to remember which is which). The
+     previous donor-rust + recipient-ink contrast accidentally signalled
+     "the dark one stays alive" — semantically true but misleading
+     when both chips agree they're "Burn". Unifying the rust outline
+     reads as "both cards are locked into this burn" — exactly the
+     mental model the burn ritual itself walks them through. */
+  body.mode-burn .biom-card.selected-donor,
+  body.mode-burn .biom-card.selected-recipient {
     border-color: var(--burn);
     box-shadow:
       0 0 0 1px rgba(184, 73, 44, 0.06),
