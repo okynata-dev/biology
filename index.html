@@ -685,6 +685,54 @@
     justify-content: center;
     margin-top: 32px;
   }
+
+  /* === COUNTDOWN — pre-mint timer ===
+     Sits between drop-block <p> and the CTA row. Tabular nums so the
+     digits don't dance as they update each second. Quiet: paper card
+     bg + ink digits, no colored alert vibes — this is informational
+     not anxious. */
+  .countdown {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 28px auto 4px;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+  }
+  .countdown .cd-unit {
+    display: flex; flex-direction: column;
+    align-items: center;
+    min-width: 44px;
+  }
+  .countdown .cd-num {
+    font-size: clamp(24px, 3vw, 32px);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .countdown .cd-lbl {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-top: 7px;
+  }
+  .countdown .cd-sep {
+    font-size: clamp(20px, 2.6vw, 26px);
+    font-weight: 400;
+    color: var(--ink-3);
+    line-height: 1;
+    margin-top: 2px;
+    user-select: none;
+  }
+  @media (max-width: 480px) {
+    .countdown { gap: 6px; padding: 12px 14px; }
+    .countdown .cd-unit { min-width: 36px; }
+  }
   @media (max-width: 600px) {
     .drop { padding: 64px 18px 80px; }
   }
@@ -862,11 +910,33 @@
 <section class="drop" data-cv-auto>
   <div class="wrap">
     <div class="drop-block petri-dish-lg">
-      <h2>It's live.</h2>
-      <p>Three thousand Bioms, ERC-721 on Ethereum. Open Edition on OpenSea.</p>
-      <div class="cta-row drop-cta">
-        <a href="https://opensea.io/collection/bioms/overview" target="_blank" rel="noopener" class="btn">Mint on OpenSea</a>
-        <a href="https://twitter.com/theBioms" target="_blank" rel="noopener" class="btn btn-ghost">Follow @theBioms</a>
+      <!-- Pre-mint state — countdown to WL window. JS swaps in #dropLive
+           and hides #dropPre when the timestamp passes. -->
+      <div id="dropPre">
+        <h2>The drop.</h2>
+        <p>WL mint opens <strong>May 29, 7&nbsp;PM GMT+7</strong> · 0.0069&nbsp;ETH · Open Edition on OpenSea.</p>
+        <div class="countdown" id="countdown" aria-live="polite" aria-label="Time until mint">
+          <div class="cd-unit"><span class="cd-num" id="cdDays">—</span><span class="cd-lbl">Days</span></div>
+          <div class="cd-sep">:</div>
+          <div class="cd-unit"><span class="cd-num" id="cdHrs">—</span><span class="cd-lbl">Hrs</span></div>
+          <div class="cd-sep">:</div>
+          <div class="cd-unit"><span class="cd-num" id="cdMins">—</span><span class="cd-lbl">Mins</span></div>
+          <div class="cd-sep">:</div>
+          <div class="cd-unit"><span class="cd-num" id="cdSecs">—</span><span class="cd-lbl">Secs</span></div>
+        </div>
+        <div class="cta-row drop-cta">
+          <a href="/reserve" class="btn">Reserve your spot</a>
+          <a href="https://opensea.io/collection/bioms/overview" target="_blank" rel="noopener" class="btn btn-ghost">View on OpenSea</a>
+        </div>
+      </div>
+      <!-- Post-mint state — flipped in by countdown JS at T-0. -->
+      <div id="dropLive" hidden>
+        <h2>It's live.</h2>
+        <p>Three thousand Bioms, ERC-721 on Ethereum. Open Edition on OpenSea.</p>
+        <div class="cta-row drop-cta">
+          <a href="https://opensea.io/collection/bioms/overview" target="_blank" rel="noopener" class="btn">Mint on OpenSea</a>
+          <a href="https://twitter.com/theBioms" target="_blank" rel="noopener" class="btn btn-ghost">Follow @theBioms</a>
+        </div>
       </div>
     </div>
   </div>
@@ -1016,6 +1086,70 @@ function rollHero() {
   mountHero(heroEl, currentSeed);
 }
 heroEl.addEventListener('click', rollHero);
+
+// =========================================================================
+// MINT COUNTDOWN — drop block tick
+// =========================================================================
+// WL window starts May 29 2026 at 7:00 PM GMT+7. JS ticks every second
+// while the countdown is on screen; at T-0 it swaps the #dropPre block
+// for #dropLive without a page reload. tabular-nums keeps the digits
+// from wiggling between ticks.
+//
+// The ticker only runs while the drop section is in the viewport (a
+// shared IntersectionObserver gate). Off-screen, setInterval is paused
+// — saves a wakeup per second when the user is scrolling elsewhere on
+// a long landing page.
+(function mintCountdown() {
+  const MINT_AT = new Date('2026-05-29T19:00:00+07:00').getTime();
+  const elDays = document.getElementById('cdDays');
+  const elHrs  = document.getElementById('cdHrs');
+  const elMins = document.getElementById('cdMins');
+  const elSecs = document.getElementById('cdSecs');
+  const dropPre  = document.getElementById('dropPre');
+  const dropLive = document.getElementById('dropLive');
+  if (!elDays || !dropPre || !dropLive) return;
+
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function tick() {
+    const diff = MINT_AT - Date.now();
+    if (diff <= 0) {
+      dropPre.hidden = true;
+      dropLive.hidden = false;
+      return false;       // stop ticking
+    }
+    const days = Math.floor(diff / 86400000);
+    const hrs  = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    elDays.textContent = String(days);
+    elHrs.textContent  = pad(hrs);
+    elMins.textContent = pad(mins);
+    elSecs.textContent = pad(secs);
+    return true;
+  }
+
+  if (!tick()) return;    // already past T-0
+
+  let timer = null;
+  const start = () => { if (!timer) timer = setInterval(() => { if (!tick()) { clearInterval(timer); timer = null; } }, 1000); };
+  const stop  = () => { if (timer) { clearInterval(timer); timer = null; } };
+
+  // Pause when the drop section scrolls off-screen.
+  const dropSection = dropPre.closest('section') || dropPre.parentElement;
+  if ('IntersectionObserver' in window && dropSection) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => e.isIntersecting ? start() : stop());
+    }, { threshold: 0 });
+    io.observe(dropSection);
+  } else {
+    start();
+  }
+  // Also pause on tab hide (saves an interval-tick while user is away).
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop(); else if (!dropPre.hidden) { tick(); start(); }
+  });
+})();
 
 // Lab section diptych — small recessive Genesis upper-left, large
 // dominant Phoenix lower-right. Both are inline-rendered via the
