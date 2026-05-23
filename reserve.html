@@ -129,6 +129,66 @@
   }
   .live-counter strong { color: var(--ink-2); font-weight: 500; }
 
+  /* === COUNTDOWN — same component as homepage drop block.
+     Sits between subtitle and form so the user sees both how long
+     they have to drop their wallet AND the form below in one view.
+     CSS duplicated (not imported) because reserve.html stays
+     self-contained per the project's no-build conventions. */
+  .countdown {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 0 36px;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+  }
+  .countdown .cd-unit {
+    display: flex; flex-direction: column;
+    align-items: center;
+    min-width: 44px;
+  }
+  .countdown .cd-num {
+    font-size: clamp(24px, 3vw, 32px);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .countdown .cd-lbl {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-top: 7px;
+  }
+  .countdown .cd-sep {
+    font-size: clamp(20px, 2.6vw, 26px);
+    font-weight: 400;
+    color: var(--ink-3);
+    line-height: 1;
+    margin-top: 2px;
+    user-select: none;
+  }
+  @media (max-width: 480px) {
+    .countdown { gap: 6px; padding: 12px 14px; }
+    .countdown .cd-unit { min-width: 36px; }
+  }
+
+  /* Post-mint state on /reserve — when timer hits zero the waitlist
+     becomes irrelevant (anyone can mint via OpenSea), so swap the
+     whole form area for a clear "go mint" CTA. */
+  .mint-live-cta {
+    display: flex; flex-direction: column;
+    gap: 12px;
+  }
+  /* The default `display: flex` above overrides the HTML `hidden`
+     attribute (user-agent display:none). Without this rule the live
+     CTA block would render alongside the waitlist form pre-mint. */
+  .mint-live-cta[hidden] { display: none; }
+
   /* === FORM === */
   form.reserve-form {
     display: flex;
@@ -289,6 +349,21 @@
     wallet — the WL snapshot pulls from this list.
   </p>
 
+  <!-- Pre-mint live countdown. Same component as the homepage drop block.
+       At T-0 #cdPreState is hidden and #cdLiveState is shown (waitlist
+       form is moot once anyone can mint on OpenSea). -->
+  <div id="cdPreState">
+    <div class="countdown" id="countdown" aria-live="polite" aria-label="Time until WL mint opens">
+      <div class="cd-unit"><span class="cd-num" id="cdDays">—</span><span class="cd-lbl">Days</span></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-unit"><span class="cd-num" id="cdHrs">—</span><span class="cd-lbl">Hrs</span></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-unit"><span class="cd-num" id="cdMins">—</span><span class="cd-lbl">Mins</span></div>
+      <div class="cd-sep">:</div>
+      <div class="cd-unit"><span class="cd-num" id="cdSecs">—</span><span class="cd-lbl">Secs</span></div>
+    </div>
+  </div>
+
   <div id="formContainer">
     <form class="reserve-form" id="reserveForm" novalidate>
       <div class="field">
@@ -322,6 +397,14 @@
     <div class="success-secondary">
       <button type="button" class="link-btn" id="addAnotherBtn">Add another address</button>
     </div>
+  </div>
+
+  <!-- Post-mint state — countdown flips into this once the WL window
+       has opened. Waitlist form is no longer the right path; user
+       should go straight to OpenSea. -->
+  <div id="cdLiveState" class="mint-live-cta" hidden>
+    <a href="https://opensea.io/collection/bioms/overview" target="_blank" rel="noopener" class="btn" style="text-align:center;text-decoration:none;">Mint on OpenSea</a>
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener" class="btn btn-ghost" style="text-align:center;text-decoration:none;">Follow @theBioms</a>
   </div>
 </main>
 
@@ -492,6 +575,61 @@ async function loadCount() {
 // Boot
 updateValidation();
 loadCount();
+
+// =========================================================================
+// MINT COUNTDOWN — same component as homepage drop block.
+// =========================================================================
+// On T-0 the WL/Waitlist form becomes irrelevant — anyone can mint via
+// OpenSea — so we hide the entire form area + countdown and reveal the
+// "Mint on OpenSea" CTA pair. Single page-state swap, no reload.
+(function mintCountdown() {
+  const MINT_AT = new Date('2026-05-29T19:00:00+07:00').getTime();
+  const elDays = document.getElementById('cdDays');
+  const elHrs  = document.getElementById('cdHrs');
+  const elMins = document.getElementById('cdMins');
+  const elSecs = document.getElementById('cdSecs');
+  const preState  = document.getElementById('cdPreState');
+  const liveState = document.getElementById('cdLiveState');
+  const formContainer = document.getElementById('formContainer');
+  const successPanel  = document.getElementById('successPanel');
+  if (!elDays || !preState || !liveState) return;
+
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function tick() {
+    const diff = MINT_AT - Date.now();
+    if (diff <= 0) {
+      // Mint opened — hide countdown + form + success state,
+      // show "Mint on OpenSea" CTAs.
+      preState.hidden = true;
+      if (formContainer) formContainer.hidden = true;
+      if (successPanel)  successPanel.hidden  = true;
+      liveState.hidden = false;
+      // Update the subtitle to reflect new state.
+      const sub = document.querySelector('.h1-sub');
+      if (sub) sub.innerHTML = 'WL window is open. Mint via OpenSea — anyone can mint, no allowlist gate now.';
+      const h1 = document.querySelector('h1');
+      if (h1) h1.textContent = 'The mint is live.';
+      return false;
+    }
+    const days = Math.floor(diff / 86400000);
+    const hrs  = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    elDays.textContent = String(days);
+    elHrs.textContent  = pad(hrs);
+    elMins.textContent = pad(mins);
+    elSecs.textContent = pad(secs);
+    return true;
+  }
+
+  if (!tick()) return;
+  let timer = setInterval(() => { if (!tick()) { clearInterval(timer); timer = null; } }, 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (timer) { clearInterval(timer); timer = null; } }
+    else if (!preState.hidden) { tick(); if (!timer) timer = setInterval(tick, 1000); }
+  });
+})();
 </script>
 
 <script defer src="/nav-wallet.js?v=9"></script>
