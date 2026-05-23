@@ -8,7 +8,7 @@
 <meta name="bioms-reveal" content="true">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lab</title>
-<meta name="description" content="Share traits between two of your Bioms, or burn one to power up another. Survivors evolve.">
+<meta name="description" content="Burn one of your Bioms to feed another. The survivor inherits everything — palette, organelles, the body itself.">
 <meta name="theme-color" content="#ece9e0">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
@@ -20,7 +20,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Bioms">
 <meta property="og:title" content="The Lab — Bioms">
-<meta property="og:description" content="Share traits between two of your Bioms, or burn one to power up another.">
+<meta property="og:description" content="Burn one of your Bioms to feed another. The survivor inherits everything.">
 <meta property="og:url" content="https://thebioms.com/lab">
 <meta property="og:image" content="https://thebioms.com/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -2021,7 +2021,7 @@
       <div>
         <h1>The Lab.</h1>
       </div>
-      <p class="intro-tag">Mix two Bioms to share a trait. Or burn one to feed it into another. Survivors evolve.</p>
+      <p class="intro-tag">Burn one of your Bioms to feed another. The survivor inherits every organelle and anomaly — the donor is gone, forever.</p>
     </div>
   </div>
 </section>
@@ -2054,45 +2054,18 @@
 
 <section class="arena-section">
   <div class="wrap">
-    <!-- Landing chooser — first thing the visitor sees in the Lab.
-         Two real anchor tags so each mode has a real, shareable URL
-         (/lab/crossbreed and /lab/burn via _redirects rewrites). The
-         JS layer below progressively enhances clicks for in-page
-         transitions when supported, but the bare links work without
-         JS too. Hidden once a mode is picked. -->
-    <div class="mode-chooser" id="modeChooser" role="group" aria-label="Choose Lab action">
-      <a class="chooser-card" data-mode="crossbreed" href="/lab?mode=crossbreed">
-        <svg class="chooser-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M8 4v16M16 4v16M4 8h16M4 16h16"/>
-        </svg>
-        <span class="chooser-title">Crossbreed</span>
-        <span class="chooser-tag">Pick two of your Bioms. One trait from the first jumps to the second — both stay alive.</span>
-        <span class="chooser-meta">
-          <span class="chooser-risk chooser-risk--safe">Safe · 15% chance of rejection</span>
-          <span class="chooser-result">Both survive · collection grows</span>
-        </span>
-      </a>
-      <a class="chooser-card" data-mode="burn" href="/lab?mode=burn">
-        <svg class="chooser-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 2c1 3 4 6 4 10a4 4 0 1 1-8 0c0-3 2-5 4-10z"/>
-        </svg>
-        <span class="chooser-title">Burn</span>
-        <span class="chooser-tag">Destroy one of your Bioms to power up another. Every trait the burned one had moves to the survivor.</span>
-        <span class="chooser-meta">
-          <span class="chooser-risk chooser-risk--final">Permanent · cannot be undone</span>
-          <span class="chooser-result">One survives, much stronger</span>
-        </span>
-      </a>
-    </div>
+    <!-- Mode-chooser stub. Burn is the only Lab action now (crossbreed
+         was removed 2026-05-23 — story was clearer with one mechanic).
+         The empty div stays so the rest of the JS controller (which
+         references #modeChooser by id) doesn't trip on a null. -->
+    <div class="mode-chooser" id="modeChooser" hidden aria-hidden="true"></div>
 
-    <!-- Working area — everything below stays hidden until a mode is
-         picked. Lazy-mount: less to render on page load, fewer DOM
-         elements competing for the GPU compositor while the user is
-         still on the chooser landing. -->
-    <div class="lab-main" id="labMain" hidden>
-    <a class="back-to-chooser" id="backToChooser" href="/lab" aria-label="Change Lab action">
-      ← Choose another action
-    </a>
+    <!-- Working area — burn UI mounts directly on /lab. -->
+    <div class="lab-main" id="labMain">
+    <!-- back-to-chooser link removed 2026-05-23 with the chooser itself.
+         Stub kept as a hidden anchor so the existing JS controller's
+         null-check on #backToChooser doesn't have to be touched. -->
+    <a class="back-to-chooser" id="backToChooser" href="/lab" hidden aria-hidden="true"></a>
 
     <div class="collection-head">
       <h2>Your collection</h2>
@@ -5324,35 +5297,23 @@ collectionGrid.addEventListener('click', (e) => {
     if (typeof window.__bioms_setArenaMode === 'function') {
       window.__bioms_setArenaMode(mode);
     }
-    // Update URL bar without reloading the page. Cloudflare Pages
-    // rewrite for /lab/<mode> turned out to be unreliable in our
-    // configuration, so we use /lab?mode=<...> — works identically
-    // for bookmarks, sharing, and browser back/forward.
-    const target = '/lab?mode=' + mode;
-    if (opts && opts.pushState && (location.pathname + location.search) !== target) {
-      try { history.pushState({ mode }, '', target); } catch (_) {}
+    // 2026-05-23: burn is the only mode. URL stays as plain /lab —
+    // we used to push ?mode=<...> for shareability when there were
+    // two modes, but a single mode doesn't need the param.
+    if (opts && opts.pushState && location.pathname + location.search !== '/lab') {
+      try { history.pushState({ mode }, '', '/lab'); } catch (_) {}
     }
     // Reset any in-flight selection so the user starts fresh.
     const reset = document.getElementById('resetBtn');
     if (reset) reset.click();
   }
-  function showChooser(opts) {
-    chooser.hidden = false;
-    labMain.hidden = true;
-    if (opts && opts.pushState && (location.pathname + location.search) !== '/lab') {
-      try { history.pushState({ mode: null }, '', '/lab'); } catch (_) {}
-    }
-  }
+  // showChooser removed 2026-05-23 — only burn remains, no chooser to show.
 
   function modeFromUrl() {
-    // Cloudflare rewrite serves lab.html with ?mode=... when the
-    // user requests /lab/<mode>. Direct ?mode= also works.
-    const q = new URLSearchParams(location.search).get('mode');
-    if (q === 'crossbreed' || q === 'burn') return q;
-    // Fallback: parse pathname in case the rewrite isn't in effect
-    // (e.g. local dev served without _redirects).
-    const m = location.pathname.match(/^\/lab\/(crossbreed|burn)/);
-    return m ? m[1] : null;
+    // 2026-05-23: crossbreed removed. Burn is the only mode now,
+    // so this always returns 'burn' — old /lab?mode=crossbreed
+    // bookmarks gracefully redirect to burn UI without an error.
+    return 'burn';
   }
 
   // Wire up cards: intercept click → in-page transition.
@@ -5374,10 +5335,9 @@ collectionGrid.addEventListener('click', (e) => {
   }
 
   // Browser back/forward — re-sync from URL.
+  // Burn-only since 2026-05-23, so popstate always re-mounts burn.
   window.addEventListener('popstate', () => {
-    const m = modeFromUrl();
-    if (m) showMode(m, { pushState: false });
-    else   showChooser({ pushState: false });
+    showMode('burn', { pushState: false });
   });
 
   // === Sync with nav-wallet pill ===
@@ -5438,9 +5398,8 @@ collectionGrid.addEventListener('click', (e) => {
     } catch (_) {}
   }, 600);  // after nav-wallet's own 350ms DISCOVERY_WINDOW
 
-  // Initial render: URL is the source of truth.
-  const initial = modeFromUrl();
-  if (initial) showMode(initial, { pushState: false });
+  // Initial render: burn-only since 2026-05-23.
+  showMode('burn', { pushState: false });
 })();
 
 // ============================================================
