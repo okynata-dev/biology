@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lab</title>
 <meta name="description" content="Burn one of your Bioms to feed another. The survivor inherits everything — palette, organelles, the body itself.">
-<meta name="theme-color" content="#ece9e0">
+<meta name="theme-color" content="#15110d">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
@@ -1995,6 +1995,452 @@
       scroll-behavior: auto !important;
     }
   }
+
+  /* =============================================================
+     LAB REDESIGN (2026-05-23, Ive pass) — dark-room aesthetic.
+     The lab is the ONE place on the site where a biom dies. Treat
+     it as a ritual, not a form. Everything below overrides the
+     cream/paper styling above to put the entire page on the same
+     dark, cinematic material the burn ritual modal already used.
+     Old styles preserved upstream as fallback / rollback safety.
+     ============================================================= */
+
+  /* Color tokens — dark room palette */
+  :root {
+    --lab-bg:     #15110d;             /* warm ink, same as ritual modal */
+    --lab-bg-2:   #1d1813;             /* card lift surface */
+    --lab-ink:    #f4ead4;             /* cream foreground, same as ritual */
+    --lab-ink-2:  rgba(244, 234, 212, 0.78);
+    --lab-ink-3:  rgba(244, 234, 212, 0.48);
+    --lab-rule:   rgba(244, 234, 212, 0.10);
+    --lab-rule-2: rgba(244, 234, 212, 0.22);
+  }
+
+  /* Page surface */
+  html, body {
+    background: var(--lab-bg);
+    color: var(--lab-ink);
+  }
+  ::selection { background: rgba(244, 234, 212, 0.18); color: var(--lab-ink); }
+
+  /* Kill the cream noise overlay — wrong material on dark */
+  body::before { display: none; }
+
+  /* Nav — dark, cream brand */
+  nav {
+    background: rgba(21, 17, 13, 0.86);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border-bottom: 1px solid var(--lab-rule);
+  }
+  .brand { color: var(--lab-ink); }
+  .brand-mark { filter: invert(94%) sepia(8%) saturate(425%) hue-rotate(2deg) brightness(105%); }
+  .nav-links a { color: var(--lab-ink-3); }
+  .nav-links a:hover, .nav-links a.active { color: var(--lab-ink); }
+  .nav-x { color: var(--lab-ink-3); }
+  .nav-x:hover { color: var(--lab-ink); }
+
+  /* Replace the busy intro with a quiet centered tagline.
+     The visible markup is the original .lab-intro section — we just
+     re-skin it. h1 hidden, tagline centered, generous vertical space. */
+  .lab-intro {
+    padding-top: 96px;
+    padding-bottom: 56px;
+    text-align: center;
+  }
+  .lab-intro .intro-grid {
+    display: block;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .lab-intro h1 { display: none; }
+  .lab-intro .intro-tag {
+    font-size: clamp(20px, 2.2vw, 28px);
+    line-height: 1.45;
+    color: var(--lab-ink-2);
+    font-weight: 400;
+    letter-spacing: -0.005em;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  .lab-intro .intro-tag em {
+    font-style: normal;
+    color: var(--lab-ink);
+  }
+
+  /* Mode bar — collapse to a single quiet wallet row, no border, no chip background */
+  .mode-bar {
+    background: transparent;
+    border-bottom: 0;
+    padding: 8px 32px 0;
+  }
+  .mode-bar-wrap {
+    justify-content: center;
+    gap: 14px;
+  }
+  .wallet-status {
+    color: var(--lab-ink-3);
+    flex: 0 1 auto;
+    text-align: center;
+    min-width: 0;
+  }
+  .wallet-status .addr {
+    background: rgba(244, 234, 212, 0.08);
+    border: 1px solid var(--lab-rule);
+    color: var(--lab-ink);
+  }
+  .wallet-status.ok { color: var(--lab-ink-2); }
+  .wallet-status.bad { color: var(--burn); }
+
+  .wallet-btn {
+    background: var(--lab-ink);
+    color: var(--lab-bg);
+    border-color: var(--lab-ink);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  .wallet-btn:hover { background: #fff8e3; border-color: #fff8e3; }
+  .wallet-btn.ghost {
+    background: transparent;
+    color: var(--lab-ink-2);
+    border-color: var(--lab-rule-2);
+  }
+  .wallet-btn.ghost:hover {
+    color: var(--lab-ink);
+    border-color: var(--lab-ink);
+    background: transparent;
+  }
+
+  /* Holdings peek — kept but quieter */
+  .wallet-holdings { justify-content: center; }
+  .wallet-holdings .holding-thumb {
+    background: var(--lab-bg-2);
+    border-color: var(--lab-rule);
+  }
+  .wallet-holdings .holding-thumb:hover { border-color: var(--lab-ink-2); }
+  .wallet-holdings .holding-more {
+    background: var(--lab-bg-2);
+    border-color: var(--lab-rule-2);
+    color: var(--lab-ink-3);
+  }
+
+  /* Arena padding tightens — the "Your collection" header is doing too
+     much work, the bioms themselves should speak first. */
+  .arena-section { padding-top: 28px; padding-bottom: 80px; }
+
+  /* Demo + step + conjugate-row + burn-confirm controls — all hidden.
+     We auto-open the ritual modal when both bioms are picked; the
+     ritual itself is the confirmation (3-second hold). One less layer. */
+  #demoActions { display: none !important; }
+  .step-banner { display: none !important; }
+  .conjugate-row { display: none !important; }
+  .burn-confirm { display: none !important; }
+  .back-to-chooser { display: none !important; }
+
+  /* Headline before the collection — soften. The bioms beneath are the
+     subject; the header is just a label. */
+  .collection-head { justify-content: center; margin-bottom: 32px; }
+  .collection-head h2 {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--lab-ink-3);
+    text-align: center;
+    margin: 0;
+  }
+
+  /* Empty-state block — softer dark variant */
+  .collection-empty {
+    background: var(--lab-bg-2);
+    border-color: var(--lab-rule);
+    color: var(--lab-ink-3);
+  }
+
+  /* === SPECIMENS (was .biom-card grid) ===
+     Strip the card chrome entirely. No border, no background tile, no
+     "info row" with name + traits split across the bottom. Each biom
+     becomes a specimen on a dark field: the breathing organism plus a
+     monospace name below. Selection lifts and adds a single cream
+     hairline + soft glow — that's it. */
+  .collection-grid {
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    gap: 28px 22px;
+    padding-top: 0;
+  }
+  .biom-card {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+    contain-intrinsic-size: 168px 220px;
+    transition: transform 0.22s var(--ease, ease);
+  }
+  @media (hover: hover) {
+    .biom-card:hover {
+      transform: translateY(-3px);
+      box-shadow: none;
+      border: 0;
+    }
+  }
+  .biom-card.selected-donor,
+  .biom-card.selected-recipient {
+    transform: translateY(-4px);
+    border: 0;
+    box-shadow: none;
+  }
+  /* Burn-mode selection — both selected bioms get a soft ember halo on
+     their thumb only (not a heavy border around the card). The ember is
+     restrained: it reads "these two are in the act" without being loud. */
+  body.mode-burn .biom-card.selected-donor,
+  body.mode-burn .biom-card.selected-recipient {
+    border: 0;
+    box-shadow: none;
+  }
+  .biom-card.in-use { opacity: 0.22; }
+
+  /* Specimen thumb — black field, rounded square, soft inner depth */
+  .biom-thumb {
+    background: var(--lab-bg-2);
+    border-radius: var(--r-md, 14px);
+    box-shadow:
+      inset 0 0 0 1px var(--lab-rule),
+      0 8px 24px rgba(0, 0, 0, 0.32);
+    transition: box-shadow 0.22s ease, transform 0.22s ease;
+  }
+  .biom-card:hover .biom-thumb {
+    box-shadow:
+      inset 0 0 0 1px var(--lab-rule-2),
+      0 12px 32px rgba(0, 0, 0, 0.40);
+  }
+  /* Selected specimens — visually different roles so the user can
+     read at a glance which biom feeds which:
+       donor (about to be consumed)  → ember halo, subtle dim
+       recipient (the survivor)      → cream halo, lifted */
+  body.mode-burn .biom-card.selected-donor .biom-thumb {
+    box-shadow:
+      inset 0 0 0 1.5px var(--burn),
+      0 0 0 1px rgba(184, 73, 44, 0.14),
+      0 16px 40px rgba(184, 73, 44, 0.20),
+      0 8px 24px rgba(0, 0, 0, 0.40);
+  }
+  body.mode-burn .biom-card.selected-recipient .biom-thumb {
+    box-shadow:
+      inset 0 0 0 1.5px var(--lab-ink),
+      0 0 0 1px rgba(244, 234, 212, 0.14),
+      0 18px 44px rgba(244, 234, 212, 0.16),
+      0 8px 24px rgba(0, 0, 0, 0.40);
+  }
+  /* Role label inside each selected card — donor whispers "BURN",
+     recipient whispers "SURVIVES". Different copy + different color
+     means the destination is unambiguous. */
+  body.mode-burn .biom-card.selected-donor .role-tag { color: var(--burn); }
+  body.mode-burn .biom-card.selected-recipient .role-tag { color: var(--lab-ink); }
+
+  /* Inline DOM render — the live biom inside each thumb.
+     The original gradient was cream-on-cream which became a bright
+     square against the dark surface (a glaring contrast bug). Replace
+     with a very dark warm gradient that lets the biom's own glass
+     panels emit luminance. */
+  .biom-thumb-inline {
+    background: radial-gradient(120% 120% at 50% 35%, #221c15 0%, #15110d 100%);
+  }
+  /* Panel sheen still works on dark — the inset whites stay legible */
+
+  /* === Specimen meta — name + (optional) traits on the dark field ===
+     Was an inline split between name (left) and trait count (right) on
+     paper. New: centered monospace name in cream, no trait line. The
+     bioms ARE the traits — visible in the panels themselves. */
+  .biom-info {
+    padding: 14px 4px 0;
+    justify-content: center;
+    text-align: center;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .biom-name {
+    color: var(--lab-ink-2);
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  .biom-traits { display: none; }
+
+  /* Role-tag — was an INK-on-PAPER pill in the top-right when selected.
+     New: small ember "BURN" / cream "FEED" word ABOVE the name, no chip
+     chrome. Reads as a label, not as UI. */
+  .biom-card .role-tag {
+    position: static;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--burn);
+    margin-bottom: 6px;
+    /* role-tag lives inside .biom-info; reorder so it appears ABOVE the
+       name (display:flex on .biom-info, with the tag inserted in the
+       flow before the name node by the JS card builder). The builder
+       appends it after .biom-name historically — order via CSS. */
+    order: -1;
+  }
+  body.mode-burn .biom-card.selected-donor .role-tag,
+  body.mode-burn .biom-card.selected-recipient .role-tag {
+    border: 0;
+    color: var(--burn);
+  }
+
+  /* Gen badge — was a paper chip top-left. New: tiny cream dot in the
+     thumb's top-right corner, no text. The chronicle (Activity log)
+     carries the "G2 / Phoenix" prose; the card itself just whispers
+     "this one's not original" via a single dot.
+     For epic tier, the dot becomes ember. */
+  .biom-card .gen-badge {
+    position: absolute;
+    top: 10px; right: 10px;
+    background: var(--lab-ink-2);
+    border: 0;
+    border-radius: 50%;
+    width: 6px; height: 6px;
+    padding: 0;
+    font-size: 0;
+    color: transparent;
+    box-shadow: 0 0 0 2px var(--lab-bg-2);
+    z-index: 5;
+  }
+  .biom-card .gen-badge.high { background: var(--lab-ink); }
+  .biom-card .gen-badge.epic {
+    background: var(--burn);
+    box-shadow: 0 0 0 2px var(--lab-bg-2), 0 0 8px var(--burn-glow, rgba(184,73,44,0.4));
+  }
+
+  /* === Decision row — replaces the "Burn & Absorb" form button.
+     A single ember CTA that appears centered ABOVE the collection grid
+     once two bioms are selected. Reads "Feed [survivor's name]" — the
+     gesture of feeding makes the destructive act feel like a gift to
+     the other organism. Tap → opens the ritual modal directly. */
+  #labMain { position: relative; }
+  .feed-cta-zone {
+    position: sticky;
+    top: 70px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 22px 0 24px;
+    background: linear-gradient(to bottom, rgba(21,17,13,0.96) 0%, rgba(21,17,13,0.96) 70%, rgba(21,17,13,0) 100%);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 320ms cubic-bezier(0.2, 0.8, 0.3, 1), transform 320ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .feed-cta-zone.visible {
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .feed-cta-zone .feed-cta-prompt {
+    font-size: 13px;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--lab-ink-3);
+    margin-right: 6px;
+    font-weight: 500;
+  }
+  .feed-cta-zone .feed-cta-btn {
+    background: var(--burn, #b8492c);
+    color: #f4ead4;
+    border: 1px solid var(--burn, #b8492c);
+    border-radius: var(--r-pill, 999px);
+    padding: 14px 28px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+    box-shadow: 0 8px 24px rgba(184, 73, 44, 0.28);
+  }
+  .feed-cta-zone .feed-cta-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 32px rgba(184, 73, 44, 0.42);
+    background: #c95636;
+  }
+  .feed-cta-zone .feed-cta-btn:active { transform: translateY(0); }
+  .feed-cta-zone .feed-cta-reset {
+    background: transparent;
+    border: 0;
+    color: var(--lab-ink-3);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: var(--r-pill, 999px);
+    transition: color 160ms ease;
+  }
+  .feed-cta-zone .feed-cta-reset:hover { color: var(--lab-ink); }
+  @media (max-width: 600px) {
+    .feed-cta-zone {
+      flex-direction: column;
+      gap: 10px;
+      padding: 18px 0;
+    }
+    .feed-cta-zone .feed-cta-prompt { margin-right: 0; }
+  }
+
+  /* === Activity log — dark variant. The chronicle of past burns.
+     Keep the spine-and-dot metaphor but invert to cream-on-dark. */
+  section { background: transparent; }
+  h2 { color: var(--lab-ink); }
+  h3 { color: var(--lab-ink-3); }
+  p  { color: var(--lab-ink-2); }
+  .log-list { border-top-color: var(--lab-rule); }
+  .log-list:has(.log-event)::before { background: var(--lab-rule-2); }
+  .log-empty { color: var(--lab-ink-3); }
+  .log-event::before {
+    background: var(--lab-ink-3);
+    border-color: var(--lab-bg);
+    box-shadow: 0 0 0 1px var(--lab-ink-3);
+  }
+  .log-event .log-time { color: var(--lab-ink-3); }
+  .log-event .log-sentence { color: var(--lab-ink); }
+  .log-event .log-coda { color: var(--lab-ink-3); }
+  /* The "Activity" section heading — make it match the soft section
+     header rhythm we use on the collection. */
+  section h2 {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--lab-ink-3);
+    margin-bottom: 24px;
+  }
+
+  /* Footer — dark variant */
+  footer {
+    border-top-color: var(--lab-rule);
+    color: var(--lab-ink-3);
+    background: var(--lab-bg);
+  }
+  footer a:hover { color: var(--lab-ink); }
+
+  /* Focus rings — cream on dark, not ink on cream */
+  a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline-color: var(--lab-ink);
+  }
+
+  /* Skip link — invert */
+  .skip-link {
+    background: var(--lab-ink);
+    color: var(--lab-bg);
+  }
+
+  /* Theme-color meta — dark for mobile chrome */
+  /* (Updated via meta tag below as well, but in case the OS UA reads CSS) */
 </style>
 </head>
 <body>
@@ -2018,10 +2464,8 @@
 <section class="lab-intro" id="main">
   <div class="wrap">
     <div class="intro-grid">
-      <div>
-        <h1>The Lab.</h1>
-      </div>
-      <p class="intro-tag">Burn one of your Bioms to feed another. The survivor inherits every organelle and anomaly — the donor is gone, forever.</p>
+      <h1>The Lab.</h1>
+      <p class="intro-tag"><em>Bring two.</em> One will feed the other.</p>
     </div>
   </div>
 </section>
@@ -2068,12 +2512,23 @@
     <a class="back-to-chooser" id="backToChooser" href="/lab" hidden aria-hidden="true"></a>
 
     <div class="collection-head">
-      <h2>Your collection</h2>
+      <h2>Specimens</h2>
       <div class="collection-actions" id="demoActions">
         <input type="number" class="seed-input-inline" id="seedInputAdd" min="0" max="2999" placeholder="seed" aria-label="Add Biom by seed">
         <button class="btn btn-ghost" id="addSeedBtn" type="button">Add</button>
         <button class="btn btn-ghost" id="addRandomBtn" type="button">+ 4 random</button>
       </div>
+    </div>
+
+    <!-- Decision row — appears once two specimens are tapped. The
+         "Feed [name]" framing reframes the destructive act as a gift
+         to the survivor. Click goes straight to the burn ritual modal
+         (the inline burn-confirm panel is hidden by CSS; JS below
+         auto-progresses through it). -->
+    <div class="feed-cta-zone" id="feedCtaZone" aria-live="polite">
+      <span class="feed-cta-prompt" id="feedCtaPrompt">Which survives?</span>
+      <button type="button" class="feed-cta-btn" id="feedCtaBtn">Feed</button>
+      <button type="button" class="feed-cta-reset" id="feedCtaReset">Start over</button>
     </div>
 
     <div class="collection-grid" id="collectionGrid"></div>
@@ -3424,9 +3879,16 @@ function _buildCardElement(seed) {
     : `${traitCount} traits`;
 
   const padded = String(seed).padStart(5, '0');
+  // Lab (2026-05-23): dark-room aesthetic uses TRANSPARENT cutouts so
+  // bioms float on the dark field instead of sitting on cream squares.
+  // The cutout WebPs (~70-130 KB) are ~10× larger than the cream thumbs
+  // but the lab is wallet-only and typical holders carry under 10 bioms,
+  // so the payload is acceptable (lazy-loaded). PNG fallback path is the
+  // cream thumb — almost no browsers in 2026 need it (WebP universal
+  // since Safari 14 / 2020), but it keeps graceful degradation honest.
   const thumbInner = isBase
     ? `<picture>
-         <source type="image/webp" srcset="https://pngs.thebioms.com/thumb/${padded}.webp">
+         <source type="image/webp" srcset="https://pngs.thebioms.com/cutout/${padded}.webp">
          <img src="https://pngs.thebioms.com/thumb/${padded}.png"
               alt="" loading="lazy" decoding="async"
               width="600" height="600">
@@ -3595,16 +4057,16 @@ function renderCollection() {
     cardStateHash.clear();
     if (LabState.mode === 'wallet') {
       if (!Wallet.address) {
-        collectionEmpty.textContent = 'Connect your wallet to see your Bioms.';
+        collectionEmpty.textContent = 'Connect your wallet — your Bioms appear here.';
       } else if (Wallet.workerOnline === false) {
-        collectionEmpty.textContent = 'Lab API not reachable. Wallet conjugation activates once the backend is deployed.';
+        collectionEmpty.textContent = 'Lab API is offline. The Bioms will surface once it is back.';
       } else if (Wallet.config && !Wallet.config.contractDeployed) {
-        collectionEmpty.textContent = 'Mint contract is not deployed yet — your Bioms will appear here automatically after the drop.';
+        collectionEmpty.textContent = 'The mint has not opened yet. Your Bioms will appear here once it does.';
       } else {
-        collectionEmpty.textContent = `No Bioms found in ${shortAddr(Wallet.address)}. Try Demo mode.`;
+        collectionEmpty.textContent = `No Bioms found in ${shortAddr(Wallet.address)}.`;
       }
     } else {
-      collectionEmpty.textContent = 'Your collection is empty. Add a Biom by seed (0–2999) or pull four random ones to start.';
+      collectionEmpty.textContent = 'No Bioms loaded.';
     }
     return;
   }
@@ -5455,5 +5917,110 @@ collectionGrid.addEventListener('click', (e) => {
 </script>
 
 <script defer src="/nav-wallet.js?v=9"></script>
+<script>
+/* ============================================================
+   LAB REDESIGN GLUE (2026-05-23) — wires the new dark-room UI
+   onto the existing burn flow without touching its module-scope
+   state. Three jobs:
+
+     1. Skip the inline burn-confirm panel (now hidden by CSS).
+        When the legacy controller surfaces it, auto-click "Yes"
+        to advance straight into the ritual modal. The ritual's
+        3-second press-and-hold is the real confirmation; the
+        inline step was redundant friction.
+
+     2. Surface a centered "Feed [survivor's name]" CTA above the
+        collection once both bioms are selected. Reframes the
+        destructive act as a gift to the survivor. Tap fires the
+        existing #conjugateBtn → existing burn flow.
+
+     3. Relabel the per-card role chip: donor reads "BURN", the
+        survivor reads "SURVIVES" — so the destination is unambig-
+        uous before the CTA is even read. The legacy controller
+        sets both to "Burn"; we override after each render.
+   ============================================================ */
+(function () {
+  const zone        = document.getElementById('feedCtaZone');
+  const cta         = document.getElementById('feedCtaBtn');
+  const promptEl    = document.getElementById('feedCtaPrompt');
+  const startOverEl = document.getElementById('feedCtaReset');
+  const grid        = document.getElementById('collectionGrid');
+  const legacyDo    = document.getElementById('conjugateBtn');
+  const legacyReset = document.getElementById('resetBtn');
+  const confirmEl   = document.getElementById('burnConfirm');
+  if (!zone || !grid || !legacyDo) return;
+
+  // 1. Auto-skip the inline burn-confirm panel.
+  if (confirmEl) {
+    new MutationObserver(() => {
+      if (confirmEl.classList.contains('visible')) {
+        const yes = document.getElementById('burnConfirmYes');
+        if (yes) yes.click();
+      }
+    }).observe(confirmEl, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // 2 + 3. CTA surfacing + role-tag override. Both react to the same
+  //         signal (selection class changes on .biom-card), so one
+  //         observer handles both.
+  function nameOf(card) {
+    if (!card) return null;
+    const n = card.querySelector('.biom-name');
+    return n ? n.textContent.trim() : null;
+  }
+
+  function relabelRoleTags() {
+    const cards = grid.querySelectorAll('.biom-card.selected-donor, .biom-card.selected-recipient');
+    cards.forEach(card => {
+      const tag = card.querySelector('.role-tag');
+      if (!tag) return;
+      if (card.classList.contains('selected-donor'))    tag.textContent = 'BURN';
+      if (card.classList.contains('selected-recipient')) tag.textContent = 'SURVIVES';
+    });
+  }
+
+  function syncCta() {
+    const donor = grid.querySelector('.biom-card.selected-donor');
+    const surv  = grid.querySelector('.biom-card.selected-recipient');
+    if (donor && surv) {
+      const name = nameOf(surv) || 'the survivor';
+      cta.textContent = `Feed ${name}`;
+      promptEl.textContent = 'Which survives?';
+      zone.classList.add('visible');
+      // Once both picked, smooth-scroll the grid into the viewport
+      // so the CTA doesn't hover over the bioms the user is comparing.
+      // No-op if it's already in view.
+      const rect = grid.getBoundingClientRect();
+      if (rect.top < 60) zone.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      zone.classList.remove('visible');
+    }
+  }
+
+  function refresh() {
+    relabelRoleTags();
+    syncCta();
+  }
+
+  new MutationObserver(refresh).observe(grid, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class'],
+    childList: true,
+  });
+  refresh();
+
+  // CTA → fire the existing conjugate (burn-flow entry).
+  cta.addEventListener('click', () => {
+    if (legacyDo.disabled) return;
+    legacyDo.click();
+  });
+
+  // Start over → fire the existing reset.
+  startOverEl.addEventListener('click', () => {
+    if (legacyReset) legacyReset.click();
+  });
+})();
+</script>
 </body>
 </html>
