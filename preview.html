@@ -90,6 +90,33 @@
     transform: translateZ(0);
   }
 
+  /* === LITE-2 — more aggressive (acceptable visual delta).
+   * - Reduces backdrop-filter blur radius 18 → 8 px (~5× cheaper:
+   *   blur compute scales with kernel area). Still looks "glass",
+   *   just softer and slightly flatter than original.
+   * - Drops the SVG turbulence noise overlay on each panel — that
+   *   filter is CPU-bound and contributes notable jank on lower-end
+   *   Macs even when the visible effect is subtle.
+   * - Drops the mix-blend-mode gloss highlight on the ::before layer
+   *   (mix-blend-mode forces a composite-with-background pass).
+   * Use when paint cost matters more than micro-detail (OpenSea
+   * thumbnail grids, embedded marketplaces). === */
+  body.lite2 .panel {
+    backdrop-filter: blur(8px) saturate(1.3) brightness(1.02);
+    -webkit-backdrop-filter: blur(8px) saturate(1.3) brightness(1.02);
+  }
+  body.lite2 .panel.capsule-layer {
+    backdrop-filter: blur(3px) saturate(1.15);
+    -webkit-backdrop-filter: blur(3px) saturate(1.15);
+  }
+  body.lite2 .panel::after {
+    display: none;
+  }
+  body.lite2 .panel::before {
+    mix-blend-mode: normal;
+    opacity: 0.6;
+  }
+
   /* === CUTOUT MODE — used by batch screenshot tooling to produce
    * fully-transparent PNGs of just the biom (no cream card, no noise
    * overlay, no download CTA). Combined with Playwright's
@@ -1873,9 +1900,18 @@ if (new URLSearchParams(window.location.search).get('cutout') === '1') {
 // Intended for embedded iframes where the host page is already heavy
 // (OpenSea token detail, marketplaces). Visually near-identical to the
 // full version; ~3-5× cheaper paint.
-if (new URLSearchParams(window.location.search).get('lite') === '1') {
-  document.body.classList.add('lite');
-  window.__BIOMS_LITE_MODE = true;
+// lite=1 → no morph + paint containment + GPU compositing hints (visually identical)
+// lite=2 → everything in lite=1, plus reduced blur radius + no noise overlay
+//          + no mix-blend-mode (acceptable visual softening, ~5× cheaper)
+{
+  const liteParam = new URLSearchParams(window.location.search).get('lite');
+  if (liteParam === '1' || liteParam === '2') {
+    document.body.classList.add('lite');
+    window.__BIOMS_LITE_MODE = true;
+  }
+  if (liteParam === '2') {
+    document.body.classList.add('lite2');
+  }
 }
 
 // Init — use URL seed if given, otherwise random
