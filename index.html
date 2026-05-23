@@ -946,7 +946,12 @@ function mountHero(el, seed) {
   iframe.style.cssText = 'width:100%;height:100%;border:0;display:block;position:absolute;inset:0;';
   // bare=1 strips the inner card frame so the specimen sits on the
   // hero-stage paper background directly.
-  iframe.src = `preview.html?seed=${seed}&bare=1`;
+  // lite=1 disables the JS-driven borderRadius morph and adds
+  // `contain: paint` + `will-change: transform` per panel — the live
+  // hero is the only full-engine biom on the page, so this is where
+  // the homepage's hottest paint path is. drift + glass + halo all
+  // stay; the biom still "breathes" via translate-only motion.
+  iframe.src = `preview.html?seed=${seed}&bare=1&lite=1`;
   el.appendChild(iframe);
   // Click-catcher. Kept as a separate element so it can be removed
   // independently or upgraded with hover preview UI later.
