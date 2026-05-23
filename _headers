@@ -134,27 +134,27 @@
 # default. One-hour cache + must-revalidate means edge serves cached copy
 # instantly but checks origin on each request for freshness (cheap 304s).
 /*.html
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 /
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 /lab
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 /explore
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 /reserve
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 /list
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 /manifesto
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 /make
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 /preview
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 /unrevealed
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 /soup
-  Cache-Control: public, max-age=3600, must-revalidate
+  Cache-Control: public, max-age=60, must-revalidate
 
 # 404 explicitly NOT cached — without this, /*.html catches /404.html
 # with a 1-hour cache, which means after a redeploy that adds a new
