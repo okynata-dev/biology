@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reserve</title>
-<meta name="description" content="Drop your wallet to be counted before mint.">
+<title>Mint</title>
+<meta name="description" content="The mint is live. Open Edition on OpenSea.">
 <meta name="theme-color" content="#ece9e0">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
@@ -13,8 +13,8 @@
 <link rel="stylesheet" href="/design.css?v=4">
 <link rel="canonical" href="https://thebioms.com/reserve">
 
-<meta property="og:title" content="Bioms — Reserve your spot">
-<meta property="og:description" content="Drop your wallet to be counted before mint.">
+<meta property="og:title" content="Bioms — The mint is live">
+<meta property="og:description" content="Three thousand Bioms, ERC-721 on Ethereum. Open Edition on OpenSea.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://thebioms.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -283,31 +283,15 @@
 </nav>
 
 <main class="wrap" id="main">
-  <h1>Be counted.</h1>
-  <p class="h1-sub">Three thousand microbes on Ethereum. Drop your wallet — the snapshot for mint pulls from this list.</p>
+  <h1>The mint is live.</h1>
+  <p class="h1-sub">
+    Three thousand Bioms, ERC-721 on Ethereum. Open Edition on OpenSea —
+    no waitlist, no allowlist, anyone can mint.
+  </p>
 
-  <div id="formContainer">
-    <form class="reserve-form" id="reserveForm" novalidate>
-      <div class="field">
-        <input
-          type="text"
-          id="reserveInput"
-          name="value"
-          placeholder="0x… or yourname.eth"
-          autocomplete="off"
-          autocapitalize="off"
-          autocorrect="off"
-          spellcheck="false"
-          autofocus
-          required
-          aria-label="Ethereum wallet address or ENS name"
-        />
-      </div>
-      <button type="submit" class="btn" id="reserveSubmit" disabled>Save my spot</button>
-    </form>
-    <div class="live-counter" id="liveCounter" hidden>
-      <strong id="liveCount">—</strong> already in
-    </div>
+  <div id="formContainer" style="display:flex;flex-direction:column;gap:12px;align-items:stretch;">
+    <a href="https://opensea.io/collection/bioms/overview" target="_blank" rel="noopener" class="btn" style="text-align:center;text-decoration:none;">Mint on OpenSea</a>
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener" class="btn btn-ghost" style="text-align:center;text-decoration:none;">Follow @theBioms</a>
   </div>
 
   <div id="successPanel" class="success" hidden>
@@ -332,7 +316,7 @@
     <span class="sep">·</span>
     <a href="/make">Banners</a>
     <span class="sep">·</span>
-    <a href="/reserve">Reserve</a>
+    <a href="/reserve">Mint</a>
     <span class="sep">·</span>
     <a href="/manifesto">Manifesto</a>
   </div>

@@ -53,10 +53,14 @@ if [ "${#ONLY_SEEDS[@]}" -gt 0 ]; then
     [ -f "$DIR/${padded}.webp" ] && files+=("$DIR/${padded}.webp")
   done
 else
+  # macOS ships bash 3.2 which lacks mapfile/readarray — use a portable
+  # while-read into the array instead. Null-delimited so filenames with
+  # spaces or special chars don't break the split.
+  files=()
   if [ "$WEBP_ONLY" -eq 1 ]; then
-    mapfile -t files < <(ls "$DIR"/*.webp 2>/dev/null)
+    while IFS= read -r -d '' f; do files+=("$f"); done < <(find "$DIR" -maxdepth 1 -name '*.webp' -print0)
   else
-    mapfile -t files < <(ls "$DIR"/*.{png,webp} 2>/dev/null)
+    while IFS= read -r -d '' f; do files+=("$f"); done < <(find "$DIR" -maxdepth 1 \( -name '*.png' -o -name '*.webp' \) -print0)
   fi
 fi
 
