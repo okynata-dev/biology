@@ -1,363 +1,251 @@
-# Bioms — Handoff to Claude Code
+# Bioms — Claude handoff (2026-05-23)
 
-You are picking this project up from an earlier Cowork session (Claude Sonnet 4.6, May 2026). Read this file fully **before** doing anything. Then `README.md`. Then start with **Section 1: First Steps**.
+This is the working context for any new Claude session on this project. Read it before doing anything. Then `README.md` for the long-form product story.
+
+> **Date check.** Updated 2026-05-23, the night before the drop. If today is later than that, treat everything below as the last known state — not necessarily current.
 
 ---
 
 ## TL;DR
 
-**Bioms** is a pre-launch generative NFT collection — 3,000 procedural microbial specimens on Ethereum. The project owner wants you to:
+**Bioms** = a generative NFT collection of 3,000 procedural microbial organisms ("Bioms"), Open Edition on **OpenSea Drops**, contract `0x57b83D192d30A1082779C3dCDc9D2fcAd855F457` on Ethereum mainnet.
 
-1. Push this repo to a GitHub repository
-2. Deploy it to Cloudflare Pages on `thebioms.com` (domain already registered, owner-managed in Cloudflare)
-3. Set up Cloudflare Email Routing on `thebioms.com`
-4. **Stop and wait for owner instructions** before any further work
+- **Site**: <https://thebioms.com>
+- **WL mint opens**: 2026-05-29 19:00 GMT+7 (the countdown component lives on the homepage and `/reserve`)
+- **OpenSea collection**: <https://opensea.io/collection/bioms/overview>
+- **Twitter**: [@theBioms](https://twitter.com/theBioms)
+- **Owner**: timso.eth (Telegram contact: timsouw)
 
-Do not deploy any smart contract. Do not run the Python mint pipeline. Do not start Phase 2 work (Lab / backend) unless explicitly asked.
-
----
-
-## Section 1 — First Steps
-
-When the owner says "go", do this in order:
-
-1. **`git init`** in this folder (`bioms-site/`).
-2. Verify `.gitignore` is in place (it should already be — don't overwrite it).
-3. Ask the owner for their **GitHub username**. Create a new private repo (or public — ask which).
-4. **First commit**: `git add . && git commit -m "Initial Bioms release"`.
-5. Push: `git remote add origin git@github.com:USERNAME/REPO.git && git push -u origin main`.
-6. Open `https://dash.cloudflare.com` → Pages → Create a project → Connect to Git → select the repo.
-7. **Build settings**:
-   - Framework preset: **None**
-   - Build command: **(empty)**
-   - Build output directory: **`/`**
-   - Root directory: **(empty)**
-8. Custom domain: add `thebioms.com` in Pages → Custom domains. Owner has already pointed nameservers; just add the custom domain in the Cloudflare dashboard.
-9. Test deploy. Visit `thebioms.com` — landing should load. Check `/make.html`, `/explore.html`.
-10. **Cloudflare Email Routing**: Dashboard → `thebioms.com` → Email → Email Routing → Enable. Add forwarding rule: `hello@thebioms.com` → owner's Gmail (ask which). Owner sets "Send as" in Gmail manually.
-11. Report status to owner. Wait for instructions.
+The collection is fully revealed (`<meta name="bioms-reveal" content="true">` site-wide). The Lab (the burn mechanic) is live and works on-chain via the Worker.
 
 ---
 
-## Section 2 — Architecture
+## Working preferences (READ THIS BEFORE WRITING ANYTHING)
 
-### Frontend (Cloudflare Pages, static)
+These come from the project owner; honor them:
+
+- **Reply in Russian.** Concise, no bullet-list-bloat. He reads fast, doesn't want fluff.
+- **Don't overhype your own changes.** If a perf optimization saved 5%, say 5%. Don't write "huge win" unless it actually is. He notices and calls it out.
+- **Don't ask before acting in Auto Mode.** When his message implies a direction, take it. Use `AskUserQuestion` only when you genuinely need a decision he must make (visual choice, scope question).
+- **Brand voice for end-users: restrained, intentional, microbiology-academic.** No emojis, no exclamation marks, no "Get yours now!" tone. Apple-restraint × scientific-paper × ambient awe.
+- **The word "specimen" is banned in user-facing copy.** Always call them **Bioms** (or "Biom" singular). CSS class names like `.ritual-specimen` are fine; OG-image alts, body text, meta descriptions are not.
+- **He owns dustopia.xyz separately.** That project is unrelated to Bioms. If you see anything dustopia-flavored leaking in (CLAUDE.md context, worktree paths, NFT thumbnails of swirling spheres), it's noise. Stay in `/Users/okynata/Desktop/bioms/` for everything.
+- **The mint is real money.** Before any change that touches `/lab`, `/reserve`, `/`, the burn flow, signing logic, or the contract metadata endpoint — pause and double-check. He's already had one "what did you break?" moment caused by a deploy from the wrong directory. Don't repeat that.
+
+---
+
+## Architecture (current, working)
+
+```
+                          (browser)
+                              │
+              visit https://thebioms.com/* (Pages)
+                              │
+                  static HTML + inline JS
+                              │
+       chain reads → window.ethereum (viem via inline)
+       lab burns   → POST https://api.thebioms.com/api/burn
+                              │
+                    (Cloudflare Worker: bioms-api)
+                              │
+            ┌──── D1 (token_state, depletions, log) ───┐
+            │                                          │
+            │           R2 (bioms-pngs):               │
+            │     /thumb/<NNNNN>.webp — cream tiles   │
+            │     /cutout/<NNNNN>.webp — transparent  │
+            │     /preview/<NNNNN>.png — master       │
+            │                                          │
+            └─────── Alchemy NFT v3 (ownerOf + state)─┘
+```
+
+### Pages (Cloudflare Pages, static, auto-deploys main on push)
 
 | File | Role |
 |---|---|
-| `index.html` | Landing page. Nav, hero (one live `preview.html` iframe), stain showcase, anatomy, mint info. All non-hero specimens are pre-rendered PNGs from `pngs.thebioms.com/explore/`. |
-| `preview.html` | **The token renderer.** This is the file pointed to by NFT `animation_url`. Renders a Biom from `?seed=N`, with breathing animation + mouse parallax. Has URL param overrides (`?fit=1`, `?bg=white`, `?scale=N`, `?forceMorph=`, `?forceStain=`, `?forceLifecycle=`, `?forceReserve=`, `?forceOrganelles=a,b,c`, `?forcePhage=1`, `?forceEndo=1`, `?forceBiofilm=1`, `?static=1`, `?noise=0`, `?nointeract=1`). The engine logic is inlined here (legacy) — has its own copy independent of `specimen-engine.js`. |
-| `make.html` | Banner Maker — interactive canvas editor. Drag/scale/rotate/flip/templates. Live preview uses the DOM renderer. **PNG export composites the pre-rendered master PNG** (from `{PNG_BASE}/preview/{NNNNN}.png`, zero-padded 5-digit, populated by `batch_screenshots.py` at mint time) via `canvas.drawImage` — pixel-identical to the live preview since the master PNG was itself screenshotted from `preview.html` in real Chromium. Falls back to **native 2D Canvas** (NOT html2canvas — see Section 5) if the master PNG is missing. Imports `specimen-engine.js`. The `PNG_BASE` constant at the top of the script sets the host (empty string = same origin; otherwise an absolute URL like `https://pngs.thebioms.com` for an R2 custom domain). The bucket layout is `preview/` and `explore/` at root — the local `pngs/` source directory drops on upload. |
-| `explore.html` | Trait Explorer — 46 trait cards with isolated traits + academic descriptions. **Each card is a pre-rendered PNG** from `/pngs/explore/{cat}-{id}.png` (populated by `batch_explore.py`). Previously was 46 simultaneous iframes mounting full specimen-engine instances — that melted laptops. `<img loading="lazy">` keeps offscreen images out of memory. |
-| `lab.html` | **The Lab — trait conjugation** between Bioms. Has TWO modes: Demo (localStorage, anyone can play with sample seeds; cooldowns shortened to 60s) and Wallet (window.ethereum connect, EIP-712 sign, POST to worker). Pre-mint, wallet mode shows "contract not deployed" and points users to Demo. Renders donor/recipient slots as `preview.html` iframes with `bare=1&force*` URL params for mutated state. Game logic: 12 transferable traits (stain/8 organelles/reserve/3 anomalies), 15% rejection rate, 30-day cooldown on donor. Capsule/nucleoid/morphology NOT transferable. |
-| `404.html` | Branded 404 page. Cloudflare Pages serves it automatically for unknown paths. |
-| `asset-template.html` | Asset format template (fixed Twitter/OpenSea dimensions). Used only by `batch_screenshots.py` for downloadable asset packs. Not in user nav. |
-| `specimen-engine.js` | **Shared rendering engine** — exports `window.BiomEngine`. Contains: palettes, weights, all generators, DOM renderer (`renderSpecimen`), **native 2D canvas renderer (`renderSpecimenToCanvas`)** for offline export fallback. Used by `make.html` and `lab.html`. |
-| `favicon.svg`, `og-image.png` | Brand assets — favicon and social-share card. |
-| `sitemap.xml`, `robots.txt`, `_headers` | SEO and HTTP caching/header config. |
+| `index.html` | Landing. Hero biom, "Evolve" section (homepage Lab pitch), drop block with countdown + CTAs that auto-swap to OpenSea at T-0 (`#dropPre` / `#dropLive`). `?lite=1` on hero iframe for perf. |
+| `lab.html` | The Lab — **stacked-modal storytelling flow**, 5 acts. See "Lab flow" below. |
+| `reserve.html` | Waitlist. Has countdown to WL window, auto-swaps form → "Mint live" CTAs at T-0. Real signups counter from `/api/waitlist/count`. |
+| `make.html` | Banner Maker. Single Biom or N×M collage mode. Drag/zoom/rotate/flip. Pixel-identical preview ↔ export via shared rendering path. Uses cached cutout PNGs from R2 with thumb fallback. |
+| `explore.html` | Trait Explorer — 46 trait cards with pre-rendered PNGs (not iframes — that melted laptops). |
+| `preview.html` | The token renderer — pointed to by NFT `animation_url`. URL params: `?seed=N`, `?lite=1` (cheap), `?lite=2` (cheaper), `?cutout=1` (transparent), `?fit=1`, `?bg=white`, `?static=1`. |
+| `manifesto.html` | The long-form project story. Restrained tone, microbiology-academic. |
+| `pfp.html` | PFP/explore — save any Biom as PNG. |
+| `404.html` | Branded — broken Biom with drift animation. |
+| `asset-template.html` | OG/Twitter image template (only used by batch scripts, not in nav). |
+| `specimen-engine.js` | Shared rendering engine: `window.BiomEngine`. DOM render + 2D-canvas export path. **Filename has "specimen" in it — that's internal, do not rename.** |
+| `nav-wallet.js`, `nav-wallet.css` | EIP-6963 multi-wallet picker (MetaMask, Rabby, Coinbase, etc.). |
+| `design.css` | Shared brand tokens. Cream `--bg`, ink `--ink`, ember `--burn`, radii, easings, button primitive. |
+| `_worker.js` | **Passthrough shim.** Defensive fix for a CF Pages Functions binding leak. Do not remove. Do not add logic. |
+| `_redirects`, `_headers` | Cloudflare Pages config. `_headers` sets per-path Cache-Control + CSP + frame-ancestors. **HTML pages cached for 60s pre-drop** (was 1h — bumped down for rapid iteration). |
 
-### Worker / Lab backend (Cloudflare Workers + D1 — deployed separately from Pages)
+### Worker (Cloudflare Workers, deployed separately from Pages)
 
-| File | Role |
+Worker name: **`bioms-api`** (custom domain `api.thebioms.com`).
+
+| Endpoint | Purpose |
 |---|---|
-| `worker.js` | **Bioms Lab API** at `api.thebioms.com`. Endpoints: `GET /api/health` (returns contract + chain + cooldown config); `GET /api/owned/:address` (Alchemy NFT v3 → tokenIds owned by addr); `GET /api/state/:tokenId` + `GET /api/state-batch?tokens=N,N` (D1 → mutations + active depletions); `POST /api/conjugate` (EIP-712 sig verify + on-chain ownerOf check via viem + game logic + D1 persist); `GET /api/log` (recent conjugation history). Mirrors `generateState()` from specimen-engine.js for trait-availability check (server-side parity). |
-| `wrangler.toml` | Worker config. Binds D1 database `bioms-lab` (id placeholder — replaced after `wrangler d1 create`). `[vars]`: CHAIN_ID, COOLDOWN_SECONDS, REJECTION_RATE. Secrets via `wrangler secret put`: ALCHEMY_KEY (required), CONTRACT_ADDRESS (post-mint), OPENSEA_API_KEY (optional, for auto metadata-refresh). |
-| `schema.sql` | D1 tables: `token_state` (received mutations per token), `depletions` (active cooldowns), `used_nonces` (EIP-712 replay protection), `log` (append-only conjugation history). |
-| `package.json` | Single dep: `viem` (server-side signature recovery + ownerOf calls). Wrangler is devDep. |
+| `GET /api/health` | Ping + config (CHAIN_ID, contractDeployed, COOLDOWN_SECONDS, REJECTION_RATE). |
+| `GET /api/owned/<addr>` | Bioms token IDs in this address (via Alchemy NFT v3). KV-cached 30 min. |
+| `GET /api/state/<id>`, `GET /api/state-batch?tokens=N,N` | D1 → mutations + active depletions for a token. |
+| `POST /api/burn` | EIP-712 sig verify → on-chain `ownerOf` check → game RNG → D1 persist → return new state. **This is the real burn**, no rollback. |
+| `POST /api/conjugate` | Legacy crossbreed endpoint. **Crossbreed mechanic is removed from the UI**, but the endpoint still exists in case we ever revert. |
+| `POST /api/waitlist` | Reserve form submit (email, eth addr, twitter). |
+| `GET /api/waitlist/count` | Live signup counter. |
+| `GET /api/metadata/<tokenId>` | **OpenSea metadata endpoint**, returns ERC-721 JSON. Used as token URI baseURI. |
+| `GET /api/preview/<tokenId>` | Pre-rendered preview image (animated WebP for mutated tokens). |
+| `POST /api/webhook/transfer` | Alchemy Notify webhook → wipes per-token cache on transfer. HMAC-gated. |
 
-### Lab deploy flow
+Worker config (`wrangler.toml`):
+- D1: `bioms-lab` (schema in `schema.sql`)
+- R2: `bioms-pngs` (custom domain `pngs.thebioms.com`)
+- Secrets: `ALCHEMY_KEY`, `CONTRACT_ADDRESS`, `WEBHOOK_SECRET`, `ADMIN_TOKEN`
 
+Deploy worker: `npx wrangler deploy` (NOT covered by Pages auto-deploy).
+
+---
+
+## The Lab — current flow (2026-05-23 ritual rebuild)
+
+The Lab is a **closed loop of five acts**, stacked-modal style. Each is a fullscreen overlay; only one visible at a time.
+
+```
+  Act 1 — Intro:     "Are you ready?"
+                      [Yes, I'm ready] (ember) / [Try a demo first]
+  Act 2 — Pick:      "Choose two."
+                      User's Bioms on cream tiles in a dark room.
+                      Auto-advances after two are tapped.
+  Act 3 — Name:      "Which name survives?"
+                      Two large name buttons. Click one — that's the
+                      survivor; the other becomes the donor.
+  Act 4 — Ritual:    Existing #burnRitual modal — press-and-hold 3s
+                      to commit. Donor dissolves into survivor.
+  Act 5 — After:     "[Name] carries it now."
+                      [Burn again] / [Leave the lab]
+```
+
+**Key architectural notes:**
+
+- The flow controller lives at the bottom of `lab.html` body. It talks to the legacy burn machinery via a single adapter object: `window.__bioms_lab` (`setBurnPair`, `loadDemo`, `walletReady`, `ownedSeeds`, `triggerBurn`, `reset`). The controller never reaches into module-scope state directly.
+- "Choose name" semantics: clicking BIOM A's button calls `setBurnPair(A, B)` which clears the arena, sets donor=B then recipient=A. The legacy arena state machine sees a normal pair.
+- Inline `#burnConfirm` panel is hidden by CSS and auto-clicked Yes by a MutationObserver — the 3-second hold in the ritual is the real confirmation, the inline step was redundant friction.
+- Burn-only. The crossbreed mode was removed from the UI on 2026-05-23 (story clearer with one mechanic). Dead crossbreed code paths preserved for rollback safety.
+- Demo mode is restored as a flow entry-point: `loadDemo(6)` flips `LabState.mode = 'demo'`, clears state, adds 6 random seeds.
+- Underlying legacy scaffolding (`#collectionGrid`, `#conjugateBtn`, the visible hero text) is `visibility: hidden` via `body.flow-ready` — kept as JS-fail fallback.
+
+**Visual:**
+- Page background: warm ink `#15110d` (same as burn ritual modal).
+- Bioms inside modals: canonical cream tiles (`--paper`). This is non-negotiable — the user explicitly asked for "bacteria on white" everywhere a Biom is shown. **Including inside the ritual modal** (it was dark by default; overridden via `.burn-ritual .ritual-render` CSS).
+- Ember accent (`--burn`) reserved for moments of commitment: "Yes, I'm ready" (Act 1) and the press-and-hold ritual button (Act 4).
+
+---
+
+## R2 buckets (`bioms-pngs` at `pngs.thebioms.com`)
+
+```
+/preview/<NNNNN>.png    — master render at full resolution (3000-ish px).
+                           Used by OpenSea metadata + Banner Maker fallback.
+                           Mutated tokens get an animated .webp here.
+/thumb/<NNNNN>.webp     — small cream-bg thumbnail (~7-15 KB each).
+                           Used in catalogs, picker grids.
+/thumb/<NNNNN>.png      — PNG fallback.
+/cutout/<NNNNN>.webp    — transparent background, full-res (~50-130 KB).
+                           Used in `/make` collage, dark-room lab variants.
+                           Note: seeds 0-3 were initially empty (race in
+                           the batch script) — regenerated + uploaded
+                           2026-05-23; check `curl -sI` if a seed looks
+                           wrong.
+/explore/<cat>-<id>.png — Trait Explorer card images.
+```
+
+Regeneration scripts:
+- `scripts/make-cutouts.py` — Playwright batch via `preview.html?cutout=1` + `omit_background=True`. Args: `--only N,N` / `--workers 4`.
+- `scripts_upload_cutouts.sh` — uploads `pngs/cutout/` to R2 via `wrangler r2 object put`. Has `--webp-only` and `--only N N` flags.
+
+---
+
+## Common edits
+
+### Change copy / colors on a page
+Edit the relevant HTML directly. Each page is self-contained — `<style>` and `<script>` are inline. Push to main → auto-deploys in ~30s.
+
+### Tweak burn / game logic
+Edit `worker.js` (server side — RNG, trait availability, D1 persist) AND `lab.html` (client-side preview if relevant). After worker edit: `npx wrangler deploy`. Pages auto-deploy doesn't touch the worker.
+
+### Add a new R2 image variant
+1. Add a directory under `pngs/` locally
+2. Generate via a script in `scripts/`
+3. Upload via wrangler (or `scripts_upload_*.sh`)
+4. Set Cache-Control via `_headers` if served through Pages, OR via the R2 bucket's CORS/cache config if served via `pngs.thebioms.com`
+
+### Pre-launch checklist (do before WL mint window)
+- [ ] Set OpenSea contract's baseURI to `https://api.thebioms.com/api/metadata/`
+- [ ] Verify Alchemy Notify webhook is firing (test with a transfer)
+- [ ] Rotate `ADMIN_TOKEN` if it's been in dev hands
+- [ ] Pinned tweet drafted
+- [ ] Polish OpenSea collection page (banner, royalties, description)
+- [ ] Smoke-test all routes: `/`, `/lab`, `/reserve`, `/make`, `/explore`, `/manifesto`, `/pfp`, `/api/health`
+
+### Smoke-test routes (fast)
 ```bash
-# 1. First-time setup
-wrangler login
-wrangler d1 create bioms-lab
-# → copy database_id into wrangler.toml [[d1_databases]] block
-
-# 2. Init schema
-wrangler d1 execute bioms-lab --file=schema.sql --remote
-
-# 3. Secrets
-echo "<alchemy-key>" | wrangler secret put ALCHEMY_KEY
-
-# 4. Deploy
-wrangler deploy
-
-# 5. Bind custom domain in Cloudflare dashboard:
-#    Workers & Pages → bioms-api → Settings → Triggers → Custom Domains
-#    → Add api.thebioms.com
-
-# 6. POST-MINT only — once the launch contract is live, set its address
-#    so ownerOf calls work and conjugations stop returning 503:
-echo "0xYourContract" | wrangler secret put CONTRACT_ADDRESS
-
-# 7. (Optional) Enable OpenSea metadata auto-refresh after each successful conjugation
-echo "<opensea-key>" | wrangler secret put OPENSEA_API_KEY
+for path in / /lab /reserve /make /explore /manifesto /pfp; do
+  code=$(/usr/bin/curl -s -o /dev/null -w "%{http_code}" "https://thebioms.com$path")
+  echo "$path → $code"
+done
+/usr/bin/curl -s https://api.thebioms.com/api/health | jq .
 ```
 
-**Contract requirement (hard):** the launch contract MUST support **updatable `baseURI`** by the owner. Pre-mint, leave `baseURI = https://thebioms.com/metadata/` (static JSON). Post-mint, after Phase 2 deploy works, swap to `baseURI = https://api.thebioms.com/metadata/` (dynamic, returns effective state per token). Standard OpenSea Drop contracts have this; any custom contract must be checked before launch.
-
-**EIP-712 domain** (must match frontend + worker):
-```
-{
-  name: 'Bioms Lab',
-  version: '1',
-  chainId: <env.CHAIN_ID>,
-  verifyingContract: <env.CONTRACT_ADDRESS>,
-}
-```
-Type: `Conjugate(uint256 donorId, uint256 recipientId, string trait, uint256 nonce, uint256 deadline)`. Nonce = `Date.now()`. Deadline = nonce + 5 min. Replay-blocked by `used_nonces` table.
-
-### Mint pipeline (Python, runs locally — NOT deployed)
-
-| File | Role |
-|---|---|
-| `generate_metadata.py` | Generates 3,000 ERC-721 metadata JSON files. **MUST stay RNG-parity with JS.** |
-| `batch_screenshots.py` | Headless Chromium renders 3,000 master preview PNGs (`pngs/preview/00000.png` ... `02999.png`). These feed both the NFT `image` field AND the Banner Maker's HQ source. Render at ≥ 2400 px so banners look crisp at 4K. |
-| `batch_explore.py` | Headless Chromium renders the 46 trait-isolation PNGs consumed by `explore.html` and the landing stain showcase (`pngs/explore/{morph,stain,organelle,reserve,lifecycle,ultra}-{id}.png`). Manifest is hardcoded in the script — must stay in sync with the trait arrays in `explore.html`. |
-
-## Section 3 — Final state (what works right now)
-
-All work below was completed in the Cowork session and is verified working:
-
-- **17 new traits added** beyond original 1000-supply MVP: 4 morphologies (sarcina, tetrad, streptobacillus, mycelium), 4 stain palettes (acid_fast, giemsa, safranin, india_ink), 5 reserve granules (phb, volutin, magnetosomes, sulfur, crystalline), 3 lifecycle states (binary_fission, sporulating, heterocyst), 3 ultra-rare effects (phage_attached, endosymbiont, biofilm_halo).
-- **Supply increased 1000 → 3000.**
-- **RNG parity verified 3000/3000** between JS engine (`specimen-engine.js`, `preview.html`) and Python (`generate_metadata.py`). All four implementations of `mulberry32` produce identical sequences for any seed.
-- **Banner Maker (`make.html`)** — interactive canvas editor with drag/scale/rotate/flip, 12 layout templates with auto-apply per format, 8 format presets + custom W×H. PNG export via native 2D canvas (no html2canvas/dom-to-image — they failed with backdrop-filter).
-- **Trait Explorer (`explore.html`)** — 46 trait cards, academic-style biology descriptions, lazy-loaded iframes via IntersectionObserver.
-- **Brand**: `Bioms` (no "The"). Domain `thebioms.com`. X handle `@theBioms`. Each token = `BIOM #N`. Species name (procedural latin-ish, 1024 namespace) surfaced as a filterable OpenSea trait.
-- **Fit-mode rendering**: in `?fit=1` URL, the capsule envelope is sized smaller (`bbox×1.15 + 6/8`) so it fits inside the card; biofilm halo also reduced. PFP mode (default, no fit) keeps deliberate oversize for bust crop.
-- **Capsule and clipping fixed** for banner/explore use.
-- **Engine extracted** to `specimen-engine.js`, used by `make.html`. `preview.html` still has an inline engine copy (kept in sync — see Critical Invariants).
-- **Canvas renderer (`renderSpecimenToCanvas`)** with proper CSS-matching matrix composition (transforms compose in `T_position × T(-50%) × T(tx,ty) × center-pivot × scale × rotate × back-from-pivot` order). Glass effect simulated with 6 layers per panel: base fill, inner top highlight, inner bottom shadow, diagonal sheen (overlay blend), convex radial highlight (overlay blend), outer border stroke.
-
----
-
-## Section 4 — Critical invariants (DO NOT BREAK)
-
-### 4.1 — RNG parity
-
-The procedural genome is the foundation of the entire collection. **Three** independent implementations must produce identical traits for any given seed:
-
-1. `preview.html` — inline JS in `<script>`
-2. `specimen-engine.js` — used by `make.html`
-3. `generate_metadata.py` — Python, used at mint time
-
-The `mulberry32(seed)` PRNG is the only randomness source. The sequence of `rng()` calls in `randomize()` / `generateState()` is:
-
-```
-1. pickWeightedMorph(rng)         — 1 call (returns 1 of 11 morphologies, weighted)
-2. pickWeightedPalette(rng)       — 1 call (returns 1 of 12 stains, weighted)
-3. rng() → cellCount              — 1 call: 1 + floor(rng() × 6)
-4. rng() → accentCount            — 1 call: floor(rng() × 4)
-5. 9 boolean rolls for organelles (in order):
-    nucleoid(0.85), ribosomes(0.45), pili(0.55), flagellum(0.30),
-    plasmid(0.40), endospore(0.15), inclusion(0.20), eyespot(0.20), axial(0.15)
-6. pickWeightedReserve(rng)       — 1 call
-7. pickWeightedLifecycle(rng)     — 1 call (with post-condition: heterocyst → vegetative if morph != filament/mycelium; no rng consumed by the check)
-8. 3 boolean rolls for ultra-rare (in order):
-    phageAttached(0.015), endosymbiont(0.01), biofilmHalo(0.02)
-```
-
-**Total: 18 rng() calls per state generation, exact order.** Adding, removing, or reordering ANY of these changes the output for ALL seeds.
-
-If you change anything in trait generation:
-
+### Syntax-check `lab.html` JS after edit
 ```bash
-# In repo root:
-python3 -c "
-import sys; sys.path.insert(0, '.')
-from generate_metadata import generate_traits
-for s in [0, 247, 999, 1999, 2999]:
-    print(s, generate_traits(s))
-"
+cd /Users/okynata/Desktop/bioms && \
+  python3 -c "import re; s=open('lab.html').read(); ms=re.findall(r'<script>([\s\S]*?)</script>', s); open('/tmp/lab_check.js','w').write('\n;\n'.join(ms))" && \
+  node --check /tmp/lab_check.js && echo SYNTAX_OK
 ```
-
-Then in browser console on `make.html`:
-```js
-[0, 247, 999, 1999, 2999].map(s => ({s, ...BiomEngine.generateState(s)}))
-```
-
-They MUST match. If they don't — you broke parity. Revert and try again.
-
-### 4.2 — Metadata filename format
-
-Files are written as `{tokenId}.json` (no zero-padding). OpenSea Studio Drop appends `.json` to a URI prefix. Format `00247.json` would NOT match the OpenSea fetch pattern. Don't add padding.
-
-Internal PNG references inside metadata use zero-padding (`00247.png`) — that's what `batch_screenshots.py` saves and `generate_metadata.py` writes into `image:` field. The two scripts agree on this — don't touch.
-
-### 4.3 — IS_FIT_MODE flag
-
-The `?fit=1` URL parameter signals "render specimen fully inside the card" (used by `make.html`, `explore.html`). Without it (PFP / NFT default), capsule is deliberately oversized for bust crop. In `specimen-engine.js` this is the `isFitMode` option; in `preview.html` it's a top-level `IS_FIT_MODE` const. Both modes are needed. Don't remove either path.
-
-### 4.4 — URL params used by other pages
-
-`preview.html` exposes these URL params (used by `make.html`, `explore.html`, possibly future Lab):
-
-- `?seed=N` — token seed
-- `?fit=1` — fit mode (smaller capsule, no bust offset)
-- `?bg=white` — white background instead of paper texture
-- `?noise=0` — disable noise overlay (cleaner banners)
-- `?static=1` — freeze animation at phase 0 (no breathing, no drift)
-- `?nointeract=1` — skip mouse/touch listeners (lighter for iframes)
-- `?scale=N` — set `--card-scale` CSS variable (shrinks `.pfp-card` for whitespace)
-- `?forceMorph=X`, `?forceStain=X`, `?forceLifecycle=X`, `?forceReserve=X` — override single traits
-- `?forceOrganelles=a,b,c` — replace organelle set entirely
-- `?forcePhage=1`, `?forceEndo=1`, `?forceBiofilm=1` — force ultra-rare
-- `?forceCells=N` — override cellCount
-- `?mut_TRAIT=DONOR_SEED` — conjugation mutation (legacy prototype, basis for Lab Phase 1)
-- `?dep_TRAIT=1` — trait depletion (legacy prototype)
-
-If you change names of these params, update consumers in `make.html` and `explore.html`.
 
 ---
 
-## Section 5 — Known issues / accepted limitations
+## Things to NEVER do
 
-### Backdrop-filter in PNG export — SOLVED via pre-rendered master PNGs
-
-The Glass effect in DOM uses `backdrop-filter: blur(18px)` — each panel blurs what's behind it. **Canvas API has no equivalent**, so `renderSpecimenToCanvas` only ever approximated the glass via 6-layer panel rendering (highlights, shadows, sheen, overlay blends, border) — no real blur. The browser also doesn't expose a way for JS to capture an already-rendered DOM region as an image (intentional, for privacy).
-
-**Current solution:** at mint time, `batch_screenshots.py` already renders 3,000 master PNGs of every specimen via Playwright in headless Chromium — which has real `backdrop-filter`. Render those big enough (≥ 2400 px, ideally 3000+), host on Cloudflare R2 (bucket layout `preview/{NNNNN}.png` and `explore/{cat}-{id}.png` at root) under a custom domain like `pngs.thebioms.com`, and the Banner Maker's PNG export loads that master PNG and composites it onto the target canvas via `canvas.drawImage` with the user's transform. Pixel-identical to the live preview, zero server cost, infinite scale.
-
-**Fallback:** if the master PNG is missing (404, network error, pre-mint state), `make.html` automatically falls back to `renderSpecimenToCanvas` and labels the result in the UI status line as "Local fallback · no glass blur (master PNG unavailable)". Existing behavior is preserved.
-
-**Previous approach (removed):** an earlier iteration of this used a Cloudflare Pages Function (`functions/api/render.js`) that called Cloudflare Browser Rendering to screenshot a dedicated `render.html` page on demand. That worked but had real costs: Workers Paid plan required, API token to manage, ~10 min/day free quota then per-minute billing, 2-concurrent-session cap, and ~5 s per render. The pre-rendered approach is strictly better since the master PNGs are needed anyway for NFT metadata `image` field. If you redeploy and revive that path, look in git history before commit `<TBD>`.
-
-Setup steps for hosting the master PNGs are in `README.md` → "Hosting pre-rendered PNGs".
-
-### Engine duplication
-
-`specimen-engine.js` and `preview.html` contain duplicated rendering logic. Kept this way deliberately:
-
-- ES module imports break `file://` page loading (Chrome blocks `<script src>` cross-origin for file URLs)
-- `preview.html` is the NFT `animation_url` target — must work standalone, no external deps
-- The duplication is small (~700 lines of pure-function code) and changes are infrequent
-
-If you ever **must** refactor (e.g. to reduce bundle size for Cloudflare), the path is: have `preview.html` import `specimen-engine.js` only when served over HTTP. Test thoroughly — RNG parity is the constraint.
-
-### Heterocyst rate
-
-By design, heterocyst only applies to `filament` or `mycelium` morphologies (biologically accurate). Effective rate is ~0.5% of all tokens (heterocyst weight 6% × filament+mycelium share 12% = 0.72%, minus statistical wiggle). Some tokens with heterocyst rolled get downgraded to vegetative. Distribution analysis (3000 supply) showed 14/3000 — within expected variance. Don't "fix" this — it's intentional.
+- **Deploy from any directory other than `/Users/okynata/Desktop/bioms/`.** This caused a real outage. CF Pages stores Pages Functions at project level; deploying from elsewhere can leak stale bindings across deploys. The `_worker.js` shim is the defensive fix — don't remove it.
+- **Never commit secrets.** ALCHEMY_KEY, WEBHOOK_SECRET, ADMIN_TOKEN, private keys live only as Worker secrets via `wrangler secret put`.
+- **Never use `--no-verify`, `--no-gpg-sign`, or `--amend` on git operations** unless the user explicitly asks. If a pre-commit hook fails, fix it and make a NEW commit.
+- **Never `rm -rf` a project directory yourself.** This is in the agent safety rules — give the user the exact command and let them run it.
+- **Never bypass `AskUserQuestion` for visual/scope decisions the user must make.** Auto-deciding wrong wastes more time than asking.
+- **Never add emojis** to site copy or commit messages. The brand voice is restrained.
+- **Never call Bioms "specimens"** in user-facing copy. CSS classes and internal JS variables (`renderSpecimen`, `.ritual-specimen`) are fine — don't rename those.
+- **Never deploy lab.html changes without local smoke-test.** The burn flow has ~5500 lines of intertwined state. Use `preview_start` + the preview MCP tools, walk Act 1 → Act 5 in demo mode, confirm nothing breaks. THEN commit.
 
 ---
 
-## Section 6 — Pending tasks by priority
+## Recent design decisions (worth knowing)
 
-### P0 — Before mint (owner decides timing)
-
-- [ ] **Deploy site** to Cloudflare Pages (Section 1)
-- [ ] **DNS + email** on thebioms.com (Section 1)
-- [ ] **Buy `bioms.eth`** — owner does this manually at [app.ens.domains](https://app.ens.domains). Connect with hardware wallet.
-- [ ] **Buy `livingbioms.com`** — defensive, redirect to thebioms.com
-- [ ] **Hardware wallet setup** — owner sets up Ledger/Trezor as project wallet. Do not mix with personal wallet.
-- [ ] **Optional**: Gnosis Safe multi-sig for project treasury
-- [ ] **Test mint on Sepolia** — deploy contract for 5-10 tokens, verify OpenSea fetches metadata correctly. Owner does this through OpenSea Studio.
-
-### P1 — Mint day
-
-- [ ] Run mint pipeline locally:
-  ```bash
-  pip3 install playwright && python3 -m playwright install chromium
-  mkdir -p pngs/preview && python3 batch_screenshots.py preview.html ./pngs/preview 3000 --workers 6 --size 1500
-  mkdir -p metadata && python3 generate_metadata.py ./metadata 3000 --base-image-uri https://pngs.thebioms.com/preview --base-animation-uri https://thebioms.com/preview.html
-  ```
-- [ ] Commit `pngs/` and `metadata/` directories (or upload to Cloudflare R2 if size becomes issue — ~500MB-1.5GB)
-- [ ] Push to GitHub → Cloudflare auto-deploys
-- [ ] Owner deploys contract via OpenSea Studio with tokenURI prefix `https://thebioms.com/metadata/`
-
-### P2 — Lab feature (after mint, holder demand)
-
-The owner wants a **trait conjugation feature**: connect wallet → see your Bioms → splice traits between them with biology-accurate mechanics (donor pilus required, ~10-20% rejection, 30-day cooldown on donor trait, donor not burned).
-
-**Phase 1 (Visual mockup, no backend)** — buildable now if requested. Uses existing `?mut_*` URL params in `preview.html`. Mutations live in browser memory only.
-
-**Phase 2 (Persisted, OpenSea-visible)** requires:
-
-#### Cloudflare Workers — `functions/api/`
-
-```
-functions/
-├── api/
-│   ├── metadata/[id].ts        # Dynamic metadata — joins base JSON + D1 mutations
-│   ├── conjugate.ts             # POST mutation, verify signed message, roll RNG, write D1
-│   ├── bioms/[wallet].ts        # Fetch wallet's Bioms (proxy Reservoir or OpenSea API)
-│   ├── lab/state/[id].ts        # Current mutation state of a token
-│   └── cooldowns/[id].ts        # Trait regeneration timers
-```
-
-#### Cloudflare D1 schema
-
-```sql
-CREATE TABLE mutations (
-  token_id INTEGER,
-  trait_name TEXT,           -- 'body', 'organelle:flagellum', 'lifecycle', etc.
-  donor_seed INTEGER,
-  applied_at INTEGER,        -- unix timestamp
-  status TEXT,               -- 'active' | 'reverted' | 'failed'
-  signature TEXT,            -- holder's signed message
-  PRIMARY KEY (token_id, trait_name)
-);
-CREATE TABLE cooldowns (
-  token_id INTEGER,
-  trait_name TEXT,
-  ready_at INTEGER,          -- unix timestamp 30 days after donation
-  PRIMARY KEY (token_id, trait_name)
-);
-CREATE TABLE events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  type TEXT,                 -- 'conjugate', 'mutation_applied', 'cooldown_expired'
-  payload TEXT,              -- JSON
-  created_at INTEGER
-);
-```
-
-#### Conjugation flow
-
-1. Holder selects donor token + recipient token + trait in Lab UI
-2. Frontend constructs signed message: `{action: 'conjugate', donor: 247, recipient: 1244, trait: 'body', nonce, timestamp}`
-3. Wallet signs (via `personal_sign` or EIP-712)
-4. POST to `/api/conjugate` with signed message
-5. Worker verifies signature recovers to holder of both tokens (via on-chain `ownerOf()`)
-6. Worker checks cooldowns on donor trait
-7. Worker rolls failure RNG (server-side, seeded by block hash + nonce for verifiability)
-8. On success: write to `mutations` table, set cooldown row for donor
-9. Return new metadata URL
-10. Frontend triggers OpenSea metadata refresh
-
-#### OpenSea integration
-
-Contract's `tokenURI(id)` returns `https://thebioms.com/api/metadata/${id}`. Worker reads D1, joins with base metadata, returns updated JSON. Image must also be dynamic — either re-render via Playwright on cache miss, OR use URL params on preview.html (`?seed=X&mut_body=Y`).
-
-### P3 — Maybe-someday
-
-- Mobile-optimized Lab (currently desktop-focused due to drag)
-- Composable trait NFTs (ERC-1155) — Series II territory
-- Mutation history visualization (lineage tree of a Biom)
-- Social sharing — auto-generate OG image for sharing a mutated Biom
+| When | What | Why |
+|---|---|---|
+| 2026-05-23 | **Stacked-modal lab flow** (intro → pick → name → ritual → after) | The lab was a page-with-controls; users had to figure out what to do. New flow IS the experience, no way to get lost. |
+| 2026-05-23 | **Crossbreed removed from UI** | One mechanic (burn) tells a clearer story than two. Code preserved for rollback. |
+| 2026-05-23 | **Dark room aesthetic + cream Biom tiles** | The Lab is the most weighty action on the site (one biom dies forever). Treat it as a ritual, not a form. Biom thumbnails stay on canonical cream — only the page is dark. |
+| 2026-05-23 | **Word "specimen" purged from copy** | Confusion with "Biom" — pick one name. |
+| 2026-05-23 | **Cache-Control on HTML dropped 1h → 60s** | Pre-drop iteration. Restore longer TTLs post-launch. |
+| 2026-05-22 | **Demo mode removed from lab (then re-added 2026-05-23 as flow entry-point)** | Originally lab was wallet-only after launch; the new flow needs a non-wallet entry for curious visitors. |
+| 2026-05-22 | **`_worker.js` shim committed to git** | Defensive fix for a CF Pages Functions binding leak that surfaced after a wrong-directory deploy. |
+| 2026-05-21 | **Wallet picker — EIP-6963 modal** (MetaMask, Rabby, Coinbase, etc.) | Single window.ethereum was unreliable; users have multiple wallets installed. |
+| 2026-05-20 | **Browser Rendering for mutated tokens** | After a burn, the survivor needs a fresh master PNG — generated server-side via @cloudflare/puppeteer + uploaded to R2 + OpenSea refresh-metadata ping. |
+| 2026-05-19 | **OpenSea Drops chosen over self-contracted mint** | Lower friction for buyers; OpenSea handles primary sales UI. Contract `0x57b83D192d30A1082779C3dCDc9D2fcAd855F457` is OpenSea's Open Edition contract. |
 
 ---
 
-## Section 7 — Style conventions
+## If something breaks during the drop
 
-- **No build step.** Vanilla HTML/CSS/JS. No npm, no webpack, no TypeScript (except in Cloudflare Workers if you add them — `.ts` works natively there).
-- **No frameworks.** No React/Vue/Svelte. The owner explicitly wants this lightweight.
-- **`specimen-engine.js`** is one file, exports `window.BiomEngine`. Don't ES-modulify it (breaks `file://`).
-- **HTML files** use inline `<style>` and `<script>`. Resist splitting into `.css`/`.js` unless very compelling.
-- **Style**: match existing aesthetic — paper backgrounds (`#ece9e0`), `--ink` for text, museum-archival tone, no emoji in product text.
-- **Comments**: write them. Especially around invariants (RNG calls, transform math). The engine is dense; comments save the next reader.
-- **Don't break working things**. The collection is pre-launch — every change must be backward compatible with the verified state.
+1. **Don't deploy a fix from outside this repo's checkout.** Always `cd /Users/okynata/Desktop/bioms/` first.
+2. **Browser-cache surprises** — if a user reports "I don't see your latest fix", check `Cache-Control` header on the route and tell them Cmd+Shift+R. Cache is now 60s so this should be rare.
+3. **R2 edge cache holding stale zero-byte file** — happened with seeds 0-3 cutouts. Bust with `?v=$(date +%s)` query string in curl; the actual cache will refresh on next origin pull.
+4. **Worker not picking up code change** — Pages auto-deploys frontend only. Worker needs `npx wrangler deploy`.
+5. **Cloudflare API outage during deploy** — happened 2026-05-22. Wait it out (status.cloudflare.com), don't force.
 
 ---
 
-## Section 8 — Contact / origin
+## Owner's stated future ideas (not started, not committed)
 
-- **Project owner**: `@timsouw` on Twitter (personal handle, not the project handle)
-- **Project handle**: `@theBioms`
-- **Project email**: `hello@thebioms.com` (set up via Cloudflare Email Routing after deploy — Section 1)
-- **Domain**: `thebioms.com`
-- **Original session**: built in Cowork mode (Claude Sonnet 4.6), May 2026, ~10-hour session
-- **Estimated total LOC**: ~3,500 (HTML/CSS/JS) + ~280 (Python)
+- **Monetization brainstorm** (whales / big-money buyers during drop): 1/1 Phoenix Auction, Founder Bioms (#1-10), Eponymous Trait offer, full-collection buyout at 2-5× primary, etc. Owner asked, was given options, hasn't picked one yet. Don't implement any of these without explicit go-ahead.
+- **Per-flock drifting orbit axes** (dustopia thing, not Bioms — ignore if it surfaces).
 
-When in doubt about a design choice — ask the owner before changing it. Especially for anything affecting trait probability, naming, or rendering.
-
-Good luck.
+That's it. Read `README.md` next for the long-form product story. Then ask the owner what to do.
