@@ -248,6 +248,11 @@
     display: inline-flex;
     gap: 22px;
   }
+  /* CSS `display: inline-flex` above overrides the HTML `hidden`
+     attribute (user-agent display:none). We need explicit display:none
+     for [hidden] to actually hide the Demo / My-wallet toggle stubs
+     that the controller still references by ID but shouldn't render. */
+  .mode-switch[hidden] { display: none; }
   .mode-btn {
     background: transparent; border: 0;
     font: inherit; cursor: pointer;
