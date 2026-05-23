@@ -8,7 +8,7 @@
 <meta name="bioms-reveal" content="true">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Bioms</title>
-<meta name="description" content="A single Biom specimen — generative microbiology rendered live in your browser.">
+<meta name="description" content="A single Biom — generative microbiology rendered live in your browser.">
 <meta name="theme-color" content="#ffffff">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
@@ -389,7 +389,7 @@
 <body>
 
 <div class="stage">
-  <div class="pfp-card" id="pfpCard" role="img" aria-label="Generative Biom specimen">
+  <div class="pfp-card" id="pfpCard" role="img" aria-label="Generative Biom">
     <div class="scene"><div class="composition" id="comp"></div></div>
   </div>
 </div>
@@ -1655,7 +1655,7 @@ function randomize(forcedSeed) {
 
   // Keep the a11y label in sync with the active seed (click-to-randomize path).
   const pfp = document.getElementById('pfpCard');
-  if (pfp) pfp.setAttribute('aria-label', 'Generative Biom specimen');
+  if (pfp) pfp.setAttribute('aria-label', 'Generative Biom');
 }
 
 // =============================================================
@@ -1944,7 +1944,7 @@ requestAnimationFrame(() => {
 
 // Stamp the real seed into the a11y label so screen-readers get the token id.
 const _pfp = document.getElementById('pfpCard');
-if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom specimen');
+if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom');
 
 // === Download-CTA wiring ===
 // Show only when preview.html is standalone (NOT inside an OpenSea /
