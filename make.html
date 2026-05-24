@@ -184,6 +184,21 @@
   }
   .canvas.dragging { cursor: grabbing; }
 
+  /* Snap guides — Procreate-style alignment hints shown only while
+     dragging a single biom and the current position is snapped to an
+     anchor. Two faint accent lines that cross at the snap point. */
+  .snap-guide {
+    position: absolute;
+    background: rgba(60, 60, 60, 0.55);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 5;
+    transition: opacity 120ms ease;
+  }
+  .snap-guide.visible { opacity: 1; }
+  .snap-guide-v { top: 0; bottom: 0; width: 1px; transform: translateX(-0.5px); }
+  .snap-guide-h { left: 0; right: 0; height: 1px; transform: translateY(-0.5px); }
+
   /* Specimen container — square, sized in pixels, scaled visually if needed */
   .specimen-host {
     position: absolute;
@@ -496,6 +511,11 @@
               <div class="composition" id="liveComp"></div>
             </div>
           </div>
+          <!-- Snap guides — shown only while dragging single mode and the
+               current tx/ty is snapped to an anchor. Two thin lines that
+               cross at the snap point. Procreate-style. -->
+          <div class="snap-guide snap-guide-v" id="snapGuideV" aria-hidden="true"></div>
+          <div class="snap-guide snap-guide-h" id="snapGuideH" aria-hidden="true"></div>
           <div class="canvas-hint">Drag · scroll to zoom</div>
         </div>
         <div class="canvas-meta">
@@ -534,8 +554,8 @@
             <input id="rowsInput" class="num-input" type="number" min="1" max="12" value="3" aria-label="Rows" placeholder="Rows" />
           </div>
           <button type="button" class="btn secondary" id="shuffleBtn" style="margin-bottom: 8px;">⤴ Shuffle seeds</button>
-          <div class="ctrl-label" style="margin-bottom: 6px;"><span>Gap</span><span class="val" id="gapVal">2%</span></div>
-          <input type="range" class="slider" id="gapSlider" min="0" max="12" value="2" step="1" aria-label="Gap between cells, percent of cell size" />
+          <div class="ctrl-label" style="margin-bottom: 6px;"><span>Spacing</span><span class="val" id="gapVal">2%</span></div>
+          <input type="range" class="slider" id="gapSlider" min="-50" max="20" value="2" step="1" aria-label="Spacing between cells, percent of cell size. Negative values overlap." />
         </div>
 
         <div class="ctrl-group">
@@ -1120,14 +1140,19 @@ async function renderLive() {
     // No backdrop-filter compositing in the live preview → smooth at any cell count.
     liveComp.innerHTML = '';
     liveComp.classList.add('collage-grid');
-    liveComp.style.gridTemplateColumns = `repeat(${state.gridCols}, 1fr)`;
-    liveComp.style.gridTemplateRows    = `repeat(${state.gridRows}, 1fr)`;
-    // liveComp.style.gap is set inside applyTransform().
+    // Always absolute-positioned cells now — CSS grid can't do negative
+    // gaps, and the user wants overlap for dense compositions. Per-cell
+    // left/top/width/height are computed in applyTransform() below.
+    liveComp.style.gridTemplateColumns = '';
+    liveComp.style.gridTemplateRows    = '';
+    liveComp.style.gap = '';
+    liveComp.style.display = 'block';
 
     const frag = document.createDocumentFragment();
     for (let i = 0; i < seeds.length; i++) {
       const cell = document.createElement('div');
       cell.className = 'collage-cell';
+      cell.style.position = 'absolute';
       const img = document.createElement('img');
       img.src = collageCellCache.get(seeds[i]);
       img.alt = '';
@@ -1138,6 +1163,10 @@ async function renderLive() {
     }
     liveComp.appendChild(frag);
     metaSeed.textContent = `COLLAGE · ${state.gridCols}×${state.gridRows} (${seeds.length} bioms)`;
+    // Cells are absolute-positioned — applyTransform writes their actual
+    // left/top/width/height. Call AFTER appending so callers that ran
+    // applyTransform pre-await don't see uninitialised cells.
+    applyTransform();
   } else {
     _collageRenderGen++;  // cancel any in-flight collage work
     liveComp.classList.remove('collage-grid');
@@ -1189,25 +1218,37 @@ function applyTransform() {
   const baseSize = Math.min(rect.width, rect.height);
 
   if (state.mode === 'collage') {
-    // Account for gaps when fitting the grid into the canvas so the
-    // natural-size collage (scale=1) exactly fills the canvas's short
-    // edge, including any inter-cell gap the user has set.
-    //   total_w = cellPx*cols + gapPx*(cols-1), gapPx = cellPx * gapPct/100
-    //   → total_w = cellPx * (cols + (cols-1)*gapPct/100)
-    const gp = state.cellGapPct / 100;
+    // Spacing (cellGapPct) can now be NEGATIVE for overlap. We size the
+    // host so that the natural (scale=1) collage fits the canvas short
+    // edge, including spacing:
+    //   step = cellPx * (1 + gp); host = step * (n-1) + cellPx
+    //   → host = cellPx * (n + (n-1)*gp)
+    // and we cap gp at -0.999 so cellPx never explodes when the user
+    // drags spacing all the way down.
+    const gp = Math.max(state.cellGapPct / 100, -0.95);
     const widthDiv  = state.gridCols + (state.gridCols - 1) * gp;
     const heightDiv = state.gridRows + (state.gridRows - 1) * gp;
     const cellFit = Math.min(rect.width / widthDiv, rect.height / heightDiv);
     const cellPx  = cellFit * state.scale;
-    const gapPx   = cellPx * gp;
-    const hostW   = cellPx * state.gridCols + gapPx * (state.gridCols - 1);
-    const hostH   = cellPx * state.gridRows + gapPx * (state.gridRows - 1);
+    const stepX   = cellPx * (1 + gp);  // distance between adjacent cell-tops
+    const hostW   = stepX * (state.gridCols - 1) + cellPx;
+    const hostH   = stepX * (state.gridRows - 1) + cellPx;
     specimenHost.style.width  = hostW + 'px';
     specimenHost.style.height = hostH + 'px';
-    // Pixel-precise gap on the grid container — with 1fr tracks this makes
-    // each cell exactly cellPx wide, so canvas export (which uses cellPx
-    // explicitly) matches the DOM preview pixel-for-pixel.
-    liveComp.style.gap = gapPx + 'px';
+    // Position each cell absolutely. With gp<0, stepX<cellPx → cells overlap.
+    // DOM order = paint order; later cells sit on top. For a perfectly
+    // symmetric stack we'd shuffle z-index, but the current order produces
+    // a left-to-right cascade that reads naturally.
+    const cells = liveComp.children;
+    for (let i = 0; i < cells.length; i++) {
+      const col = i % state.gridCols;
+      const row = (i / state.gridCols) | 0;
+      const c = cells[i];
+      c.style.left   = (col * stepX) + 'px';
+      c.style.top    = (row * stepX) + 'px';
+      c.style.width  = cellPx + 'px';
+      c.style.height = cellPx + 'px';
+    }
   } else {
     const finalSize = baseSize * state.scale;
     specimenHost.style.width  = finalSize + 'px';
@@ -1325,19 +1366,83 @@ function startDrag(clientX, clientY) {
   };
 }
 
+// Snap anchors in tx/ty space (% of baseSize, centered).
+//   center: (0,0)
+//   edges:  biom half-off along one axis (0,±50), (±50,0)
+//   corners: biom 3/4-off (±50,±50) → ¼ of biom visible in that corner
+// Threshold is 2.5% of baseSize — close enough for "I meant this" but
+// far enough that user can deliberately position 1-2% off if they want.
+const SNAP_ANCHORS_X = [-50, 0, 50];
+const SNAP_ANCHORS_Y = [-50, 0, 50];
+const SNAP_THRESHOLD = 2.5;
+const snapGuideV = document.getElementById('snapGuideV');
+const snapGuideH = document.getElementById('snapGuideH');
+
+function _findSnap(value, anchors) {
+  let best = null;
+  let bestD = SNAP_THRESHOLD;
+  for (const a of anchors) {
+    const d = Math.abs(value - a);
+    if (d < bestD) { best = a; bestD = d; }
+  }
+  return best;  // null if no anchor within threshold
+}
+
+function _showSnapGuide(snapX, snapY) {
+  // In single mode only — collage doesn't need snapping (the grid IS
+  // the alignment). Guide line positions are in canvas-relative px:
+  // x_center_of_canvas + snapX * baseSize/100.
+  if (state.mode !== 'single') {
+    snapGuideV.classList.remove('visible');
+    snapGuideH.classList.remove('visible');
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  const baseSize = Math.min(rect.width, rect.height);
+  if (snapX !== null) {
+    snapGuideV.style.left = (rect.width / 2 + snapX * baseSize / 100) + 'px';
+    snapGuideV.classList.add('visible');
+  } else {
+    snapGuideV.classList.remove('visible');
+  }
+  if (snapY !== null) {
+    snapGuideH.style.top = (rect.height / 2 + snapY * baseSize / 100) + 'px';
+    snapGuideH.classList.add('visible');
+  } else {
+    snapGuideH.classList.remove('visible');
+  }
+}
+
+function _hideSnapGuides() {
+  snapGuideV.classList.remove('visible');
+  snapGuideH.classList.remove('visible');
+}
+
 function moveDrag(clientX, clientY) {
   if (!isDragging) return;
   // dx/dy in pixels → convert to % of baseSize (matches state.tx/ty units)
   const dxPct = ((clientX - dragStart.x) / dragStart.baseSize) * 100;
   const dyPct = ((clientY - dragStart.y) / dragStart.baseSize) * 100;
-  state.tx = dragStart.sx + dxPct;
-  state.ty = dragStart.sy + dyPct;
+  let tx = dragStart.sx + dxPct;
+  let ty = dragStart.sy + dyPct;
+
+  // Per-axis snap — X and Y independent so the user can snap horizontal
+  // alignment without committing vertical (and vice versa).
+  const snapX = _findSnap(tx, SNAP_ANCHORS_X);
+  const snapY = _findSnap(ty, SNAP_ANCHORS_Y);
+  if (snapX !== null) tx = snapX;
+  if (snapY !== null) ty = snapY;
+
+  state.tx = tx;
+  state.ty = ty;
+  _showSnapGuide(snapX, snapY);
   applyTransform();
 }
 
 function endDrag() {
   isDragging = false;
   canvas.classList.remove('dragging');
+  _hideSnapGuides();
 }
 
 canvas.addEventListener('mousedown', (e) => {
@@ -1631,15 +1736,16 @@ async function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
       ctx.fillRect(0, 0, w, h);
 
       // Same geometry math as applyTransform's collage branch so the
-      // exported grid matches the on-screen preview exactly.
-      const gp = gapPct / 100;
+      // exported grid matches the on-screen preview exactly. Spacing
+      // (gapPct) can be negative — cells overlap.
+      const gp = Math.max(gapPct / 100, -0.95);
       const widthDiv  = cols + (cols - 1) * gp;
       const heightDiv = rows + (rows - 1) * gp;
       const cellFit = Math.min(w / widthDiv, h / heightDiv);
       const cellPx  = cellFit * opts.scale;
-      const gapPx   = cellPx * gp;
-      const totalW = cellPx * cols + gapPx * (cols - 1);
-      const totalH = cellPx * rows + gapPx * (rows - 1);
+      const stepPx  = cellPx * (1 + gp);
+      const totalW = stepPx * (cols - 1) + cellPx;
+      const totalH = stepPx * (rows - 1) + cellPx;
 
       // Outer transform — see applyTransform / CSS for the chain.
       const baseSize = Math.min(w, h);
@@ -1655,21 +1761,16 @@ async function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
 
-      // Round cell + gap to integer px so a collage with non-integer
-      // cellPx doesn't drift the grid by accumulating sub-px (would
-      // show as 1-px seams between cells on large grids).
+      // Round cell + step to integer px so non-integer cellPx doesn't
+      // accumulate sub-px drift (visible as 1-px seams on large grids).
       const cellPxI = Math.max(1, Math.round(cellPx));
-      const gapPxI  = Math.round(gapPx);
+      const stepPxI = Math.round(stepPx);
       for (let r = 0; r < rows; r++) {
         for (let col = 0; col < cols; col++) {
           const idx = r * cols + col;
           if (idx >= cellImgs.length || !cellImgs[idx]) continue;
-          const cx = gridLeft + col * (cellPxI + gapPxI);
-          const cy = gridTop  + r   * (cellPxI + gapPxI);
-          // drawImage with explicit dest size scales the cached image
-          // into the cell rectangle. object-fit: contain semantics are
-          // unnecessary here because _processThumb already produced a
-          // square output canvas.
+          const cx = gridLeft + col * stepPxI;
+          const cy = gridTop  + r   * stepPxI;
           ctx.drawImage(cellImgs[idx], cx, cy, cellPxI, cellPxI);
         }
       }
@@ -1683,9 +1784,11 @@ async function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
   });
 }
 
-// Branches on state.mode. Single → localRender. Collage → collageRender.
+// Branches on state.mode. Single → hqRender (master PNG composite),
+// fallback to localRender (engine 2D-canvas) if the master isn't ready.
+// Collage → collageRender (per-cell cached thumbs).
 async function renderAndDownload(seed, w, h, formatId, opts) {
-  let blob, filename;
+  let blob, filename, source;
   if (state.mode === 'collage') {
     blob = await collageRender(
       state.gridCols, state.gridRows, state.collageSeeds,
@@ -1693,17 +1796,35 @@ async function renderAndDownload(seed, w, h, formatId, opts) {
       w, h, opts
     );
     filename = `bioms-collage-${state.gridCols}x${state.gridRows}-${formatId}-${w}x${h}.png`;
+    source = 'collage';
   } else {
-    // The master PNG path (hqRender) was abandoned because (a) the master
-    // was rendered inside preview.html's card layout so the biom sat in
-    // the lower-centre, (b) workarounds (cream-strip + bbox-recentre)
-    // introduced their own artefacts. The engine renderer is the SAME
-    // pipeline as preview — pixel-identical by construction.
-    blob = await localRender(seed, w, h, opts);
+    // PRIMARY: composite the R2 master PNG (a Chromium screenshot of the
+    // same DOM render the preview shows live). This makes download ↔
+    // preview visually identical — same glass effect, same panel
+    // arrangement, same backdrop blend. The earlier engine-fallback
+    // path was claimed "pixel-identical by construction" but the
+    // 2D-canvas renderer is a flat approximation of the DOM glass, so
+    // it produced visibly different compositions for the same seed.
+    //
+    // Await the in-flight load if the user hits Download before it
+    // resolves — typically completes in <500 ms on warm cache.
+    if (!specimenImg && specimenImgPromise) {
+      try { await specimenImgPromise; } catch (_) {}
+    }
+    if (specimenImg) {
+      blob = await hqRender(w, h, opts);
+      source = 'hq';
+    } else {
+      // No master PNG available (pre-reveal, R2 outage, 404). Engine
+      // fallback so the user still gets SOMETHING — visually different
+      // from the preview, but better than a failed download.
+      blob = await localRender(seed, w, h, opts);
+      source = 'local';
+    }
     filename = `bioms-biom-${seed}-${formatId}-${w}x${h}.png`;
   }
   downloadBlob(blob, filename);
-  return { source: 'local' };
+  return { source };
 }
 
 downloadBtn.addEventListener('click', async () => {
