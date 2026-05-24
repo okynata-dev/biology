@@ -914,7 +914,7 @@
            and hides #dropPre when the timestamp passes. -->
       <div id="dropPre">
         <h2>The drop.</h2>
-        <p>WL mint opens <strong>May 29, 7&nbsp;PM GMT+7</strong> · 0.0069&nbsp;ETH · 3,000 Bioms, capped, on OpenSea.</p>
+        <p>WL mint opens <strong>June 5, 7&nbsp;PM GMT+7</strong> · 0.0069&nbsp;ETH · 3,000 Bioms, capped, on OpenSea.</p>
         <div class="countdown" id="countdown" aria-live="polite" aria-label="Time until mint">
           <div class="cd-unit"><span class="cd-num" id="cdDays">—</span><span class="cd-lbl">Days</span></div>
           <div class="cd-sep">:</div>
@@ -1090,7 +1090,7 @@ heroEl.addEventListener('click', rollHero);
 // =========================================================================
 // MINT COUNTDOWN — drop block tick
 // =========================================================================
-// WL window starts May 29 2026 at 7:00 PM GMT+7. JS ticks every second
+// WL window starts June 5 2026 at 7:00 PM GMT+7. JS ticks every second
 // while the countdown is on screen; at T-0 it swaps the #dropPre block
 // for #dropLive without a page reload. tabular-nums keeps the digits
 // from wiggling between ticks.
@@ -1100,7 +1100,7 @@ heroEl.addEventListener('click', rollHero);
 // — saves a wakeup per second when the user is scrolling elsewhere on
 // a long landing page.
 (function mintCountdown() {
-  const MINT_AT = new Date('2026-05-29T19:00:00+07:00').getTime();
+  const MINT_AT = new Date('2026-06-05T19:00:00+07:00').getTime();
   const elDays = document.getElementById('cdDays');
   const elHrs  = document.getElementById('cdHrs');
   const elMins = document.getElementById('cdMins');
