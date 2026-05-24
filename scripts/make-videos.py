@@ -108,13 +108,23 @@ def start_server(directory, port):
     return httpd
 
 
-def webm_to_mp4(webm_path: Path, mp4_path: Path, crf: int):
+def webm_to_mp4(webm_path: Path, mp4_path: Path, crf: int, trim_start: float):
     """ffmpeg convert. CRF 23 is the YouTube-ish quality default; 18-20
     is visually lossless but ~2× file size. -an strips any audio track
     (Bioms are silent). +faststart moves the moov atom to the front so
-    players can start before the file finishes downloading."""
-    cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
+    players can start before the file finishes downloading.
+
+    trim_start: seconds to skip from the head of the recording. Playwright
+    starts recording from context creation, so the first ~0.5-1s of every
+    capture is a blank/loading frame before engine-ready fires. Default 1s
+    trim drops that cleanly. Pass 0 to keep the full clip."""
+    cmd = ["ffmpeg", "-y", "-loglevel", "error"]
+    if trim_start > 0:
+        # -ss BEFORE -i is fast (keyframe seek). We re-encode anyway so
+        # the slight inaccuracy doesn't matter, and it cuts the seek
+        # overhead vs putting -ss after -i.
+        cmd += ["-ss", f"{trim_start}"]
+    cmd += [
         "-i", str(webm_path),
         "-c:v", "libx264",
         "-preset", "slow",
@@ -128,7 +138,7 @@ def webm_to_mp4(webm_path: Path, mp4_path: Path, crf: int):
 
 
 def render_one(port: int, seed: int, size: int, duration_s: float,
-               settle_ms: int, crf: int, chrome_path):
+               settle_ms: int, crf: int, trim_start: float, chrome_path):
     """Record one biom. Spins up a fresh Playwright context per seed so
     record_video_dir applies cleanly — the context-per-seed cost (~600ms
     of browser boot) is dwarfed by the recording duration itself."""
@@ -183,7 +193,7 @@ def render_one(port: int, seed: int, size: int, duration_s: float,
             webm = webms[0]
             padded = f"{seed:05d}"
             mp4 = DST / f"{padded}.mp4"
-            webm_to_mp4(webm, mp4, crf)
+            webm_to_mp4(webm, mp4, crf, trim_start)
             return (seed, True, None)
         except Exception as e:
             return (seed, False, f"{type(e).__name__}: {e}")
@@ -193,10 +203,11 @@ def render_one(port: int, seed: int, size: int, duration_s: float,
 
 
 def worker_run(worker_idx: int, seeds_chunk, port: int, size: int,
-               duration_s: float, settle_ms: int, crf: int, chrome_path):
+               duration_s: float, settle_ms: int, crf: int, trim_start: float,
+               chrome_path):
     results = []
     for i, seed in enumerate(seeds_chunk):
-        r = render_one(port, seed, size, duration_s, settle_ms, crf, chrome_path)
+        r = render_one(port, seed, size, duration_s, settle_ms, crf, trim_start, chrome_path)
         results.append(r)
         if (i + 1) % 10 == 0:
             ok_so_far = sum(1 for _, ok, _ in results if ok)
@@ -217,6 +228,10 @@ def main():
     ap.add_argument("--crf", type=int, default=23,
                     help="H.264 quality (lower = better, larger). 18=visually lossless, "
                          "23=YouTube default, 28=heavy compression. Default 23.")
+    ap.add_argument("--trim-start", type=float, default=1.0,
+                    help="Seconds to trim from the head of each clip — drops the blank/"
+                         "loading frames before engine-ready. Default 1.0. Pass 0 to keep "
+                         "everything.")
     ap.add_argument("--workers", type=int, default=2,
                     help="Parallel browsers. Each holds ~250 MB; 4 is comfortable on M1.")
     args = ap.parse_args()
@@ -247,7 +262,8 @@ def main():
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = [
             pool.submit(worker_run, i, chunk, args.port, args.size,
-                        args.duration, args.settle, args.crf, chrome)
+                        args.duration, args.settle, args.crf, args.trim_start,
+                        chrome)
             for i, chunk in enumerate(chunks) if chunk
         ]
         for f in as_completed(futures):
