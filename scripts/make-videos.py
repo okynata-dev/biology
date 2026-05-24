@@ -145,14 +145,27 @@ def render_one(port: int, seed: int, size: int, duration_s: float,
                 record_video_size={"width": size, "height": size},
             )
             page = ctx.new_page()
+            # Strip the standalone-only Download CTAs from EVERY paint:
+            # preview.html shows them when window.self === window.top (true
+            # in our headless context). Without this they'd bake into the
+            # video — and a post-load JS remove() leaves a 1-2 frame flash
+            # at the start of the recording while the page is parsing.
+            # init_script runs before any page script on every navigation,
+            # so the !important style block is in place from frame 0.
+            # The save-as-PNG context menu wiring is untouched — that menu
+            # only renders on right-click, not during passive playback.
+            page.add_init_script(
+                "document.addEventListener('DOMContentLoaded', () => {"
+                "  const s = document.createElement('style');"
+                "  s.textContent = '.download-cta-row, .download-cta { display: none !important; }';"
+                "  document.head.appendChild(s);"
+                "});"
+            )
             url = f"http://127.0.0.1:{port}/preview.html?seed={seed}"
             page.goto(url, wait_until="load", timeout=15000)
             page.wait_for_selector("body.engine-ready", timeout=8000)
-            # Strip the standalone-only Download CTAs before recording —
-            # preview.html shows them when it detects window.self === window.top
-            # (which is true in our headless context), and they'd otherwise
-            # bake into every video. The save-as-PNG context menu wiring is
-            # left alone since the menu only renders on right-click.
+            # Belt-and-suspenders: also drop the nodes outright in case the
+            # !important style is ever beaten by an inline override.
             page.evaluate(
                 "document.querySelectorAll('.download-cta-row, .download-cta').forEach(n => n.remove())"
             )
