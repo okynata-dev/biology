@@ -1282,7 +1282,7 @@ async function buildMetadata(env, tokenId) {
     // "PHAGOPHILIA" style identifier) is preserved as a Species trait so
     // the character isn't lost — it just doesn't crowd the title.
     name: `BIOM #${tokenId}`,
-    description: 'A living microbe from the Bioms collection — 3000 generative specimens that share traits, burn each other, and evolve. The survivors carry everything forward. thebioms.com',
+    description: 'A living microbe from the Bioms collection — 3,000 generative Bioms that share traits, burn each other, and evolve. The survivors carry everything forward. thebioms.com',
     // Static image — for mutated tokens this URL gets re-uploaded by
     // renderTokenMaster() after each burn/conjugate (Browser Rendering
     // pipeline). The ?v=N query bumps each regen → CDN cache busts →
