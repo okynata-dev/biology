@@ -1796,7 +1796,13 @@
   .burn-ritual.committed .ritual-pair {
     grid-template-columns: 1fr;
     justify-items: center;
-    margin-bottom: 32px;
+    margin-bottom: 36px;
+  }
+  /* The survivor is the entire moment — give it real presence.
+     Side-by-side ritual size (~220px) is sized for comparison; after
+     commit there's nothing to compare against, so we scale up. */
+  .burn-ritual.committed .ritual-specimen.absorber .ritual-render {
+    width: clamp(280px, 44vw, 440px);
   }
 
   /* During the hold: burner dissolves slowly, name spreads apart. */
@@ -1890,7 +1896,10 @@
   /* Result panel — only visible after commit. Fades in below the
      survivor. */
   .ritual-result {
-    margin-top: 40px;
+    margin-top: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     opacity: 0;
     transform: translateY(10px);
     transition:
@@ -1902,40 +1911,52 @@
     opacity: 1;
     transform: translateY(0);
   }
-  .ritual-result-name {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 13px;
-    letter-spacing: 0.18em;
-    color: #f4ead4;
-    margin-bottom: 14px;
-  }
-  .ritual-result-lineage {
-    font-size: 14px;
-    line-height: 1.55;
-    color: rgba(244, 234, 212, 0.72);
-    margin: 0 auto 28px;
-    max-width: 480px;
-  }
+  /* Visual order: eyebrow tier → big display name → lineage → continue.
+     Tier sits ABOVE the name as an achievement label, like a record
+     sleeve credit. DOM order is name/lineage/tier/continue for legacy
+     refs; flex `order` reshuffles it for readability. */
   .ritual-result-tier {
+    order: 1;
     display: inline-block;
-    padding: 5px 14px;
+    padding: 4px 12px;
     border-radius: var(--r-pill);
-    background: rgba(255, 255, 255, 0.10);
+    background: rgba(244, 234, 212, 0.08);
+    border: 1px solid rgba(244, 234, 212, 0.18);
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(244, 234, 212, 0.82);
+    margin-bottom: 18px;
+  }
+  .ritual-result-name {
+    order: 2;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: clamp(22px, 3.4vw, 30px);
+    letter-spacing: 0.06em;
     color: #f4ead4;
-    margin-bottom: 28px;
+    margin-bottom: 14px;
+    line-height: 1.15;
+  }
+  .ritual-result-lineage {
+    order: 3;
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(244, 234, 212, 0.62);
+    margin: 0 auto 32px;
+    max-width: 520px;
+    text-align: center;
   }
   .ritual-continue {
+    order: 4;
     background: transparent;
     border: 1px solid rgba(244, 234, 212, 0.4);
     color: #f4ead4;
-    padding: 10px 28px;
+    padding: 12px 32px;
     border-radius: var(--r-pill);
     font-family: inherit;
     font-size: 14px;
-    letter-spacing: 0.01em;
+    letter-spacing: 0.02em;
     cursor: pointer;
     transition: background 200ms ease, border-color 200ms ease;
   }
@@ -2710,6 +2731,17 @@
     display: block;
   }
   .flow-pick-thumb img { object-fit: cover; }
+  /* Live-render placeholder for mutated tokens (post-burn survivors).
+     Mirrors the cream-tile look of the static thumbs above. */
+  .thumb-live {
+    position: absolute; inset: 0;
+    background: var(--paper, #faf8f3);
+    overflow: hidden;
+  }
+  .thumb-live .composition {
+    position: absolute; inset: 0;
+  }
+  .flow-after-thumb .thumb-live { border-radius: inherit; }
   .flow-pick-name {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
@@ -2770,13 +2802,12 @@
     background: transparent;
     border: 1px solid var(--lab-rule-2);
     border-radius: var(--r-md, 14px);
-    padding: 28px 18px 22px;
+    padding: 36px 18px;
     font: inherit;
     cursor: pointer;
     display: flex;
-    flex-direction: column;
-    gap: 14px;
     align-items: center;
+    justify-content: center;
     color: var(--lab-ink);
     transition: border-color 220ms ease, background 220ms ease, transform 220ms ease;
     -webkit-tap-highlight-color: transparent;
@@ -2786,31 +2817,12 @@
     background: rgba(244, 234, 212, 0.04);
     transform: translateY(-2px);
   }
-  .flow-name-btn .flow-name-thumb {
-    width: 100px; height: 100px;
-    background: var(--paper, #faf8f3);
-    border-radius: var(--r-md, 14px);
-    overflow: hidden;
-    display: block;
-    box-shadow: inset 0 0 0 1px rgba(244, 234, 212, 0.08);
-  }
-  .flow-name-btn .flow-name-thumb picture,
-  .flow-name-btn .flow-name-thumb img {
-    width: 100%; height: 100%;
-    display: block;
-  }
-  .flow-name-btn .flow-name-thumb img { object-fit: cover; }
   .flow-name-btn .flow-name-label {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 14px;
-    letter-spacing: 0.06em;
+    font-size: 16px;
+    letter-spacing: 0.08em;
     color: var(--lab-ink);
     font-weight: 500;
-  }
-  .flow-name-btn .flow-name-note {
-    font-size: 12px;
-    color: var(--lab-ink-3);
-    letter-spacing: 0.01em;
   }
 
   /* === Ritual modal — keep Bioms on canonical cream tiles ===
@@ -2850,6 +2862,7 @@
 
   /* === Act 5: After — one biom, lineage, two buttons === */
   .flow-after-thumb {
+    position: relative;
     width: 180px; height: 180px;
     margin: 0 auto 28px;
     background: var(--paper, #faf8f3);
@@ -3117,14 +3130,10 @@
     <p class="flow-subtitle">The two become one. Only one name remains.</p>
     <div class="flow-name-pair">
       <button type="button" class="flow-name-btn" id="flowNameA">
-        <span class="flow-name-thumb" id="flowNameAThumb"></span>
         <span class="flow-name-label" id="flowNameALabel">BIOM #—</span>
-        <span class="flow-name-note">Feed the other into this one</span>
       </button>
       <button type="button" class="flow-name-btn" id="flowNameB">
-        <span class="flow-name-thumb" id="flowNameBThumb"></span>
         <span class="flow-name-label" id="flowNameBLabel">BIOM #—</span>
-        <span class="flow-name-note">Feed the other into this one</span>
       </button>
     </div>
   </div>
@@ -6565,13 +6574,62 @@ collectionGrid.addEventListener('click', (e) => {
   // === Cream-thumb HTML — canonical Biom on cream tile ===
   // The lab page is dark, but the Bioms themselves stay on their
   // canonical cream container inside flow modals.
+  // Mutated tokens (post-burn survivors) emit a live-render placeholder
+  // instead of the static R2 thumb (which is frozen at genesis state).
+  // Call hydrateThumbs(container) after innerHTML to paint them.
+  function isMutated(seed) {
+    const t = LabState.tokens[seed];
+    return !!(t && (
+      (t.absorbedSeeds && t.absorbedSeeds.length > 0) ||
+      t.receivedPalette ||
+      (t.receivedOrganelles && t.receivedOrganelles.length > 0) ||
+      (t.receivedAnomalies && t.receivedAnomalies.length > 0)
+    ));
+  }
   function thumbHtml(seed) {
+    if (isMutated(seed)) {
+      return `<div class="thumb-live" data-seed="${seed}"><div class="composition"></div></div>`;
+    }
     const padded = String(seed).padStart(5, '0');
     return `<picture>
       <source type="image/webp" srcset="https://pngs.thebioms.com/thumb/${padded}.webp">
       <img src="https://pngs.thebioms.com/thumb/${padded}.png"
            alt="BIOM #${seed}" loading="lazy" width="600" height="600">
     </picture>`;
+  }
+  function hydrateThumbs(root) {
+    if (!root || !window.BiomEngine) return;
+    root.querySelectorAll('.thumb-live[data-seed]').forEach(node => {
+      const seed = parseInt(node.dataset.seed, 10);
+      const comp = node.querySelector('.composition');
+      if (!comp || !Number.isFinite(seed)) return;
+      // Use the SAME state shape as _renderRitualSpecimen so the
+      // pick-grid / after-thumb biom renders identically to what the
+      // ritual modal shows post-burn. Anything less and we lose
+      // morphology / cellCount / lifecycle / reserveGranule, plus
+      // palette-mixing (the "+" syntax for blended stains).
+      try {
+        const eff = effectiveState(seed);
+        let resolvedPalette = eff.palette;
+        if (typeof resolvedPalette === 'string' && resolvedPalette.includes('+')) {
+          const parts = resolvedPalette.split('+').filter(Boolean);
+          resolvedPalette = window.BiomEngine.mixPalettes(...parts);
+        }
+        window.BiomEngine.renderSpecimen(comp, seed, {
+          state: {
+            morphology: eff.morphology,
+            cellCount: eff.cellCount,
+            palette: resolvedPalette,
+            organelles: eff.organelles,
+            lifecycle: eff.lifecycle,
+            reserveGranule: eff.reserveGranule,
+            phageAttached: eff.phageAttached,
+            endosymbiont: eff.endosymbiont,
+            biofilmHalo: eff.biofilmHalo,
+          },
+        });
+      } catch (_) {}
+    });
   }
 
   function labelOf(seed) {
@@ -6685,6 +6743,7 @@ collectionGrid.addEventListener('click', (e) => {
         <span class="flow-pick-name">${labelOf(seed)}</span>
       </button>
     `).join('');
+    hydrateThumbs(grid);
 
     grid.querySelectorAll('.flow-pick-tile').forEach(tile => {
       tile.addEventListener('click', () => {
@@ -6724,9 +6783,7 @@ collectionGrid.addEventListener('click', (e) => {
   // Act 3 — Which name survives
   // =====================================================
   function goToName(a, b) {
-    document.getElementById('flowNameAThumb').innerHTML = thumbHtml(a);
     document.getElementById('flowNameALabel').textContent = labelOf(a);
-    document.getElementById('flowNameBThumb').innerHTML = thumbHtml(b);
     document.getElementById('flowNameBLabel').textContent = labelOf(b);
 
     document.getElementById('flowNameA').onclick = () => commitChoice(a, b);
@@ -6778,7 +6835,9 @@ collectionGrid.addEventListener('click', (e) => {
   }
 
   function goToAfter(survivor, donor) {
-    document.getElementById('flowAfterThumb').innerHTML = thumbHtml(survivor);
+    const afterThumb = document.getElementById('flowAfterThumb');
+    afterThumb.innerHTML = thumbHtml(survivor);
+    hydrateThumbs(afterThumb);
     document.getElementById('flowAfterTitle').textContent = `${labelOf(survivor)} carries it now.`;
     document.getElementById('flowAfterLineage').textContent =
       donor != null
