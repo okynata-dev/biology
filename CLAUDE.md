@@ -11,7 +11,7 @@ This is the working context for any new Claude session on this project. Read it 
 **Bioms** = a generative NFT collection of 3,000 procedural microbial organisms ("Bioms"), **supply capped at 3,000** (limited edition, not open edition) on **OpenSea Drops**, contract `0x57b83D192d30A1082779C3dCDc9D2fcAd855F457` on Ethereum mainnet.
 
 - **Site**: <https://thebioms.com>
-- **WL mint opens**: 2026-05-29 19:00 GMT+7 (the countdown component lives on the homepage and `/reserve`)
+- **WL mint opens**: 2026-06-05 19:00 GMT+7 (the countdown component lives on the homepage and `/reserve`)
 - **OpenSea collection**: <https://opensea.io/collection/bioms/overview>
 - **Twitter**: [@theBioms](https://twitter.com/theBioms)
 - **Owner**: timso.eth (Telegram contact: timsouw)
