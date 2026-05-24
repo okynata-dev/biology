@@ -148,6 +148,14 @@ def render_one(port: int, seed: int, size: int, duration_s: float,
             url = f"http://127.0.0.1:{port}/preview.html?seed={seed}"
             page.goto(url, wait_until="load", timeout=15000)
             page.wait_for_selector("body.engine-ready", timeout=8000)
+            # Strip the standalone-only Download CTAs before recording —
+            # preview.html shows them when it detects window.self === window.top
+            # (which is true in our headless context), and they'd otherwise
+            # bake into every video. The save-as-PNG context menu wiring is
+            # left alone since the menu only renders on right-click.
+            page.evaluate(
+                "document.querySelectorAll('.download-cta-row, .download-cta').forEach(n => n.remove())"
+            )
             page.wait_for_timeout(settle_ms)
             page.wait_for_timeout(int(duration_s * 1000))
             # Closing the context finalises the WebM file. Page must be
