@@ -340,18 +340,17 @@
 
   .grid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 
-  /* Cells of the collage. Engine paints absolutely-positioned .panel
-     descendants inside each cell; cell itself is a relative-positioned
-     square box that fills its grid track. */
+  /* Cells of the collage are absolute-positioned — JS writes their
+     left/top/width/height in applyTransform() so spacing can go negative
+     (CSS grid `gap` can't). overflow:visible on each cell lets panel
+     halos bleed across cell bounds when overlap is in play. */
   .collage-grid {
     position: absolute;
     inset: 0;
-    display: grid;
-    /* grid-template-columns / -rows set inline via JS */
   }
   .collage-cell {
-    position: relative;
-    overflow: visible;  /* allow panel halos to bleed into neighbouring cells, matching the canvas export */
+    position: absolute;
+    overflow: visible;
   }
 
   .format-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
@@ -687,7 +686,7 @@ const state = {
   // on shuffle. Default 3×3 keeps the first paint quick.
   gridCols: 3,
   gridRows: 3,
-  cellGapPct: 2,                  // gap as % of single cell size (0..12)
+  cellGapPct: 2,                  // spacing as % of cell size; negative = overlap (-50..20)
   collageSeeds: [],               // populated by initCollageSeeds() / shuffleCollageSeeds()
   format: FORMATS[0],
   customW: 1500,
@@ -1140,19 +1139,13 @@ async function renderLive() {
     // No backdrop-filter compositing in the live preview → smooth at any cell count.
     liveComp.innerHTML = '';
     liveComp.classList.add('collage-grid');
-    // Always absolute-positioned cells now — CSS grid can't do negative
-    // gaps, and the user wants overlap for dense compositions. Per-cell
-    // left/top/width/height are computed in applyTransform() below.
-    liveComp.style.gridTemplateColumns = '';
-    liveComp.style.gridTemplateRows    = '';
-    liveComp.style.gap = '';
-    liveComp.style.display = 'block';
+    // Cells are absolute-positioned (see .collage-cell CSS) — JS writes
+    // their geometry in applyTransform() so spacing can go negative.
 
     const frag = document.createDocumentFragment();
     for (let i = 0; i < seeds.length; i++) {
       const cell = document.createElement('div');
       cell.className = 'collage-cell';
-      cell.style.position = 'absolute';
       const img = document.createElement('img');
       img.src = collageCellCache.get(seeds[i]);
       img.alt = '';
@@ -1170,9 +1163,6 @@ async function renderLive() {
   } else {
     _collageRenderGen++;  // cancel any in-flight collage work
     liveComp.classList.remove('collage-grid');
-    liveComp.style.gridTemplateColumns = '';
-    liveComp.style.gridTemplateRows    = '';
-    liveComp.style.gap = '';
     // Engine clears + repopulates #liveComp internally.
     window.BiomEngine.renderSpecimen(liveComp, state.seed, { isFitMode: true });
     metaSeed.textContent = window.BiomEngine.label(state.seed);
@@ -1253,7 +1243,6 @@ function applyTransform() {
     const finalSize = baseSize * state.scale;
     specimenHost.style.width  = finalSize + 'px';
     specimenHost.style.height = finalSize + 'px';
-    liveComp.style.gap = '';
   }
 
   // tx/ty stay in % of baseSize (the canvas short edge) so drag feel is
@@ -1598,9 +1587,9 @@ shuffleBtn.addEventListener('click', () => {
 gapSlider.addEventListener('input', () => {
   state.cellGapPct = parseInt(gapSlider.value, 10);
   gapVal.textContent = state.cellGapPct + '%';
-  // Gap changes how much canvas the grid occupies (cells shrink to make
-  // room) — applyTransform recomputes host pixel-size + grid gap CSS.
-  // Cells themselves don't need to be redrawn so we skip renderLive.
+  // Spacing changes the step between cell-tops (can be negative for
+  // overlap). applyTransform recomputes host pixel-size and rewrites
+  // each cell's left/top — the cell images themselves don't change.
   if (state.mode === 'collage') applyTransform();
 });
 
