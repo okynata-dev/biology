@@ -8,7 +8,7 @@ This is the working context for any new Claude session on this project. Read it 
 
 ## TL;DR
 
-**Bioms** = a generative NFT collection of 3,000 procedural microbial organisms ("Bioms"), **supply capped at 3,000** (limited edition, not open edition) on **OpenSea Drops**, contract `0x57b83D192d30A1082779C3dCDc9D2fcAd855F457` on Ethereum mainnet.
+**Bioms** = a generative NFT collection of 3,000 procedural microbial organisms ("Bioms"), **supply capped at 3,000** (limited drop) on **OpenSea Drops**, contract `0x57b83D192d30A1082779C3dCDc9D2fcAd855F457` on Ethereum mainnet.
 
 - **Site**: <https://thebioms.com>
 - **WL mint opens**: 2026-06-05 19:00 GMT+7 (the countdown component lives on the homepage and `/reserve`)
@@ -229,7 +229,7 @@ cd /Users/okynata/Desktop/bioms && \
 | 2026-05-22 | **`_worker.js` shim committed to git** | Defensive fix for a CF Pages Functions binding leak that surfaced after a wrong-directory deploy. |
 | 2026-05-21 | **Wallet picker — EIP-6963 modal** (MetaMask, Rabby, Coinbase, etc.) | Single window.ethereum was unreliable; users have multiple wallets installed. |
 | 2026-05-20 | **Browser Rendering for mutated tokens** | After a burn, the survivor needs a fresh master PNG — generated server-side via @cloudflare/puppeteer + uploaded to R2 + OpenSea refresh-metadata ping. |
-| 2026-05-19 | **OpenSea Drops chosen over self-contracted mint** | Lower friction for buyers; OpenSea handles primary sales UI. Contract `0x57b83D192d30A1082779C3dCDc9D2fcAd855F457` is OpenSea's Open Edition contract. |
+| 2026-05-19 | **OpenSea Drops chosen over self-contracted mint** | Lower friction for buyers; OpenSea handles primary sales UI. Contract `0x57b83D192d30A1082779C3dCDc9D2fcAd855F457` is OpenSea's Drops contract template, configured with a 3,000-supply cap. |
 
 ---
 
