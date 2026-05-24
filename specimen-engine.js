@@ -1214,10 +1214,29 @@
       '-webkit-user-select: none',
     ].join('; ');
     for (const item of items) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = item.label;
-      b.style.cssText = [
+      // Two render modes:
+      //   { label, href }            → real <a target="_blank"> link
+      //   { label, action: fn }      → <button> with JS handler
+      // We use the <a> form for the base-biom save path because
+      // marketplace iframes (OpenSea, Blur, X embeds) sandbox cross-
+      // origin children and silently block programmatic downloads
+      // (`<a download>.click()`, `window.location.href`, `window.open`).
+      // A user click on a real <a target="_blank"> is treated as a
+      // top-level navigation gesture and is permitted in every sandbox
+      // we've seen — the new tab gets the Content-Disposition response
+      // from the Worker and triggers the save dialog normally.
+      const isLink = typeof item.href === 'string';
+      const el = document.createElement(isLink ? 'a' : 'button');
+      if (isLink) {
+        el.href = item.href;
+        el.target = '_blank';
+        el.rel = 'noopener';
+        if (item.download) el.download = item.download;
+      } else {
+        el.type = 'button';
+      }
+      el.textContent = item.label;
+      el.style.cssText = [
         'display: block',
         'width: 100%',
         'padding: 8px 12px',
@@ -1229,15 +1248,20 @@
         'font-size: inherit',
         'text-align: left',
         'cursor: pointer',
+        'text-decoration: none',
+        'box-sizing: border-box',
       ].join('; ');
-      b.addEventListener('mouseenter', () => { b.style.background = 'rgba(28,26,22,0.06)'; });
-      b.addEventListener('mouseleave', () => { b.style.background = 'transparent'; });
-      b.addEventListener('click', (e) => {
+      el.addEventListener('mouseenter', () => { el.style.background = 'rgba(28,26,22,0.06)'; });
+      el.addEventListener('mouseleave', () => { el.style.background = 'transparent'; });
+      el.addEventListener('click', (e) => {
         e.stopPropagation();
         _closeCtxMenu();
-        item.action();
+        // For link items the browser handles the navigation — do NOT
+        // preventDefault, that would re-introduce the sandbox-blocked
+        // programmatic path we're trying to escape.
+        if (!isLink && item.action) item.action();
       });
-      menu.appendChild(b);
+      menu.appendChild(el);
     }
     document.body.appendChild(menu);
     _ctxMenuEl = menu;
@@ -1363,9 +1387,37 @@
       if (!info || info.seed == null) return;
       e.preventDefault();
       e.stopPropagation();
-      _renderCtxMenu(e.clientX, e.clientY, [
-        { label: 'Save as PNG', action: () => _saveBiomAsPng(info.seed, info.state, info.masterUrl) },
-      ]);
+      // For a base (un-mutated) biom with a known masterUrl we render
+      // the menu item as a real <a target="_blank"> pointing at the
+      // Worker's /api/download/<seed> endpoint. That endpoint serves
+      // the R2 master with Content-Disposition: attachment, so the
+      // browser triggers a save dialog in the new tab and closes it.
+      // This path survives cross-origin iframe sandboxes (OpenSea,
+      // Blur, X embeds) where the programmatic <a.click()> / location
+      // navigation gets silently blocked. Mutated bioms fall back to
+      // the JS canvas snapshot — which DOES still fail inside locked
+      // iframes, but there's no R2 master to point at for them yet.
+      const isBase = info.masterUrl && !info.state;
+      const items = [];
+      if (isBase) {
+        const isLocal = typeof location !== 'undefined' &&
+          (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ||
+           location.protocol === 'file:');
+        const href = isLocal
+          ? info.masterUrl
+          : `https://api.thebioms.com/api/download/${info.seed}`;
+        items.push({
+          label: 'Save as PNG',
+          href,
+          download: _saveFilename(info.seed),
+        });
+      } else {
+        items.push({
+          label: 'Save as PNG',
+          action: () => _saveBiomAsPng(info.seed, info.state, info.masterUrl),
+        });
+      }
+      _renderCtxMenu(e.clientX, e.clientY, items);
     });
   }
 
