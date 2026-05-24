@@ -359,11 +359,19 @@
      and landed here in a new tab). When iframed by a marketplace, it
      stays hidden so we don't overlay their UI.
      Visibility is toggled by JS based on window.self !== window.top. */
-  .download-cta {
+  /* Container for the bottom-right download buttons. Holds the PNG +
+     MP4 anchors as a horizontal pair so they read as one control. */
+  .download-cta-row {
     position: fixed;
     right: 18px; bottom: 18px;
     z-index: 100;
     display: none;
+    gap: 8px;
+    align-items: center;
+  }
+  .download-cta-row.show { display: inline-flex; }
+  .download-cta {
+    display: inline-flex;
     align-items: center;
     gap: 8px;
     background: rgba(28, 26, 22, 0.92);
@@ -379,8 +387,11 @@
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   }
   .download-cta:hover { background: #000; transform: translateY(-1px); }
-  .download-cta.show { display: inline-flex; }
   .download-cta svg { width: 14px; height: 14px; flex: 0 0 auto; }
+  /* MP4 button gets a slightly softer background so the eye reads PNG
+     as primary, MP4 as secondary action — same hierarchy as the
+     Lab's ember commit button vs ghost cancel. */
+  .download-cta.secondary { background: rgba(28, 26, 22, 0.74); }
   @media (prefers-reduced-motion: reduce) {
     .download-cta { transition: none; }
   }
@@ -394,17 +405,33 @@
   </div>
 </div>
 
-<!-- Download CTA — visible only when standalone, see download-cta CSS.
-     href is rewritten by JS once the seed is known (defaults to #0 so
-     the link works even if the script fails). The Worker route emits
-     Content-Disposition: attachment so the browser always saves. -->
-<a id="downloadCta" class="download-cta" href="https://api.thebioms.com/api/download/0"
-   download="BIOM.png" rel="noopener" aria-label="Download high-resolution PNG">
-  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-    <path d="M8 1.5v9m0 0L4.5 7m3.5 3.5L11.5 7M2 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>
-  <span>Download PNG</span>
-</a>
+<!-- Download CTAs — visible only when standalone (not iframed by a
+     marketplace). href is rewritten by JS once the seed is known
+     (defaults to #0 so links still work if the script fails). Both
+     Worker routes emit Content-Disposition: attachment so the browser
+     always saves rather than navigates.
+     target="_blank" + the anchor-link path keeps these working inside
+     cross-origin iframes too — see specimen-engine.js enableSaveAsPng
+     for the same trick on the right-click menu. -->
+<div id="downloadCtaRow" class="download-cta-row">
+  <a id="downloadCta" class="download-cta" href="https://api.thebioms.com/api/download/0"
+     download="BIOM.png" target="_blank" rel="noopener"
+     aria-label="Download high-resolution PNG">
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 1.5v9m0 0L4.5 7m3.5 3.5L11.5 7M2 13h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span>Download PNG</span>
+  </a>
+  <a id="downloadCtaMp4" class="download-cta secondary" href="https://api.thebioms.com/api/video/0"
+     download="BIOM.mp4" target="_blank" rel="noopener"
+     aria-label="Download 15-second MP4 loop">
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 4.5a1.5 1.5 0 0 1 1.5-1.5h6A1.5 1.5 0 0 1 11 4.5v7A1.5 1.5 0 0 1 9.5 13h-6A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="m11 6.5 3-1.5v6l-3-1.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>
+    <span>Download MP4</span>
+  </a>
+</div>
 
 <!-- Shared engine — loaded only for the save-as-PNG context menu.
      preview.html has its own inline renderer for the live DOM; the
@@ -1959,8 +1986,10 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom');
 //     The R2 master would be wrong (it's the base version); the only
 //     correct PNG for a mutated token is what's on screen right now.
 (function setupDownloadCta() {
+  const row = document.getElementById('downloadCtaRow');
   const cta = document.getElementById('downloadCta');
-  if (!cta) return;
+  const ctaMp4 = document.getElementById('downloadCtaMp4');
+  if (!row || !cta) return;
   const inIframe = (() => { try { return window.self !== window.top; } catch (_) { return true; } })();
   if (inIframe) return;
   const params = new URLSearchParams(window.location.search);
@@ -1975,6 +2004,21 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom');
                       'forcePhage', 'forceEndo', 'forceBiofilm'];
   const hasForce = FORCE_KEYS.some(k => params.has(k));
 
+  // MP4 wiring — base bioms only. A mutated biom has no pre-rendered
+  // video on R2 yet (see TODO in worker.js handleVideo), so we hide
+  // the MP4 button rather than serve a stale recording of the base
+  // state. Post-launch we'll wire renderTokenVideo into the burn
+  // pipeline and re-enable this for mutated tokens.
+  if (ctaMp4 && !hasForce) {
+    const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    ctaMp4.href = isLocal
+      ? `https://pngs.thebioms.com/video/${String(seed).padStart(5, '0')}.mp4`
+      : `https://api.thebioms.com/api/video/${seed}`;
+    ctaMp4.setAttribute('download', `BIOM-${seed}.mp4`);
+  } else if (ctaMp4) {
+    ctaMp4.remove();
+  }
+
   if (!hasForce) {
     // Static master path — direct link to Worker download proxy
     const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
@@ -1982,7 +2026,7 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom');
       ? `https://pngs.thebioms.com/preview/${String(seed).padStart(5, '0')}.png`
       : `https://api.thebioms.com/api/download/${seed}`;
     cta.setAttribute('download', `BIOM-${seed}.png`);
-    cta.classList.add('show');
+    row.classList.add('show');
     return;
   }
 
@@ -1990,7 +2034,8 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom');
   // download. Standalone tab so blob downloads aren't sandbox-blocked.
   cta.href = '#';
   cta.removeAttribute('download');
-  cta.classList.add('show');
+  cta.removeAttribute('target');
+  row.classList.add('show');
   cta.addEventListener('click', (e) => {
     e.preventDefault();
     if (!window.BiomEngine || typeof window.BiomEngine.renderSpecimenToCanvas !== 'function') {
@@ -2082,15 +2127,20 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom');
   function masterUrl(seed) {
     return `https://pngs.thebioms.com/preview/${padSeed(seed)}.png`;
   }
+  function videoUrl(seed) {
+    return `https://pngs.thebioms.com/video/${padSeed(seed)}.mp4`;
+  }
   window.BiomEngine.enableSaveAsPng(_pfp, () => {
     const overrideState = buildSnapshotState();
     return {
       seed: state.seed,
       state: overrideState,
-      // Pass masterUrl only when there are no overrides — otherwise
-      // the master doesn't reflect the current state, so canvas
-      // fallback is correct.
+      // masterUrl + videoUrl are only valid when there are NO force*
+      // overrides — the pre-rendered R2 assets reflect base state only.
+      // Mutated bioms will (post-launch) re-render their MP4 via worker
+      // Browser Rendering on burn; see worker.js handleVideo TODO.
       masterUrl: overrideState ? undefined : masterUrl(state.seed),
+      videoUrl:  overrideState ? undefined : videoUrl(state.seed),
     };
   });
 })();

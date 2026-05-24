@@ -1457,6 +1457,47 @@ async function handleDownload(env, tokenIdStr, origin) {
   }
 }
 
+// GET /api/video/<tokenId> → proxies the R2 master MP4 with
+// Content-Disposition: attachment so the browser triggers a save
+// dialog (same trick as handleDownload, just for video). Source MP4s
+// are batch-rendered by scripts/make-videos.py and uploaded via
+// scripts_upload_videos.sh — 15s 1080p H.264, ~1 MB each.
+//
+// TODO (post-launch): mutated tokens — once a burn happens the cached
+// MP4 here is stale. Plan: add renderTokenVideo() next to
+// renderTokenMaster() in this file, call it from the same
+// ctx.waitUntil() chain after each burn. The Cloudflare Browser
+// Rendering binding (env.BROWSER) already does Puppeteer; recording
+// uses page.evaluate to drive a 15-second capture (or MediaRecorder
+// inside the page itself, captured via page.video). Encoded via WASM
+// ffmpeg or piped to Cloudflare Stream. Estimated cost: ~$0.04 per
+// burn, well inside the burn margin. NOT implemented pre-launch —
+// no bioms are mutated yet, the base-state cache covers 100% of
+// cases on day one.
+async function handleVideo(env, tokenIdStr, origin) {
+  const tokenId = parseInt(tokenIdStr, 10);
+  const maxId = maxTokenId(env);
+  if (!Number.isFinite(tokenId) || tokenId < 0 || tokenId > maxId) {
+    return error('bad_token_id', 400, origin);
+  }
+  const padded = String(tokenId).padStart(5, '0');
+  const r2Url = `https://pngs.thebioms.com/video/${padded}.mp4`;
+  try {
+    const r = await fetch(r2Url, { cf: { cacheTtl: 31536000, cacheEverything: true } });
+    if (!r.ok) return error('not_found', r.status, origin);
+    const headers = new Headers();
+    headers.set('Content-Type', 'video/mp4');
+    headers.set('Content-Disposition', `attachment; filename="BIOM-${tokenId}.mp4"`);
+    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    headers.set('Access-Control-Allow-Origin', '*');
+    const cl = r.headers.get('content-length');
+    if (cl) headers.set('Content-Length', cl);
+    return new Response(r.body, { status: 200, headers });
+  } catch (e) {
+    return error('fetch_failed', 502, origin);
+  }
+}
+
 async function handleLog(env, url, origin) {
   const params = url.searchParams;
   const donor = params.get('donor');
@@ -1935,6 +1976,13 @@ export default {
         // unambiguous download URL that always saves the file.
         const id = path.slice('/api/download/'.length);
         return await handleDownload(env, id, origin);
+      }
+      if (path.startsWith('/api/video/')) {
+        // Same shape as /api/download/, but serves the pre-rendered
+        // 15s MP4 loop of the biom's live breathing animation. See
+        // handleVideo() for the post-launch mutated-token TODO.
+        const id = path.slice('/api/video/'.length);
+        return await handleVideo(env, id, origin);
       }
       if (path === '/api/conjugate' && req.method === 'POST') {
         return await handleConjugate(req, env, ctx, origin);

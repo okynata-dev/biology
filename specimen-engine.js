@@ -1403,14 +1403,28 @@
         const isLocal = typeof location !== 'undefined' &&
           (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ||
            location.protocol === 'file:');
-        const href = isLocal
+        const pngHref = isLocal
           ? info.masterUrl
           : `https://api.thebioms.com/api/download/${info.seed}`;
         items.push({
           label: 'Save as PNG',
-          href,
+          href: pngHref,
           download: _saveFilename(info.seed),
         });
+        // MP4 path — only offered when the caller passed a videoUrl
+        // (preview.html does, the Lab grid does not). Mutated bioms
+        // skip this branch entirely until renderTokenVideo lands in
+        // the worker, see worker.js handleVideo TODO.
+        if (info.videoUrl) {
+          const mp4Href = isLocal
+            ? info.videoUrl
+            : `https://api.thebioms.com/api/video/${info.seed}`;
+          items.push({
+            label: 'Save as MP4',
+            href: mp4Href,
+            download: 'bioms-' + label(info.seed).replace(/[^A-Za-z0-9_-]/g, '_') + '.mp4',
+          });
+        }
       } else {
         items.push({
           label: 'Save as PNG',
