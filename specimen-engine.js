@@ -1298,8 +1298,14 @@
 
   // Filename uses the public label (pickName pre-reveal, name+seed
   // post-reveal). Reads like a thing, not an ID.
-  function _saveFilename(seed) {
-    return 'bioms-' + label(seed).replace(/[^A-Za-z0-9_-]/g, '_') + '.png';
+  // Canonical download filename — matches what the Worker emits via
+  // Content-Disposition (`BIOM-<seed>.<ext>`), what the preview-page
+  // CTA buttons set on the <a download> attr, and what R2 listings
+  // would surface if anyone browsed them. Single naming scheme across
+  // every download surface so users don't see "bioms-BIOM_177.png"
+  // duplicate-prefix nonsense after the 2026-05 BIOM #N rename.
+  function _saveFilename(seed, ext = 'png') {
+    return `BIOM-${seed}.${ext}`;
   }
 
   // For BASE bioms (no mutations) we trigger the Worker's download
@@ -1422,7 +1428,7 @@
           items.push({
             label: 'Save as MP4',
             href: mp4Href,
-            download: 'bioms-' + label(info.seed).replace(/[^A-Za-z0-9_-]/g, '_') + '.mp4',
+            download: _saveFilename(info.seed, 'mp4'),
           });
         }
       } else {
