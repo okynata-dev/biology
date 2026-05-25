@@ -1,0 +1,123 @@
+# Cloud-side render of every biom's 15s MP4 loop.
+#
+# Why this exists: scripts/make-videos.py works locally but rendering 3000
+# 15-second WebM captures + ffmpeg encoding hammers the laptop hard enough
+# that macOS thermal-throttles, which makes Chromium drop frames and bakes
+# stutters into the output. Datacenter runners don't throttle, so we
+# offload here instead.
+#
+# How it works:
+#   workflow_dispatch fans out into N matrix jobs (default 10, max 30).
+#   Each runner renders its slice of seeds 0..2999, then immediately
+#   uploads its MP4s to R2 via wrangler. No artifacts pass through GitHub
+#   so the workflow finishes the moment the last chunk uploads.
+#
+# Wall-time at default chunks=10: ~30-35 min total
+#   (Ubuntu 4 vCPU x ~45s/seed solo, 300 seeds/runner, 4 parallel browsers).
+# Cost: $0. Free for public repos with no minute cap.
+#
+# Setup (one-time):
+#   1. Create a Cloudflare API token with R2 Storage Write permission
+#      (My Profile -> API Tokens -> Create Token -> Custom token):
+#        - Account.Workers R2 Storage: Write
+#        - Account: All accounts (or restrict to yours)
+#   2. Find your Cloudflare Account ID: any zone overview page right
+#      sidebar, or `npx wrangler whoami`
+#   3. GitHub repo -> Settings -> Secrets and variables -> Actions ->
+#      add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+#
+# Trigger: Actions tab -> "Render biom videos" -> Run workflow.
+
+name: Render biom videos
+
+on:
+  workflow_dispatch:
+    inputs:
+      chunks:
+        description: 'Parallel chunks (1-30). More = faster, but watch the free-tier concurrent-job cap (~20).'
+        default: '10'
+        type: string
+      duration:
+        description: 'Recording length in seconds (passed to make-videos.py --duration).'
+        default: '15'
+        type: string
+      trim_start:
+        description: 'Seconds to trim from the head of each clip (drops pre-engine-ready frames).'
+        default: '1'
+        type: string
+
+jobs:
+  # Compute the chunk matrix dynamically from the `chunks` input. GitHub
+  # Actions can't read workflow inputs directly into matrix definitions,
+  # so we emit a JSON array from a setup job and consume it in the
+  # downstream matrix via fromJSON.
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        run: |
+          n="${{ github.event.inputs.chunks }}"
+          matrix=$(python3 -c "import json; n=int('$n'); print(json.dumps({'include': [{'chunk': i, 'total': n} for i in range(n)]}))")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  render:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      # Don't kill sibling jobs if one fails — we'd rather have 9/10 of
+      # the collection uploaded than start the whole batch over.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          # --with-deps pulls the OS packages Chromium needs (fonts,
+          # libgbm, etc.) so headless rendering produces identical output
+          # to the local Mac run.
+          python -m playwright install --with-deps chromium
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Compute seeds for this chunk
+        id: seeds
+        run: |
+          chunk=${{ matrix.chunk }}
+          total=${{ matrix.total }}
+          # Even split with the last chunk taking any remainder. Comma-
+          # joined list passed to make-videos.py --only.
+          read start end seeds <<< "$(python3 -c "
+          chunk, total, n = $chunk, $total, 3000
+          per = (n + total - 1) // total
+          s = chunk * per
+          e = min(s + per, n)
+          print(s, e, ','.join(str(i) for i in range(s, e)))
+          ")"
+          echo "Chunk $chunk: rendering seeds $start..$((end-1)) ($(($end - $start)) seeds)"
+          echo "seeds=$seeds" >> "$GITHUB_OUTPUT"
+
+      - name: Render videos
+        run: |
+          mkdir -p pngs/video
+          python scripts/make-videos.py \
+            --only "${{ steps.seeds.outputs.seeds }}" \
+            --workers 4 \
+            --duration ${{ github.event.inputs.duration }} \
+            --trim-start ${{ github.event.inputs.trim_start }}
+          ls -lh pngs/video/ | head -5
+          echo "Total: $(ls pngs/video/*.mp4 2>/dev/null | wc -l) files, $(du -sh pngs/video/ | cut -f1)"
+
+      - name: Upload to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash scripts_upload_videos.sh
