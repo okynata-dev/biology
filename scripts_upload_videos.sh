@@ -12,6 +12,9 @@
 #   bash scripts_upload_videos.sh --only 44 132 # specific seeds
 
 set -e
+set -o pipefail   # ← critical: without this, a wrangler failure piped
+                  # through grep|head silently returned 0 and CI thought
+                  # uploads succeeded when they hadn't.
 
 BUCKET="${BIOMS_R2_BUCKET:-bioms-pngs}"
 DIR="pngs/video"
@@ -32,9 +35,16 @@ done
 upload_one() {
   local file="$1"
   local base=$(basename "$file")
-  npx wrangler r2 object put "${BUCKET}/video/${base}" \
-    --file="$file" --content-type="video/mp4" 2>&1 \
-    | grep -E "Creating|Error|Upload" | head -1
+  # No grep|head filtering — that masked real wrangler errors and made
+  # the previous CI run report success while uploading zero files.
+  # Full output goes to stderr so it's preserved in CI logs; exit code
+  # decides pass/fail.
+  if ! npx wrangler r2 object put "${BUCKET}/video/${base}" \
+       --file="$file" --content-type="video/mp4" >&2; then
+    echo "FAILED: ${base}" >&2
+    return 1
+  fi
+  echo "OK: ${base}"
 }
 export -f upload_one
 export BUCKET
