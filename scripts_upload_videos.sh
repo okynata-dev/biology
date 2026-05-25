@@ -37,26 +37,36 @@ upload_one() {
   local base=$(basename "$file")
   # No grep|head filtering — that masked real wrangler errors and made
   # the previous CI run report success while uploading zero files.
-  # Full output goes to stderr so it's preserved in CI logs; exit code
-  # decides pass/fail.
   #
   # Plain `wrangler` (no `npx`) — relies on the workflow pre-installing
   # it once. With npx, every parallel call did its own npm fetch AND
   # boot of a fresh workerd runtime; the runtimes shared a SQLite cache
-  # and tripped each other on SQLITE_BUSY locks. One install + one
-  # binary per call sidesteps both races.
+  # and tripped each other on SQLITE_BUSY locks.
+  #
   # --local false: wrangler 4.x defaults `r2 object put` to a LOCAL
-  # mock bucket in ~/.wrangler/state/ for dev workflows. Without this
-  # flag it'll print "Upload complete." and return 0 — to local disk.
-  # The wrangler hint message tells you to use `--remote` but that flag
-  # doesn't exist in 4.x — the real toggle is `--local false`. Verified
-  # by uploading + curl'ing the public URL.
-  if ! wrangler r2 object put "${BUCKET}/video/${base}" \
-       --file="$file" --content-type="video/mp4" --local false >&2; then
-    echo "FAILED: ${base}" >&2
-    return 1
-  fi
-  echo "OK: ${base}"
+  # mock bucket. The hint message says --remote but that flag doesn't
+  # exist; --local false is the real toggle.
+  #
+  # 3 retries with exponential backoff: previous CI run died on a
+  # single transient `502: Bad Gateway` from the R2 API, which under
+  # set -e aborted the rest of the chunk (~280 files unsaved). Cloud
+  # APIs hit transient 5xx all the time — that's not a "stop everything"
+  # event.
+  local attempt
+  for attempt in 1 2 3; do
+    if wrangler r2 object put "${BUCKET}/video/${base}" \
+         --file="$file" --content-type="video/mp4" --local false >&2; then
+      echo "OK: ${base}"
+      return 0
+    fi
+    if [ "$attempt" -lt 3 ]; then
+      local sleep_for=$((attempt * 5))
+      echo "RETRY ${attempt}/3: ${base} (sleeping ${sleep_for}s)" >&2
+      sleep "$sleep_for"
+    fi
+  done
+  echo "FAILED after 3 attempts: ${base}" >&2
+  return 1
 }
 export -f upload_one
 export BUCKET
