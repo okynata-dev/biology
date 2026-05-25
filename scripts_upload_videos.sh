@@ -39,7 +39,13 @@ upload_one() {
   # the previous CI run report success while uploading zero files.
   # Full output goes to stderr so it's preserved in CI logs; exit code
   # decides pass/fail.
-  if ! npx wrangler r2 object put "${BUCKET}/video/${base}" \
+  #
+  # Plain `wrangler` (no `npx`) — relies on the workflow pre-installing
+  # it once. With npx, every parallel call did its own npm fetch AND
+  # boot of a fresh workerd runtime; the runtimes shared a SQLite cache
+  # and tripped each other on SQLITE_BUSY locks. One install + one
+  # binary per call sidesteps both races.
+  if ! wrangler r2 object put "${BUCKET}/video/${base}" \
        --file="$file" --content-type="video/mp4" >&2; then
     echo "FAILED: ${base}" >&2
     return 1
@@ -60,7 +66,11 @@ else
   while IFS= read -r -d '' f; do files+=("$f"); done < <(find "$DIR" -maxdepth 1 -name '*.mp4' -print0)
 fi
 
-echo "Uploading ${#files[@]} files to ${BUCKET}/video/ (parallel -P 8) …"
-printf '%s\n' "${files[@]}" | xargs -P 8 -I{} bash -c 'upload_one "$@"' _ {}
+# Parallelism dropped from -P 8 to -P 1: each `wrangler r2 object put`
+# spins up a workerd runtime that holds a SQLite cache, and 8 of them
+# stepping on each other deadlock with SQLITE_BUSY. Sequential is
+# ~8 min/chunk overhead — acceptable next to the ~50 min render.
+echo "Uploading ${#files[@]} files to ${BUCKET}/video/ (sequential, SQLite-safe) …"
+printf '%s\n' "${files[@]}" | xargs -P 1 -I{} bash -c 'upload_one "$@"' _ {}
 
 echo "Done. Verify with: curl -I https://pngs.thebioms.com/video/00044.mp4"
