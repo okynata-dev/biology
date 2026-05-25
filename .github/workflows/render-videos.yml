@@ -42,8 +42,12 @@ on:
         default: '15'
         type: string
       trim_start:
-        description: 'Seconds to trim from the head of each clip (drops pre-engine-ready frames).'
+        description: 'Minimum seconds to trim from head (drops pre-engine-ready frames). Dynamic detection trims more if needed.'
         default: '1'
+        type: string
+      fps:
+        description: 'Output FPS. 60 = smooth (motion-interpolated, ~3x slower encode). 30 = light smoothing. 25 = no interpolation (fast).'
+        default: '60'
         type: string
 
 jobs:
@@ -118,7 +122,8 @@ jobs:
             --only "${{ steps.seeds.outputs.seeds }}" \
             --workers 4 \
             --duration ${{ github.event.inputs.duration }} \
-            --trim-start ${{ github.event.inputs.trim_start }}
+            --trim-start ${{ github.event.inputs.trim_start }} \
+            --fps ${{ github.event.inputs.fps }}
           ls -lh pngs/video/ | head -5
           echo "Total: $(ls pngs/video/*.mp4 2>/dev/null | wc -l) files, $(du -sh pngs/video/ | cut -f1)"
 
