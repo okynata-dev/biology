@@ -1895,8 +1895,17 @@ function applyScaleFromURL() {
   // via smaller capsule/halo multipliers inside generateOrganelles (driven by
   // the IS_FIT_MODE flag) — this scale catches edge cases like extreme mycelium
   // branches or large cluster spreads.
-  if (params.get('fit') === '1') {
-    document.documentElement.style.setProperty('--comp-scale', '0.9');
+  //
+  // CUTOUT mode (the /make collage tiles) needs MORE margin: large specimens
+  // were clipping the transparent frame. We render the SAME-size biom inside a
+  // roomier frame (comp-scale 0.62 ≈ a biom on a ~1.6× bigger canvas), so even
+  // the widest mycelium/cluster sits fully inside with breathing room.
+  // Overridable via ?cs=. This affects ONLY the cutout render — the canonical
+  // /preview/ master (rendered without ?cutout) is byte-identical to before.
+  const isCutout = params.get('cutout') === '1';
+  if (params.get('fit') === '1' || isCutout) {
+    const cs = params.get('cs') || (isCutout ? '0.62' : '0.9');
+    document.documentElement.style.setProperty('--comp-scale', cs);
   }
 }
 

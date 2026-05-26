@@ -119,7 +119,12 @@ def render_one(playwright_ctx, port: int, seed: int, render_size: int,
     biom's halo / outer accents get clipped near the edges. Kept as a
     flag for any future use case that wants tight thumbnail packing."""
     browser, page = playwright_ctx
-    url = f"http://127.0.0.1:{port}/preview.html?seed={seed}&cutout=1&static=1&fit=1"
+    # Optional comp-scale override (margin around the biom in cutout mode).
+    # Blank → preview.html's own cutout default (0.62). Lets the GitHub
+    # workflow tune breathing room without code changes.
+    cs = os.environ.get("BIOMS_CUTOUT_CS", "").strip()
+    url = (f"http://127.0.0.1:{port}/preview.html?seed={seed}&cutout=1&static=1&fit=1"
+           + (f"&cs={cs}" if cs else ""))
     try:
         page.goto(url, wait_until="load", timeout=15000)
         # Wait for engine ready signal (preview.html sets body.engine-ready)

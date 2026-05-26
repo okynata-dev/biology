@@ -1077,7 +1077,7 @@ async function _ensureCachedBiom(seed) {
   // shape (bbox-crop → no-crop is v=2). Forces every browser + the
   // CF edge to re-fetch, sidestepping any cached 404s from the
   // pre-upload window.
-  const cutoutUrl = `${PNG_BASE}/cutout/${padded}.webp?v=2`;
+  const cutoutUrl = `${PNG_BASE}/cutout/${padded}.webp?v=3`;
   try {
     await _tryLoad(cutoutUrl);
     url = cutoutUrl;

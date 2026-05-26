@@ -1,0 +1,112 @@
+# Cloud-side re-bake of every biom's transparent cutout (the /make collage
+# tiles). Mirrors render-videos.yml.
+#
+# Why this exists: scripts/make-cutouts.py screenshots preview.html with a
+# transparent background for each seed. Rendering 3000 of them locally hammers
+# the laptop; datacenter runners don't throttle, so we offload here.
+#
+# What changed (2026-05): cutout mode now renders the SAME-size biom inside a
+# roomier frame (preview.html --comp-scale 0.62 in ?cutout=1), so large
+# specimens no longer clip the frame. The canonical /preview/ master (the NFT
+# image) is rendered without ?cutout and is untouched. After this workflow
+# runs, the collage in /make shows glass, uncropped, fast tiles.
+#
+# How it works:
+#   workflow_dispatch fans out into N matrix jobs (default 10). Each runner
+#   renders its slice of seeds 0..2999 with Playwright, then uploads its
+#   cutouts to R2 (bioms-pngs/cutout/) via wrangler.
+#
+# Setup (same secrets as render-videos.yml):
+#   GitHub repo -> Settings -> Secrets and variables -> Actions ->
+#   CLOUDFLARE_API_TOKEN (R2 Storage: Write) and CLOUDFLARE_ACCOUNT_ID.
+#
+# Trigger: Actions tab -> "Render biom cutouts" -> Run workflow.
+# After it finishes, /make already points at ?v=3 cutouts — hard-refresh once.
+
+name: Render biom cutouts
+
+on:
+  workflow_dispatch:
+    inputs:
+      chunks:
+        description: 'Parallel chunks (1-30). More = faster, watch the ~20 free-tier concurrent-job cap.'
+        default: '10'
+        type: string
+      size:
+        description: 'Source render size (px square). Bigger = crisper collage tiles, larger files. 1200 is a good default.'
+        default: '1200'
+        type: string
+      cs:
+        description: 'Cutout margin (comp-scale). Lower = more breathing room around the biom. Blank = preview.html default (0.62).'
+        default: ''
+        type: string
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        run: |
+          n="${{ github.event.inputs.chunks }}"
+          matrix=$(python3 -c "import json; n=int('$n'); print(json.dumps({'include': [{'chunk': i, 'total': n} for i in range(n)]}))")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  render:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      # Keep siblings alive if one chunk fails — better 9/10 uploaded than
+      # restarting the whole batch.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Playwright + Pillow
+        run: |
+          pip install playwright pillow
+          # --with-deps pulls the OS libs headless Chromium needs so output
+          # matches the local Mac run pixel-for-pixel.
+          python -m playwright install --with-deps chromium
+
+      - name: Install wrangler
+        run: npm install -g wrangler@4
+
+      - name: Compute seeds for this chunk
+        id: seeds
+        run: |
+          chunk=${{ matrix.chunk }}
+          total=${{ matrix.total }}
+          read start end seeds <<< "$(python3 -c "
+          chunk, total, n = $chunk, $total, 3000
+          per = (n + total - 1) // total
+          s = chunk * per
+          e = min(s + per, n)
+          print(s, e, ','.join(str(i) for i in range(s, e)))
+          ")"
+          echo "Chunk $chunk: cutouts for seeds $start..$((end-1)) ($(($end - $start)) seeds)"
+          echo "seeds=$seeds" >> "$GITHUB_OUTPUT"
+
+      - name: Render cutouts
+        env:
+          # Blank → preview.html default cutout margin (comp-scale 0.62).
+          BIOMS_CUTOUT_CS: ${{ github.event.inputs.cs }}
+        run: |
+          mkdir -p pngs/cutout
+          python scripts/make-cutouts.py \
+            --only "${{ steps.seeds.outputs.seeds }}" \
+            --size ${{ github.event.inputs.size }} \
+            --workers 4
+          echo "Total: $(ls pngs/cutout/*.webp 2>/dev/null | wc -l) webp, $(du -sh pngs/cutout/ | cut -f1)"
+
+      - name: Upload to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash scripts_upload_cutouts.sh
