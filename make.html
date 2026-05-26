@@ -352,6 +352,27 @@
     position: absolute;
     overflow: visible;
   }
+  /* Collage loading: spinner + progress while cutouts come in; the grid is
+     hidden then revealed all at once (no cells popping in one by one). */
+  .collage-loader {
+    position: absolute; inset: 0; z-index: 8;
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: rgba(236,233,224,0.55); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    pointer-events: none;
+  }
+  .collage-loader.show { display: flex; }
+  .collage-loader .spin {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 3px solid rgba(40,36,30,0.15); border-top-color: rgba(40,36,30,0.65);
+    animation: biomspin 0.8s linear infinite;
+  }
+  .collage-loader .txt {
+    font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #6b6459;
+    font-variant-numeric: tabular-nums;
+  }
+  @keyframes biomspin { to { transform: rotate(360deg); } }
+  #liveComp.collage-grid { transition: opacity 0.35s ease; }
+  #liveComp.collage-grid.loading { opacity: 0; }
 
   .format-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
   .format-btn {
@@ -516,6 +537,10 @@
           <div class="snap-guide snap-guide-v" id="snapGuideV" aria-hidden="true"></div>
           <div class="snap-guide snap-guide-h" id="snapGuideH" aria-hidden="true"></div>
           <div class="canvas-hint">Drag · scroll to zoom</div>
+          <div class="collage-loader" id="collageLoader" aria-hidden="true">
+            <div class="spin"></div>
+            <div class="txt" id="collageLoaderTxt">Loading…</div>
+          </div>
         </div>
         <div class="canvas-meta">
           <span id="metaSeed">BIOM</span>
@@ -549,12 +574,12 @@
         <div class="ctrl-group" data-mode-only="collage">
           <div class="ctrl-label"><span>Grid</span><span class="val" id="gridVal">3 × 3</span></div>
           <div class="grid-row" style="margin-bottom: 8px;">
-            <input id="colsInput" class="num-input" type="number" min="1" max="12" value="3" aria-label="Columns" placeholder="Cols" />
-            <input id="rowsInput" class="num-input" type="number" min="1" max="12" value="3" aria-label="Rows" placeholder="Rows" />
+            <input id="colsInput" class="num-input" type="number" min="1" max="60" value="3" aria-label="Columns" placeholder="Cols" />
+            <input id="rowsInput" class="num-input" type="number" min="1" max="60" value="3" aria-label="Rows" placeholder="Rows" />
           </div>
           <button type="button" class="btn secondary" id="shuffleBtn" style="margin-bottom: 8px;">⤴ Shuffle seeds</button>
           <div class="ctrl-label" style="margin-bottom: 6px;"><span>Spacing</span><span class="val" id="gapVal">2%</span></div>
-          <input type="range" class="slider" id="gapSlider" min="-50" max="20" value="2" step="1" aria-label="Spacing between cells, percent of cell size. Negative values overlap." />
+          <input type="range" class="slider" id="gapSlider" min="-100" max="20" value="2" step="1" aria-label="Spacing between cells, percent of cell size. Negative values overlap." />
         </div>
 
         <div class="ctrl-group">
@@ -941,7 +966,7 @@ function shuffleCollageSeeds() {
 // Falls back to the engine 2D-canvas path if the thumb fetch fails
 // (pre-reveal, R2 outage, transient network). Better an ugly cell than
 // a blank one.
-const COLLAGE_CACHE_MAX = 256;
+const COLLAGE_CACHE_MAX = 3200;  // hold the whole collection so big collages don't thrash
 const collageCellCache = new Map();   // seed -> dataURL
 
 // Cream-tone predicate. Bright, warm-biased, low channel spread —
@@ -1123,25 +1148,29 @@ async function renderLive() {
     _resizeCollageSeeds();
     const gen = ++_collageRenderGen;
     const seeds = state.collageSeeds.slice();  // snapshot
+    const total = seeds.length;
 
-    // Hint loading state if any seed isn't cached yet.
-    const cold = seeds.filter(s => !collageCellCache.has(s)).length;
-    if (cold > 0) {
-      metaSeed.textContent = `COLLAGE · loading ${cold} biom${cold > 1 ? 's' : ''}…`;
-    }
+    // Loading state: hide the grid, show a spinner + live progress, then
+    // reveal the whole collage at once. No cells popping in one by one.
+    const loader = document.getElementById('collageLoader');
+    const loaderTxt = document.getElementById('collageLoaderTxt');
+    liveComp.classList.add('collage-grid', 'loading');
+    if (loader) loader.classList.add('show');
+    if (loaderTxt) loaderTxt.textContent = `Loading ${total} specimen${total > 1 ? 's' : ''} · 0/${total}`;
 
-    // Fetch + process all uncached thumbs in parallel.
-    await Promise.all(seeds.map(_ensureCachedBiom));
+    // Fetch (and decode) every cutout in parallel, counting progress.
+    let done = 0;
+    await Promise.all(seeds.map(s => _ensureCachedBiom(s).then((r) => {
+      done++;
+      if (loaderTxt && (done % 4 === 0 || done === total)) {
+        loaderTxt.textContent = `Loading ${total} specimen${total > 1 ? 's' : ''} · ${done}/${total}`;
+      }
+      return r;
+    })));
     if (gen !== _collageRenderGen) return;  // superseded — bail
 
-    // Build CSS grid. Each cell is a static <img> referencing the per-
-    // seed cached PNG (real master thumb, cream-stripped, bbox-cropped).
-    // No backdrop-filter compositing in the live preview → smooth at any cell count.
+    // Build the CSS grid. Each cell is a static <img> of the cached cutout.
     liveComp.innerHTML = '';
-    liveComp.classList.add('collage-grid');
-    // Cells are absolute-positioned (see .collage-cell CSS) — JS writes
-    // their geometry in applyTransform() so spacing can go negative.
-
     const frag = document.createDocumentFragment();
     for (let i = 0; i < seeds.length; i++) {
       const cell = document.createElement('div');
@@ -1155,14 +1184,16 @@ async function renderLive() {
       frag.appendChild(cell);
     }
     liveComp.appendChild(frag);
+    applyTransform();  // position cells before reveal
     metaSeed.textContent = `COLLAGE · ${state.gridCols}×${state.gridRows} (${seeds.length} bioms)`;
-    // Cells are absolute-positioned — applyTransform writes their actual
-    // left/top/width/height. Call AFTER appending so callers that ran
-    // applyTransform pre-await don't see uninitialised cells.
-    applyTransform();
+    // Reveal: hide loader, fade the grid in next frame (after layout settles).
+    if (loader) loader.classList.remove('show');
+    requestAnimationFrame(() => { if (gen === _collageRenderGen) liveComp.classList.remove('loading'); });
   } else {
     _collageRenderGen++;  // cancel any in-flight collage work
-    liveComp.classList.remove('collage-grid');
+    const _loader = document.getElementById('collageLoader');
+    if (_loader) _loader.classList.remove('show');
+    liveComp.classList.remove('collage-grid', 'loading');
     // Engine clears + repopulates #liveComp internally.
     window.BiomEngine.renderSpecimen(liveComp, state.seed, { isFitMode: true });
     metaSeed.textContent = window.BiomEngine.label(state.seed);
