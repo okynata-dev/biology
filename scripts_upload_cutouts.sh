@@ -11,6 +11,9 @@
 #   bash scripts_upload_cutouts.sh --only 44 132  # specific seeds
 
 set -e
+set -o pipefail   # ← without this, a wrangler failure piped through
+                  # grep|head silently returned 0 and the previous run
+                  # uploaded zero files while reporting success.
 
 BUCKET="${BIOMS_R2_BUCKET:-bioms-pngs}"
 DIR="pngs/cutout"
@@ -37,11 +40,31 @@ upload_one() {
   # IMPORTANT: --remote forces the write to the REAL R2 bucket. Without it,
   # wrangler writes to a throwaway LOCAL persistence store and the upload
   # silently never reaches R2 (this bit us: files showed "Creating object…"
-  # but R2 kept serving the old objects). Pin wrangler@4 via npx so the
-  # --remote flag is available regardless of the globally-installed version.
-  npx wrangler@4 r2 object put "${BUCKET}/cutout/${base}" \
-    --remote --file="$file" --content-type="image/${ext}" 2>&1 \
-    | grep -E "Creating|Error|Upload" | head -1
+  # but R2 kept serving the old objects). Plain `wrangler` (no `npx`) —
+  # relies on the workflow pre-installing wrangler@4 globally before this
+  # script runs; with npx, every parallel call did its own npm fetch and
+  # the workerd runtimes tripped each other on SQLite locks.
+  #
+  # 3-attempt retry with exponential backoff: previous runs died on a
+  # single transient 5xx from the R2 API. No more `| grep | head` —
+  # pipefail can't save us if the entire pipe rewrites the exit code,
+  # so just log wrangler's stderr/stdout straight and let return codes
+  # propagate.
+  local attempt
+  for attempt in 1 2 3; do
+    if wrangler r2 object put "${BUCKET}/cutout/${base}" \
+         --remote --file="$file" --content-type="image/${ext}" >&2; then
+      echo "OK: ${base}"
+      return 0
+    fi
+    if [ "$attempt" -lt 3 ]; then
+      local sleep_for=$((attempt * 5))
+      echo "RETRY ${attempt}/3: ${base} (sleeping ${sleep_for}s)" >&2
+      sleep "$sleep_for"
+    fi
+  done
+  echo "FAILED after 3 attempts: ${base}" >&2
+  return 1
 }
 export -f upload_one
 export BUCKET
@@ -66,7 +89,12 @@ else
   fi
 fi
 
-echo "Uploading ${#files[@]} files to ${BUCKET}/cutout/ (parallel -P 12) …"
-printf '%s\n' "${files[@]}" | xargs -P 12 -I{} bash -c 'upload_one "$@"' _ {}
+# Parallelism dropped from -P 12 to -P 1: each `wrangler r2 object put`
+# spins up a workerd runtime that holds a SQLite cache, and parallel
+# instances deadlock on SQLITE_BUSY. Sequential adds ~5min overhead but
+# eliminates silent upload failures — better than re-running the workflow
+# four times to brute-force past the flake rate.
+echo "Uploading ${#files[@]} files to ${BUCKET}/cutout/ (sequential, SQLite-safe) …"
+printf '%s\n' "${files[@]}" | xargs -P 1 -I{} bash -c 'upload_one "$@"' _ {}
 
 echo "Done. Verify with: curl -I https://pngs.thebioms.com/cutout/00044.webp"

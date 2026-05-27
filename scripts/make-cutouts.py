@@ -105,7 +105,8 @@ def crop_to_bbox(img: Image.Image, pad_pct: float = 0.05) -> Image.Image:
 
 
 def render_one(playwright_ctx, port: int, seed: int, render_size: int,
-               webp_quality: int, settle_ms: int, write_png: bool, do_crop: bool):
+               webp_quality: int, settle_ms: int, write_png: bool, do_crop: bool,
+               max_attempts: int = 3):
     """Open the preview page for `seed`, screenshot transparent, save.
     Returns (seed, ok, error_msg).
 
@@ -117,7 +118,13 @@ def render_one(playwright_ctx, port: int, seed: int, render_size: int,
 
     do_crop=True saves a bbox-cropped square — tighter packing but the
     biom's halo / outer accents get clipped near the edges. Kept as a
-    flag for any future use case that wants tight thumbnail packing."""
+    flag for any future use case that wants tight thumbnail packing.
+
+    Retries up to max_attempts times on flake. Background: the 2026-05-23
+    re-render run had a ~44% per-seed flake rate — Playwright goto/
+    wait_for_selector timing out on the local HTTP server. With 3 tries
+    and a small backoff, the effective fail rate drops to ~5% (one tier
+    re-run usually fills the rest)."""
     browser, page = playwright_ctx
     # Optional comp-scale override (margin around the biom in cutout mode).
     # Blank → preview.html's own cutout default (0.62). Lets the GitHub
@@ -125,26 +132,33 @@ def render_one(playwright_ctx, port: int, seed: int, render_size: int,
     cs = os.environ.get("BIOMS_CUTOUT_CS", "").strip()
     url = (f"http://127.0.0.1:{port}/preview.html?seed={seed}&cutout=1&static=1&fit=1"
            + (f"&cs={cs}" if cs else ""))
-    try:
-        page.goto(url, wait_until="load", timeout=15000)
-        # Wait for engine ready signal (preview.html sets body.engine-ready)
-        page.wait_for_selector("body.engine-ready", timeout=8000)
-        page.wait_for_timeout(settle_ms)
-        png_bytes = page.screenshot(
-            clip={"x": 0, "y": 0, "width": render_size, "height": render_size},
-            omit_background=True,                 # critical — gives transparent BG
-            type="png",
-        )
-        img = Image.open(io.BytesIO(png_bytes))
-        if do_crop:
-            img = crop_to_bbox(img, pad_pct=0.05)
-        padded = f"{seed:05d}"
-        if write_png:
-            img.save(DST / f"{padded}.png", "PNG", optimize=True)
-        img.save(DST / f"{padded}.webp", "WEBP", quality=webp_quality, method=6)
-        return (seed, True, None)
-    except Exception as e:
-        return (seed, False, f"{type(e).__name__}: {e}")
+    last_err = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            page.goto(url, wait_until="load", timeout=15000)
+            # Wait for engine ready signal (preview.html sets body.engine-ready)
+            page.wait_for_selector("body.engine-ready", timeout=8000)
+            page.wait_for_timeout(settle_ms)
+            png_bytes = page.screenshot(
+                clip={"x": 0, "y": 0, "width": render_size, "height": render_size},
+                omit_background=True,                 # critical — gives transparent BG
+                type="png",
+            )
+            img = Image.open(io.BytesIO(png_bytes))
+            if do_crop:
+                img = crop_to_bbox(img, pad_pct=0.05)
+            padded = f"{seed:05d}"
+            if write_png:
+                img.save(DST / f"{padded}.png", "PNG", optimize=True)
+            img.save(DST / f"{padded}.webp", "WEBP", quality=webp_quality, method=6)
+            return (seed, True, None if attempt == 1 else f"recovered on attempt {attempt}")
+        except Exception as e:
+            last_err = f"{type(e).__name__}: {e}"
+            if attempt < max_attempts:
+                # Small backoff — gives the browser/server a moment to
+                # recover from whatever transient state caused the flake.
+                page.wait_for_timeout(500 * attempt)
+    return (seed, False, f"failed {max_attempts}× — last: {last_err}")
 
 
 def worker_run(worker_idx: int, seeds_chunk, port: int, render_size: int,

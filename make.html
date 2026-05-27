@@ -1172,10 +1172,11 @@ async function _ensureCachedBiom(seed) {
   // friendlier on network for a fully-loaded grid.
   //
   // ?v=… cache-buster: bumped whenever the cutout pipeline changes
-  // shape (bbox-crop → no-crop is v=2). Forces every browser + the
-  // CF edge to re-fetch, sidestepping any cached 404s from the
-  // pre-upload window.
-  const cutoutUrl = `${PNG_BASE}/cutout/${padded}.webp?v=3`;
+  // shape. History: v=2 was bbox-crop → no-crop, v=3 was the 800→1200
+  // size bump, v=4 is the 2026-05-27 re-render that filled the 1327
+  // seeds that flaked during the v=3 run (per-seed retry added in
+  // make-cutouts.py so this batch is actually complete).
+  const cutoutUrl = `${PNG_BASE}/cutout/${padded}.webp?v=4`;
   try {
     await _tryLoad(cutoutUrl);
     url = cutoutUrl;
