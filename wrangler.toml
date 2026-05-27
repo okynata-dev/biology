@@ -60,8 +60,19 @@ bucket_name = "bioms-pngs"
 # free tier doesn't include Browser Rendering binding).
 # Pricing: ~$0.0001 per second of browser usage. Each render is
 # 2-5s; 50 burns/day → ~$0.03/day operating cost.
+#
+# IMPORTANT: this MUST be its own [browser] table header. The
+# previous inline `browser = { binding = "BROWSER" }` form looked
+# top-level but TOML actually treats every key after a [[r2_buckets]]
+# header as part of that array entry until the next section header
+# appears — so wrangler was logging "Unexpected fields found in
+# r2_buckets[0] field: browser" on every deploy AND env.BROWSER was
+# silently undefined in the worker, which would have meant
+# renderTokenMaster failing with no_browser_binding the first time
+# anyone burnt.
 # ------------------------------------------------------------
-browser = { binding = "BROWSER" }
+[browser]
+binding = "BROWSER"
 
 [vars]
 # Public config — fine to commit. Secrets go via `wrangler secret put`.

@@ -76,6 +76,8 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Install wrangler
+        # wrangler 4 — scripts_upload_cutouts.sh calls `r2 object put --remote`
+        # so uploads hit the REAL R2 bucket (the default is a throwaway local store).
         run: npm install -g wrangler@4
 
       - name: Compute seeds for this chunk

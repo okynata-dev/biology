@@ -43,9 +43,11 @@ upload_one() {
   # boot of a fresh workerd runtime; the runtimes shared a SQLite cache
   # and tripped each other on SQLITE_BUSY locks.
   #
-  # --local false: wrangler 4.x defaults `r2 object put` to a LOCAL
-  # mock bucket. The hint message says --remote but that flag doesn't
-  # exist; --local false is the real toggle.
+  # --remote: wrangler 4.x defaults `r2 object put` to a LOCAL mock
+  # bucket; without --remote the upload silently never reaches R2
+  # (you'll see "Upload complete." but the public URL stays 404).
+  # `--remote` was reinstated by Cloudflare after a brief absence; if
+  # it ever disappears again, `--local false` is the equivalent toggle.
   #
   # 3 retries with exponential backoff: previous CI run died on a
   # single transient `502: Bad Gateway` from the R2 API, which under
@@ -55,7 +57,7 @@ upload_one() {
   local attempt
   for attempt in 1 2 3; do
     if wrangler r2 object put "${BUCKET}/video/${base}" \
-         --file="$file" --content-type="video/mp4" --local false >&2; then
+         --file="$file" --content-type="video/mp4" --remote >&2; then
       echo "OK: ${base}"
       return 0
     fi

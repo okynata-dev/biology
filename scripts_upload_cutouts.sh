@@ -34,11 +34,13 @@ upload_one() {
   local file="$1"
   local base=$(basename "$file")
   local ext="${base##*.}"
-  # Default behaviour of `wrangler r2 object put` is remote (--remote
-  # was renamed away in 3.x; passing it now errors out). Adding --local
-  # would target the local persistence store.
-  npx wrangler r2 object put "${BUCKET}/cutout/${base}" \
-    --file="$file" --content-type="image/${ext}" 2>&1 \
+  # IMPORTANT: --remote forces the write to the REAL R2 bucket. Without it,
+  # wrangler writes to a throwaway LOCAL persistence store and the upload
+  # silently never reaches R2 (this bit us: files showed "Creating object…"
+  # but R2 kept serving the old objects). Pin wrangler@4 via npx so the
+  # --remote flag is available regardless of the globally-installed version.
+  npx wrangler@4 r2 object put "${BUCKET}/cutout/${base}" \
+    --remote --file="$file" --content-type="image/${ext}" 2>&1 \
     | grep -E "Creating|Error|Upload" | head -1
 }
 export -f upload_one
