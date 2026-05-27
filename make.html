@@ -340,6 +340,55 @@
 
   .grid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 
+  /* === Grid preset chips ===
+     Replaces the raw cols/rows number inputs as the primary picker.
+     Six chips: five common sizes + Custom (which reveals the raw
+     inputs underneath for anything off the path). Selected chip
+     reads as ink-fill / paper-text, same chip language as the
+     Format picker in single mode — visual consistency across the
+     panel. */
+  .preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+  .preset-btn {
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+    padding: 9px 7px 7px;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: all 0.15s;
+    display: block;
+  }
+  .preset-btn:hover { border-color: var(--ink-2); }
+  .preset-btn[aria-pressed="true"] {
+    background: var(--ink); color: var(--bg); border-color: var(--ink);
+  }
+  .preset-btn .preset-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .preset-btn .preset-count {
+    display: block;
+    font-size: 9px;
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+  }
+  .preset-btn[aria-pressed="true"] .preset-count {
+    color: rgba(236, 233, 224, 0.6);
+  }
+  /* Custom row — the raw cols/rows inputs. Hidden unless Custom chip
+     is selected; the preset chips above are the primary affordance. */
+  .grid-custom { display: none; margin-bottom: 8px; }
+  .grid-custom.visible { display: grid; }
+
   /* Cells of the collage are absolute-positioned — JS writes their
      left/top/width/height in applyTransform() so spacing can go negative
      (CSS grid `gap` can't). overflow:visible on each cell lets panel
@@ -572,14 +621,38 @@
         </div>
 
         <div class="ctrl-group" data-mode-only="collage">
-          <div class="ctrl-label"><span>Grid</span><span class="val" id="gridVal">3 × 3</span></div>
-          <div class="grid-row" style="margin-bottom: 8px;">
-            <input id="colsInput" class="num-input" type="number" min="1" max="60" value="3" aria-label="Columns" placeholder="Cols" />
-            <input id="rowsInput" class="num-input" type="number" min="1" max="60" value="3" aria-label="Rows" placeholder="Rows" />
+          <div class="ctrl-label"><span>Grid</span><span class="val" id="gridVal">4 × 4</span></div>
+          <!-- Six presets cover the natural sizes: small mosaic, pack,
+               wall, mural, full collection (50×60 = exactly 3000), and
+               Custom for anything off the path. -->
+          <div class="preset-grid" role="radiogroup" aria-label="Collage grid size">
+            <button type="button" class="preset-btn" data-cols="4"  data-rows="4"  role="radio">
+              <span class="preset-label">4 × 4</span><span class="preset-count">16 Bioms</span>
+            </button>
+            <button type="button" class="preset-btn" data-cols="8"  data-rows="8"  role="radio">
+              <span class="preset-label">8 × 8</span><span class="preset-count">64 Bioms</span>
+            </button>
+            <button type="button" class="preset-btn" data-cols="16" data-rows="16" role="radio">
+              <span class="preset-label">16 × 16</span><span class="preset-count">256 Bioms</span>
+            </button>
+            <button type="button" class="preset-btn" data-cols="32" data-rows="32" role="radio">
+              <span class="preset-label">32 × 32</span><span class="preset-count">1024 Bioms</span>
+            </button>
+            <button type="button" class="preset-btn" data-cols="50" data-rows="60" role="radio">
+              <span class="preset-label">50 × 60</span><span class="preset-count">All 3000</span>
+            </button>
+            <button type="button" class="preset-btn" data-custom="1" role="radio">
+              <span class="preset-label">Custom</span><span class="preset-count">N × M</span>
+            </button>
+          </div>
+          <!-- Raw cols/rows inputs — revealed only when the Custom chip is active. -->
+          <div class="grid-custom grid-row" id="gridCustomRow">
+            <input id="colsInput" class="num-input" type="number" min="1" max="60" value="4" aria-label="Columns" placeholder="Cols" />
+            <input id="rowsInput" class="num-input" type="number" min="1" max="60" value="4" aria-label="Rows" placeholder="Rows" />
           </div>
           <button type="button" class="btn secondary" id="shuffleBtn" style="margin-bottom: 8px;">⤴ Shuffle seeds</button>
           <div class="ctrl-label" style="margin-bottom: 6px;"><span>Spacing</span><span class="val" id="gapVal">2%</span></div>
-          <input type="range" class="slider" id="gapSlider" min="-100" max="20" value="2" step="1" aria-label="Spacing between cells, percent of cell size. Negative values overlap." />
+          <input type="range" class="slider" id="gapSlider" min="-75" max="20" value="2" step="1" aria-label="Spacing between cells, percent of cell size. Negative values overlap." />
         </div>
 
         <div class="ctrl-group">
@@ -708,10 +781,10 @@ const state = {
   mode: 'single',                 // 'single' | 'collage'
   seed: Math.floor(Math.random() * 3000),
   // Collage params. collageSeeds is regenerated on dimension change and
-  // on shuffle. Default 3×3 keeps the first paint quick.
-  gridCols: 3,
-  gridRows: 3,
-  cellGapPct: 2,                  // spacing as % of cell size; negative = overlap (-50..20)
+  // on shuffle. Default 4×4 matches the first preset chip.
+  gridCols: 4,
+  gridRows: 4,
+  cellGapPct: 2,                  // spacing as % of cell size; negative = overlap (-75..20)
   collageSeeds: [],               // populated by initCollageSeeds() / shuffleCollageSeeds()
   format: FORMATS[0],
   customW: 1500,
@@ -1591,14 +1664,19 @@ function _updateGridLabel() {
   gridVal.textContent = `${state.gridCols} × ${state.gridRows}`;
 }
 
-function _onGridDimsChange() {
-  const c = Math.max(1, Math.min(12, parseInt(colsInput.value, 10) || 1));
-  const r = Math.max(1, Math.min(12, parseInt(rowsInput.value, 10) || 1));
+// Apply a new grid size + sync UI. Routed through here from both the
+// preset chips (clean numeric labels) and the Custom inputs (raw N×M).
+// `isCustomEntry` tells the preset-pad highlighter whether to mark the
+// "Custom" chip selected or to find a matching numeric preset.
+function _setGridDims(cols, rows, isCustomEntry) {
+  const c = Math.max(1, Math.min(60, cols || 1));
+  const r = Math.max(1, Math.min(60, rows || 1));
   state.gridCols = c;
   state.gridRows = r;
   colsInput.value = c;
   rowsInput.value = r;
   _updateGridLabel();
+  _syncPresetPad(isCustomEntry);
   // Preserve existing seeds (user might have liked a row, just adding/
   // removing). New cells get random; extras are dropped.
   _resizeCollageSeeds();
@@ -1607,8 +1685,50 @@ function _onGridDimsChange() {
   updateExportStatus();
 }
 
+function _syncPresetPad(isCustomEntry) {
+  const customRow = document.getElementById('gridCustomRow');
+  // First pass: highlight any numeric preset that matches current dims.
+  let matchedPreset = false;
+  document.querySelectorAll('.preset-btn[data-cols]').forEach(btn => {
+    const matches = !isCustomEntry
+      && parseInt(btn.dataset.cols, 10) === state.gridCols
+      && parseInt(btn.dataset.rows, 10) === state.gridRows;
+    btn.setAttribute('aria-pressed', String(matches));
+    if (matches) matchedPreset = true;
+  });
+  // Custom chip lights up when the user entered N×M by hand OR when the
+  // current numeric dims don't match any preset. The chip pad always
+  // reflects truth — the user never sees "nothing selected".
+  const customBtn = document.querySelector('.preset-btn[data-custom="1"]');
+  const showCustom = isCustomEntry || !matchedPreset;
+  if (customBtn) customBtn.setAttribute('aria-pressed', String(showCustom));
+  customRow.classList.toggle('visible', showCustom);
+}
+
+function _onGridDimsChange() {
+  const c = parseInt(colsInput.value, 10) || 1;
+  const r = parseInt(rowsInput.value, 10) || 1;
+  _setGridDims(c, r, /* isCustomEntry */ true);
+}
+
 colsInput.addEventListener('change', _onGridDimsChange);
 rowsInput.addEventListener('change', _onGridDimsChange);
+
+// Preset chips — click sets dimensions, or opens custom inputs.
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.custom === '1') {
+      // Toggle into Custom mode; keep whatever the current dims are.
+      _syncPresetPad(/* isCustomEntry */ true);
+      // Focus the cols input so the user can immediately start typing.
+      requestAnimationFrame(() => colsInput.focus());
+      return;
+    }
+    const c = parseInt(btn.dataset.cols, 10);
+    const r = parseInt(btn.dataset.rows, 10);
+    _setGridDims(c, r, /* isCustomEntry */ false);
+  });
+});
 
 shuffleBtn.addEventListener('click', () => {
   shuffleCollageSeeds();
@@ -1926,6 +2046,7 @@ modeCollageBtn.setAttribute('aria-pressed', String(state.mode === 'collage'));
 // (no first-paint flicker while seeds get rolled).
 _resizeCollageSeeds();
 _updateGridLabel();
+_syncPresetPad(false);   // highlight the 4×4 chip on first paint
 gapVal.textContent = state.cellGapPct + '%';
 
 // Initial single-mode render. seedInput is empty in HTML to keep view-
