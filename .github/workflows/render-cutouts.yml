@@ -33,13 +33,20 @@ on:
         default: '10'
         type: string
       size:
-        description: 'Source render size (px square). Bigger = crisper collage tiles, larger files. 1200 is a good default.'
+        description: 'Source render size (px square). 1200 = full quality, 384 = SM (small).'
         default: '1200'
         type: string
       cs:
         description: 'Cutout margin (comp-scale). Lower = more breathing room around the biom. Blank = preview.html default (0.62).'
         default: ''
         type: string
+      variant:
+        description: 'Variant: "full" → /cutout/ (default, ~85KB). "sm" → /cutout-sm/ (small ~10KB, used by /make at dense grids).'
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - sm
 
 jobs:
   prepare:
@@ -95,20 +102,39 @@ jobs:
           echo "Chunk $chunk: cutouts for seeds $start..$((end-1)) ($(($end - $start)) seeds)"
           echo "seeds=$seeds" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve variant paths
+        id: variant
+        # full  → pngs/cutout/    + R2 prefix cutout/
+        # sm    → pngs/cutout-sm/ + R2 prefix cutout-sm/
+        # Wiring both into env so the python script and bash uploader
+        # stay in sync — single source of truth here.
+        run: |
+          variant="${{ github.event.inputs.variant }}"
+          if [ "$variant" = "sm" ]; then
+            echo "out_dir=pngs/cutout-sm" >> "$GITHUB_OUTPUT"
+            echo "prefix=cutout-sm" >> "$GITHUB_OUTPUT"
+          else
+            echo "out_dir=pngs/cutout" >> "$GITHUB_OUTPUT"
+            echo "prefix=cutout" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Render cutouts
         env:
           # Blank → preview.html default cutout margin (comp-scale 0.62).
           BIOMS_CUTOUT_CS: ${{ github.event.inputs.cs }}
+          BIOMS_CUTOUT_OUT_DIR: ${{ steps.variant.outputs.out_dir }}
         run: |
-          mkdir -p pngs/cutout
+          mkdir -p "${{ steps.variant.outputs.out_dir }}"
           python scripts/make-cutouts.py \
             --only "${{ steps.seeds.outputs.seeds }}" \
             --size ${{ github.event.inputs.size }} \
             --workers 4
-          echo "Total: $(ls pngs/cutout/*.webp 2>/dev/null | wc -l) webp, $(du -sh pngs/cutout/ | cut -f1)"
+          echo "Total: $(ls ${{ steps.variant.outputs.out_dir }}/*.webp 2>/dev/null | wc -l) webp, $(du -sh ${{ steps.variant.outputs.out_dir }} | cut -f1)"
 
       - name: Upload to R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          BIOMS_CUTOUT_SRC_DIR: ${{ steps.variant.outputs.out_dir }}
+          BIOMS_CUTOUT_PREFIX: ${{ steps.variant.outputs.prefix }}
         run: bash scripts_upload_cutouts.sh

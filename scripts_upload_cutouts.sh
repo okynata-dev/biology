@@ -16,7 +16,10 @@ set -o pipefail   # ← without this, a wrangler failure piped through
                   # uploaded zero files while reporting success.
 
 BUCKET="${BIOMS_R2_BUCKET:-bioms-pngs}"
-DIR="pngs/cutout"
+# DIR and PREFIX are env-overridable so the SM variant (cutout-sm/) can
+# reuse this same script. Defaults preserve full-size behaviour.
+DIR="${BIOMS_CUTOUT_SRC_DIR:-pngs/cutout}"
+PREFIX="${BIOMS_CUTOUT_PREFIX:-cutout}"
 
 if [ ! -d "$DIR" ]; then
   echo "Error: $DIR doesn't exist. Run scripts/make-cutouts.py first." >&2
@@ -52,7 +55,7 @@ upload_one() {
   # propagate.
   local attempt
   for attempt in 1 2 3; do
-    if wrangler r2 object put "${BUCKET}/cutout/${base}" \
+    if wrangler r2 object put "${BUCKET}/${PREFIX}/${base}" \
          --remote --file="$file" --content-type="image/${ext}" >&2; then
       echo "OK: ${base}"
       return 0
@@ -94,7 +97,7 @@ fi
 # instances deadlock on SQLITE_BUSY. Sequential adds ~5min overhead but
 # eliminates silent upload failures — better than re-running the workflow
 # four times to brute-force past the flake rate.
-echo "Uploading ${#files[@]} files to ${BUCKET}/cutout/ (sequential, SQLite-safe) …"
+echo "Uploading ${#files[@]} files to ${BUCKET}/${PREFIX}/ (sequential, SQLite-safe) …"
 
 # Capture xargs exit code instead of letting `set -e` kill the script on
 # the first hard failure (xargs returns 123 if ANY child upload_one fails

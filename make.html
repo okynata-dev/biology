@@ -1139,18 +1139,37 @@ function _tryLoad(url) {
   });
 }
 
-async function _ensureCachedBiom(seed) {
-  let url = collageCellCache.get(seed);
+// Variant picker — when the grid is dense (≥ 144 cells = 12×12+), each
+// cell on screen ends up <300px wide, so the 1200×1200 /cutout/ master
+// is overkill: the browser decodes a 5.7MB RGBA bitmap per cell and
+// 1024 of them at 32×32 chewed ~5.8GB of pixel memory + thrashed GPU
+// during pan/zoom. The /cutout-sm/ variant (384×384, ~10KB) is
+// indistinguishable at those cell sizes and drops total memory ~10×.
+// Sparse grids (4×4, 8×8) still get /cutout/ for crisp single-cell
+// inspection at zoom.
+const COLLAGE_SM_CELL_THRESHOLD = 144;  // total cells; flips at 12×12+
+
+function _cutoutVariant() {
+  const total = state.gridCols * state.gridRows;
+  return total >= COLLAGE_SM_CELL_THRESHOLD ? 'sm' : 'full';
+}
+
+async function _ensureCachedBiom(seed, variant) {
+  variant = variant || _cutoutVariant();
+  // Cache keyed by variant so switching density doesn't serve the wrong
+  // resolution. Same seed at full and sm coexist as separate entries.
+  const cacheKey = variant + ':' + seed;
+  let url = collageCellCache.get(cacheKey);
   if (url) {
     // Touch — move to most-recent slot for LRU eviction.
-    collageCellCache.delete(seed);
-    collageCellCache.set(seed, url);
+    collageCellCache.delete(cacheKey);
+    collageCellCache.set(cacheKey, url);
     return url;
   }
   // Pre-reveal: skip the R2 fetch entirely (snipe-proofing). Engine fallback.
   if (window.BiomEngine && window.BiomEngine.REVEAL === false) {
     url = _engineFallbackDataURL(seed);
-    collageCellCache.set(seed, url);
+    collageCellCache.set(cacheKey, url);
     if (collageCellCache.size > COLLAGE_CACHE_MAX) {
       collageCellCache.delete(collageCellCache.keys().next().value);
     }
@@ -1159,33 +1178,53 @@ async function _ensureCachedBiom(seed) {
 
   const padded = String(seed).padStart(5, '0');
 
-  // PRIMARY — /cutout/. Pre-rendered transparent WebP via Playwright
-  // with omit_background=True. The biom sits in its NATURAL Single-mode
-  // card position (full halo, accent organelles, breathing room) on a
-  // fully transparent background — no JS post-processing, no cropping,
-  // no flood-fill artefacts. The cache stores the URL directly: the
-  // browser HTTP cache shares one decoded bitmap across every <img>
-  // and drawImage reference, including duplicates within the grid.
+  // PRIMARY — /cutout/ (or /cutout-sm/ at dense grids). Pre-rendered
+  // transparent WebP via Playwright with omit_background=True. The biom
+  // sits in its NATURAL Single-mode card position (full halo, accent
+  // organelles, breathing room) on a fully transparent background — no
+  // JS post-processing, no cropping, no flood-fill artefacts. The cache
+  // stores the URL directly: the browser HTTP cache shares one decoded
+  // bitmap across every <img> and drawImage reference, including
+  // duplicates within the grid.
   //
   // WebP over PNG: ~75% smaller (380 KB → 85 KB per cell typical).
-  // 3 000-seed collection at 85 KB = ~250 MB total R2 storage, much
-  // friendlier on network for a fully-loaded grid.
+  // 3 000-seed full collection at 85 KB = ~250 MB total R2 storage.
+  // The SM variant is ~10 KB each — ~30 MB total.
   //
   // ?v=… cache-buster: bumped whenever the cutout pipeline changes
   // shape. History: v=2 was bbox-crop → no-crop, v=3 was the 800→1200
-  // size bump, v=4 is the 2026-05-27 re-render that filled the 1327
-  // seeds that flaked during the v=3 run (per-seed retry added in
-  // make-cutouts.py so this batch is actually complete).
-  const cutoutUrl = `${PNG_BASE}/cutout/${padded}.webp?v=4`;
+  // size bump, v=4 was the 2026-05-27 re-render that filled the 1327
+  // seeds that flaked during the v=3 run. v=5 introduces the SM
+  // variant + per-variant cache keys.
+  const path = variant === 'sm' ? 'cutout-sm' : 'cutout';
+  const cutoutUrl = `${PNG_BASE}/${path}/${padded}.webp?v=5`;
   try {
     await _tryLoad(cutoutUrl);
     url = cutoutUrl;
-    collageCellCache.set(seed, url);
+    collageCellCache.set(cacheKey, url);
     if (collageCellCache.size > COLLAGE_CACHE_MAX) {
       collageCellCache.delete(collageCellCache.keys().next().value);
     }
     return url;
-  } catch (_) { /* fall through to /thumb/ fallback */ }
+  } catch (_) {
+    // SM variant not yet baked? Fall through to /cutout/ full-size — the
+    // sm bake happens via a separate workflow run, and there's a short
+    // window during the rollout where /cutout-sm/ 404s. Better to serve
+    // the heavy /cutout/ than the noisy thumb-flood-fill fallback.
+    if (variant === 'sm') {
+      try {
+        const fullUrl = `${PNG_BASE}/cutout/${padded}.webp?v=5`;
+        await _tryLoad(fullUrl);
+        url = fullUrl;
+        collageCellCache.set(cacheKey, url);
+        if (collageCellCache.size > COLLAGE_CACHE_MAX) {
+          collageCellCache.delete(collageCellCache.keys().next().value);
+        }
+        return url;
+      } catch (_) { /* fall through to /thumb/ */ }
+    }
+    /* fall through to /thumb/ fallback */
+  }
 
   // FALLBACK — /thumb/ + JS flood-fill. Worked, but the strip is a
   // heuristic and left visible artefacts at high zoom. Kept for the
@@ -1200,7 +1239,7 @@ async function _ensureCachedBiom(seed) {
     console.warn('[make] thumb fetch failed → engine fallback:', seed, e.message);
     url = _engineFallbackDataURL(seed);
   }
-  collageCellCache.set(seed, url);
+  collageCellCache.set(cacheKey, url);
   if (collageCellCache.size > COLLAGE_CACHE_MAX) {
     collageCellCache.delete(collageCellCache.keys().next().value);
   }
@@ -1232,9 +1271,14 @@ async function renderLive() {
     if (loader) loader.classList.add('show');
     if (loaderTxt) loaderTxt.textContent = `Loading ${total} specimen${total > 1 ? 's' : ''} · 0/${total}`;
 
+    // Variant frozen for this render — density check happens once so all
+    // cells of one collage use the same resolution (mixing breaks the
+    // visual rhythm).
+    const variant = _cutoutVariant();
+
     // Fetch (and decode) every cutout in parallel, counting progress.
     let done = 0;
-    await Promise.all(seeds.map(s => _ensureCachedBiom(s).then((r) => {
+    await Promise.all(seeds.map(s => _ensureCachedBiom(s, variant).then((r) => {
       done++;
       if (loaderTxt && (done % 4 === 0 || done === total)) {
         loaderTxt.textContent = `Loading ${total} specimen${total > 1 ? 's' : ''} · ${done}/${total}`;
@@ -1250,8 +1294,10 @@ async function renderLive() {
       const cell = document.createElement('div');
       cell.className = 'collage-cell';
       const img = document.createElement('img');
-      img.src = collageCellCache.get(seeds[i]);
+      img.src = collageCellCache.get(variant + ':' + seeds[i]);
       img.alt = '';
+      img.decoding = 'async';   // cheap hint — non-blocking decode
+      img.loading  = 'lazy';    // browser skips offscreen cells at deep zoom
       img.draggable = false;
       img.style.cssText = 'width:100%;height:100%;display:block;pointer-events:none;object-fit:contain;';
       cell.appendChild(img);
@@ -1847,8 +1893,12 @@ function localRender(seed, w, h, opts) {
 // modest upscale, still crisp because the source is a real Chromium
 // render with the full glass effect baked in.
 async function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
-  // Make sure every seed in the grid has a cached thumb ready.
-  await Promise.all(seeds.map(_ensureCachedBiom));
+  // Export uses the same density-based variant as the live preview.
+  // At a 4K canvas, even dense grids land at ≤120px per cell — the SM
+  // source (384px) downsamples cleanly. Forcing FULL at 32×32 would
+  // try to decode 1024 × 1200² RGBA = ~5.8GB and crash the tab.
+  const variant = (cols * rows >= COLLAGE_SM_CELL_THRESHOLD) ? 'sm' : 'full';
+  await Promise.all(seeds.map(s => _ensureCachedBiom(s, variant)));
 
   // Materialise each cached entry as an HTMLImageElement we can
   // drawImage onto the canvas. Cached entry may be a remote URL
@@ -1864,7 +1914,7 @@ async function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
       i.crossOrigin = 'anonymous';
       i.onload  = () => resolve(i);
       i.onerror = () => reject(new Error(`cached img decode failed: ${seed}`));
-      i.src = collageCellCache.get(seed);
+      i.src = collageCellCache.get(variant + ':' + seed);
     });
   }));
 

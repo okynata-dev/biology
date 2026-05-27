@@ -45,6 +45,11 @@ from playwright.sync_api import sync_playwright
 
 
 ROOT = Path(__file__).resolve().parent.parent
+# DST is set in main() so --out-dir can override it. Default still
+# `pngs/cutout/` so existing workflow runs (full-size 1200×1200) are
+# unaffected. The 2026-05-27 SM variant points at `pngs/cutout-sm/`
+# so the two bakes don't overwrite each other when run from the same
+# working tree.
 DST  = ROOT / "pngs" / "cutout"
 
 
@@ -198,7 +203,16 @@ def main():
     ap.add_argument("--crop", action="store_true",
                     help="Bbox-crop the biom (tighter packing). Default OFF — saves the "
                          "full square frame so the biom looks identical to Single-mode preview.")
+    ap.add_argument("--out-dir", default=None,
+                    help="Output directory (default: pngs/cutout). Used by the SM variant "
+                         "to write to pngs/cutout-sm/ without colliding with the full bake.")
     args = ap.parse_args()
+
+    # Resolve output dir, allowing CLI flag → env var → default.
+    global DST
+    out_dir = args.out_dir or os.environ.get("BIOMS_CUTOUT_OUT_DIR")
+    if out_dir:
+        DST = Path(out_dir) if Path(out_dir).is_absolute() else ROOT / out_dir
 
     if args.only:
         seeds = [int(s) for s in args.only.split(",")]
