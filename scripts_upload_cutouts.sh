@@ -71,6 +71,13 @@ upload_one() {
 }
 export -f upload_one
 export BUCKET
+# CRITICAL: PREFIX must be exported too. Without this, xargs spawns each
+# bash -c subshell with PREFIX unset → upload_one builds the R2 key as
+# "${BUCKET}//${base}" which wrangler normalizes to bucket root. The
+# 2026-05-27 SM bake lost 3000 files this way: workflow reported success,
+# files landed at "/00214.webp" instead of "/cutout-sm/00214.webp", and
+# the audit only caught it because /make stayed broken.
+export PREFIX
 
 # Build the file list
 if [ "${#ONLY_SEEDS[@]}" -gt 0 ]; then
