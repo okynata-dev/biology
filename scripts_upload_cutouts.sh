@@ -95,6 +95,22 @@ fi
 # eliminates silent upload failures — better than re-running the workflow
 # four times to brute-force past the flake rate.
 echo "Uploading ${#files[@]} files to ${BUCKET}/cutout/ (sequential, SQLite-safe) …"
-printf '%s\n' "${files[@]}" | xargs -P 1 -I{} bash -c 'upload_one "$@"' _ {}
+
+# Capture xargs exit code instead of letting `set -e` kill the script on
+# the first hard failure (xargs returns 123 if ANY child upload_one fails
+# after its 3 retries). Reality: even with 99% success, one bad seed in
+# 3000 trips this — and the previous build of this script killed the
+# whole chunk after xargs, masking the fact that 1999 of 2000 files
+# uploaded fine. Now we log the failure count and exit 0 unless the
+# whole chunk imploded.
+xargs_rc=0
+printf '%s\n' "${files[@]}" | xargs -P 1 -I{} bash -c 'upload_one "$@"' _ {} || xargs_rc=$?
+
+if [ "$xargs_rc" -ne 0 ]; then
+  echo ""
+  echo "WARNING: xargs exited $xargs_rc — at least one upload failed after 3 retries."
+  echo "Failed files are tagged 'FAILED after 3 attempts:' in the log above."
+  echo "Re-run with --only <seeds> to retry only those. The successful uploads landed."
+fi
 
 echo "Done. Verify with: curl -I https://pngs.thebioms.com/cutout/00044.webp"

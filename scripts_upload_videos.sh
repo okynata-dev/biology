@@ -89,6 +89,19 @@ fi
 # stepping on each other deadlock with SQLITE_BUSY. Sequential is
 # ~8 min/chunk overhead — acceptable next to the ~50 min render.
 echo "Uploading ${#files[@]} files to ${BUCKET}/video/ (sequential, SQLite-safe) …"
-printf '%s\n' "${files[@]}" | xargs -P 1 -I{} bash -c 'upload_one "$@"' _ {}
+
+# Capture xargs exit code so `set -e` doesn't kill the chunk on a single
+# unrecoverable upload (xargs returns 123 if ANY child upload_one fails
+# after its 3 retries). One bad file in 300 shouldn't waste 49 successful
+# minutes of render work; the FAILED lines are visible in the log for a
+# targeted re-run with --only.
+xargs_rc=0
+printf '%s\n' "${files[@]}" | xargs -P 1 -I{} bash -c 'upload_one "$@"' _ {} || xargs_rc=$?
+
+if [ "$xargs_rc" -ne 0 ]; then
+  echo ""
+  echo "WARNING: xargs exited $xargs_rc — at least one upload failed after 3 retries."
+  echo "Failed files are tagged 'FAILED after 3 attempts:' in the log above."
+fi
 
 echo "Done. Verify with: curl -I https://pngs.thebioms.com/video/00044.mp4"
