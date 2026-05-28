@@ -117,11 +117,19 @@
 # so XFO is belt + braces. Without resetting it, the wildcard's DENY
 # would propagate and break embedding regardless of CSP.
 /preview.html
+  # Per-path overrides ADD to the wildcard headers in CF Pages — they
+  # don't replace. So we need explicit `! Header-Name` lines to remove
+  # the wildcard's frame-ancestors/X-Frame-Options FIRST, then set our
+  # permissive versions. Without the `!` lines the browser ANDs both
+  # CSPs and frame-ancestors 'none' wins (since 'none' is more
+  # restrictive than '*'), breaking OpenSea's iframe of animation_url.
+  ! Content-Security-Policy
+  ! X-Frame-Options
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
-  X-Frame-Options: ALLOWALL
 /preview
+  ! Content-Security-Policy
+  ! X-Frame-Options
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
-  X-Frame-Options: ALLOWALL
 
 # Metadata JSON — short cache so mutations can refresh quickly (Phase 2)
 # CORS open so OpenSea / marketplaces / explorers can fetch.
