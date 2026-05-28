@@ -69,7 +69,6 @@ These come from the project owner; honor them:
 | `explore.html` | Trait Explorer — 46 trait cards with pre-rendered PNGs (not iframes — that melted laptops). |
 | `preview.html` | The token renderer — pointed to by NFT `animation_url`. URL params: `?seed=N`, `?lite=1` (cheap), `?lite=2` (cheaper), `?cutout=1` (transparent), `?fit=1`, `?bg=white`, `?static=1`. |
 | `manifesto.html` | The long-form project story. Restrained tone, microbiology-academic. |
-| `pfp.html` | PFP/explore — save any Biom as PNG. |
 | `404.html` | Branded — broken Biom with drift animation. |
 | `asset-template.html` | OG/Twitter image template (only used by batch scripts, not in nav). |
 | `specimen-engine.js` | Shared rendering engine: `window.BiomEngine`. DOM render + 2D-canvas export path. **Filename has "specimen" in it — that's internal, do not rename.** |
@@ -93,7 +92,12 @@ Worker name: **`bioms-api`** (custom domain `api.thebioms.com`).
 | `GET /api/waitlist/count` | Live signup counter. |
 | `GET /api/metadata/<tokenId>` | **OpenSea metadata endpoint**, returns ERC-721 JSON. Used as token URI baseURI. |
 | `GET /api/preview/<tokenId>` | Pre-rendered preview image (animated WebP for mutated tokens). |
-| `POST /api/webhook/transfer` | Alchemy Notify webhook → wipes per-token cache on transfer. HMAC-gated. |
+<!-- /api/webhook/transfer was specced but never implemented. Cache-
+     invalidation on transfer would only help post-launch when secondary
+     sales happen; mint day has zero transfers (everything's an initial
+     mint). Leave as a post-launch TODO; the Lab's holdings call falls
+     back to a live Alchemy lookup when its KV cache misses, so there's
+     no broken UX in the meantime. -->
 
 Worker config (`wrangler.toml`):
 - D1: `bioms-lab` (schema in `schema.sql`)
@@ -183,11 +187,11 @@ Edit `worker.js` (server side — RNG, trait availability, D1 persist) AND `lab.
 - [ ] Rotate `ADMIN_TOKEN` if it's been in dev hands
 - [ ] Pinned tweet drafted
 - [ ] Polish OpenSea collection page (banner, royalties, description)
-- [ ] Smoke-test all routes: `/`, `/lab`, `/reserve`, `/make`, `/explore`, `/manifesto`, `/pfp`, `/api/health`
+- [ ] Smoke-test all routes: `/`, `/lab`, `/reserve`, `/make`, `/explore`, `/manifesto`, `/api/health`
 
 ### Smoke-test routes (fast)
 ```bash
-for path in / /lab /reserve /make /explore /manifesto /pfp; do
+for path in / /lab /reserve /make /explore /manifesto; do
   code=$(/usr/bin/curl -s -o /dev/null -w "%{http_code}" "https://thebioms.com$path")
   echo "$path → $code"
 done
