@@ -3130,10 +3130,10 @@
     <p class="flow-subtitle">The two become one. Only one name remains.</p>
     <div class="flow-name-pair">
       <button type="button" class="flow-name-btn" id="flowNameA">
-        <span class="flow-name-label" id="flowNameALabel">BIOM #—</span>
+        <span class="flow-name-label" id="flowNameALabel">Biom #—</span>
       </button>
       <button type="button" class="flow-name-btn" id="flowNameB">
-        <span class="flow-name-label" id="flowNameBLabel">BIOM #—</span>
+        <span class="flow-name-label" id="flowNameBLabel">Biom #—</span>
       </button>
     </div>
   </div>
@@ -3480,7 +3480,12 @@ const Wallet = {
     if (!await this.ensureChain(this.config.chainId)) {
       throw new Error(`Switch your wallet to chain ${this.config.chainId} (Ethereum) to conjugate.`);
     }
-    const nonce = Date.now();
+    // Cryptographically-random nonce. Was Date.now(), which had two
+    // problems: (a) two parallel signs in the same ms collided as
+    // nonce_used on the worker, and (b) the value was predictable, so
+    // a hostile relayer that intercepted a signed payload could
+    // pre-burn future nonces by replaying same-ms signatures.
+    const nonce = Number(crypto.getRandomValues(new Uint32Array(1))[0] >>> 0);
     const deadline = Date.now() + 5 * 60 * 1000;
     const signature = await this.signConjugate(donorId, recipientId, trait, nonce, deadline);
     const r = await fetch(`${WORKER_URL}/api/conjugate`, {
@@ -3591,7 +3596,9 @@ const Wallet = {
       throw new Error(`Switch your wallet to chain ${this.config.chainId} (Ethereum) to burn.`);
     }
 
-    const nonce = Date.now();
+    // Cryptographically-random nonce — see submitConjugate above for the
+    // full reasoning; same fix applied identically here.
+    const nonce = Number(crypto.getRandomValues(new Uint32Array(1))[0] >>> 0);
     const deadline = Date.now() + 5 * 60 * 1000;
 
     onProgress?.('signing');
@@ -3719,7 +3726,7 @@ function renderWalletHoldings() {
       (t.receivedAnomalies && t.receivedAnomalies.length > 0)
     );
     const padded = String(seed).padStart(5, '0');
-    const label = `BIOM #${seed}`;
+    const label = `Biom #${seed}`;
     if (isMutated) {
       return `<a class="holding-thumb" href="/preview.html?seed=${seed}" target="_blank" rel="noopener" aria-label="${label}" data-seed="${seed}" data-mutated="1"><div class="holding-inline"><div class="composition"></div></div></a>`;
     }
@@ -5158,7 +5165,7 @@ function renderSlot(el, role, seed, isTarget) {
     el.innerHTML = `
       <div class="slot-empty">
         <span class="role">${label}</span>
-        <span class="hint">${isTarget ? '👆 your turn' : 'Waiting'}</span>
+        <span class="hint">${isTarget ? 'Your turn' : 'Waiting'}</span>
       </div>
     `;
     return;
@@ -6137,6 +6144,29 @@ ritualHold.addEventListener('pointercancel', _ritualCancelHold);
 ritualCancel.addEventListener('click', closeBurnRitual);
 ritualContinue.addEventListener('click', closeBurnRitual);
 
+// Keyboard handlers — Space/Enter mirror press-and-hold for users who
+// can't use a pointer. Same 3 s commit threshold; releasing the key
+// (keyup) or moving focus away (blur) cancels the hold mid-flight, just
+// like pointerup / pointerleave. Without this, a motor-impaired
+// collector physically could not burn their own Biom.
+ritualHold.addEventListener('keydown', (e) => {
+  // event.repeat fires constantly while the key is held — only start
+  // the hold on the FIRST keydown so the 3 s timer doesn't reset every
+  // OS auto-repeat tick.
+  if (e.repeat) return;
+  if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    _ritualStartHold(e);
+  }
+});
+ritualHold.addEventListener('keyup', (e) => {
+  if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    _ritualCancelHold(e);
+  }
+});
+ritualHold.addEventListener('blur', _ritualCancelHold);
+
 // ============================================================
 // DRAG INTERACTIONS — desktop power shortcut.
 // Mouse/pen only — touch keeps tap-tap selection so the gesture
@@ -6355,13 +6385,13 @@ collectionGrid.addEventListener('click', (e) => {
       showMode(card.dataset.mode, { pushState: true });
     });
   });
-  if (backBtn) {
-    backBtn.addEventListener('click', (e) => {
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
-      e.preventDefault();
-      showChooser({ pushState: true });
-    });
-  }
+  // backBtn (#backToChooser) is dead DOM since the 2026-05-23 chooser
+  // removal — the element is hidden + aria-hidden, kept for graceful
+  // DOM-shape preservation. Its click handler used to call showChooser(),
+  // which was deleted at the same time. The element being unreachable
+  // through normal tabbing means the handler never fires today, but a
+  // CSS regression that unhid it would trigger a ReferenceError. Just
+  // don't wire the handler at all.
 
   // Browser back/forward — re-sync from URL.
   // Burn-only since 2026-05-23, so popstate always re-mounts burn.
@@ -6594,7 +6624,7 @@ collectionGrid.addEventListener('click', (e) => {
     return `<picture>
       <source type="image/webp" srcset="https://pngs.thebioms.com/thumb/${padded}.webp">
       <img src="https://pngs.thebioms.com/thumb/${padded}.png"
-           alt="BIOM #${seed}" loading="lazy" width="600" height="600">
+           alt="Biom #${seed}" loading="lazy" width="600" height="600">
     </picture>`;
   }
   function hydrateThumbs(root) {
@@ -6633,7 +6663,7 @@ collectionGrid.addEventListener('click', (e) => {
   }
 
   function labelOf(seed) {
-    return `BIOM #${String(seed).padStart(4, '0')}`;
+    return `Biom #${String(seed).padStart(4, '0')}`;
   }
 
   // =====================================================
@@ -6672,8 +6702,15 @@ collectionGrid.addEventListener('click', (e) => {
   });
 
   document.getElementById('flowIntroDemo').addEventListener('click', () => {
+    // If the user already clicked "Yes, I'm ready", a wallet poll is
+    // running. Cancel it — otherwise it stays alive in the background
+    // and 60 s later overwrites the demo state with a wallet-error.
+    if (walletPollTimer) {
+      clearInterval(walletPollTimer);
+      walletPollTimer = null;
+    }
     const statusEl = document.getElementById('flowIntroStatus');
-    statusEl.textContent = 'Drawing four random Bioms';
+    statusEl.textContent = 'Drawing six random Bioms';
     statusEl.className = 'flow-status working';
     lab.loadDemo(6);
     setTimeout(() => {
