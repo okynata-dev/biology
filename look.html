@@ -264,7 +264,44 @@
        was tuned against a cream background. On dark we add a faint
        drop shadow to keep them grounded. */
     filter: drop-shadow(0 12px 20px rgba(0, 0, 0, 0.5));
+    transition: opacity 0.4s ease;
   }
+
+  /* The live render iframe — same preview.html that OpenSea iframes as
+     animation_url. ?cutout=1 makes its body transparent so the biom sits
+     on our dark card without a cream chrome of its own. Only the active
+     card gets one mounted; side cards stay as static cutouts.
+
+     Sized to inset:0 to cover the card, but preview.html's internal
+     comp-scale (0.62 in cutout mode) keeps the biom centred within
+     roughly the same area the static cutout-img occupied — so the
+     transition from static→live is positionally consistent. */
+  .card-iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    border-radius: 24px;
+    /* Force GPU compositing — without this, the iframe's internal
+       backdrop-filter glass renders fight our carousel transforms. */
+    transform: translateZ(0);
+  }
+  .card-iframe.loaded {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  /* Hide the static cutout once the iframe takes over — both visible
+     at once produces a faint double-image during cursor parallax. */
+  .card.is-active .card-iframe.loaded ~ .card-meta,
+  .card.is-active .card-iframe.loaded {
+    /* keep meta visible above the iframe */
+  }
+  .card.is-active .card-biom.dimmed { opacity: 0; }
 
   .card-meta {
     position: absolute;
@@ -451,6 +488,7 @@ function rebuildCards() {
     card.innerHTML = `
       <div class="card-glass">
         <img class="card-biom" src="${PNG_BASE}/cutout-sm/${padded}.webp?v=${CUTOUT_V}" alt="" decoding="async" loading="${i < 4 ? 'eager' : 'lazy'}">
+        <iframe class="card-iframe" src="about:blank" title="Biom #${padded} live preview" tabindex="-1" loading="lazy"></iframe>
         <div class="card-meta">
           <div class="card-label">Biom · #${padded}</div>
           <div class="card-name">Series I</div>
@@ -474,6 +512,67 @@ function rebuildCards() {
   });
   counterTotal.textContent = String(seeds.length).padStart(2, '0');
   positionCards();
+}
+
+// ----- Live iframe management -----
+// Only the active card gets a live preview.html iframe. Side cards stay
+// as static cutouts — 12 simultaneous engine instances would burn
+// laptops the same way explore.html's iframe grid did before we baked
+// it to PNGs. The iframe is the SAME page OpenSea uses as animation_url,
+// so what the user sees on /look is byte-identical to what they'll get
+// on the marketplace.
+//
+// Lifecycle per navigation:
+//   1. Old active card: src ← 'about:blank' → engine document unloaded,
+//      memory released, .loaded class removed → fades back to 0 opacity.
+//      The static cutout underneath remains, so the card never goes blank.
+//   2. New active card: src ← /preview.html?seed=N&cutout=1.
+//      ?cutout=1 makes its body transparent (matches the dark card).
+//      Cursor parallax is built into preview.html (line 1761 there) and
+//      activates because we don't pass ?static or ?nointeract.
+//   3. On iframe.onload: add .loaded → opacity transitions to 1, the
+//      static cutout fades out (.dimmed on .card-biom). The hand-off is
+//      ~500ms — slow enough to read as a deliberate reveal, fast enough
+//      to feel responsive.
+function mountActiveIframe() {
+  cardEls.forEach((card, i) => {
+    const iframe = card.querySelector('.card-iframe');
+    const biom   = card.querySelector('.card-biom');
+    if (!iframe) return;
+    if (i === currentIndex) {
+      const seed = seeds[i];
+      const padded = String(seed).padStart(5, '0');
+      const desired = `/preview.html?seed=${seed}&cutout=1`;
+      if (iframe.dataset.src !== desired) {
+        iframe.dataset.src = desired;
+        iframe.classList.remove('loaded');
+        if (biom) biom.classList.remove('dimmed');
+        // Detach old onload handler before reassigning to avoid leaks
+        iframe.onload = () => {
+          // Only honor this load if we're still pointed at the same seed —
+          // the user might have navigated past during the load.
+          if (iframe.dataset.src === desired) {
+            iframe.classList.add('loaded');
+            if (biom) biom.classList.add('dimmed');
+          }
+        };
+        iframe.src = desired;
+      } else {
+        // Same seed, already loaded — just re-reveal.
+        iframe.classList.add('loaded');
+        if (biom) biom.classList.add('dimmed');
+      }
+    } else {
+      // Inactive — unmount, free memory, restore static cutout
+      if (iframe.dataset.src) {
+        iframe.classList.remove('loaded');
+        iframe.src = 'about:blank';
+        delete iframe.dataset.src;
+        iframe.onload = null;
+      }
+      if (biom) biom.classList.remove('dimmed');
+    }
+  });
 }
 
 // ----- Position every card based on its signed distance from current -----
@@ -525,6 +624,12 @@ function positionCards() {
   // Update counter
   const c = counter.querySelector('.now');
   if (c) c.textContent = String(currentIndex + 1).padStart(2, '0');
+
+  // Mount the live iframe on the new active card, unmount from old.
+  // Called after layout updates so the iframe inherits the right card's
+  // transform and shadow chain. Defers actual src assignment by one frame
+  // so the carousel scroll animation isn't interrupted by iframe load.
+  requestAnimationFrame(mountActiveIframe);
 }
 
 // ----- Navigation -----
