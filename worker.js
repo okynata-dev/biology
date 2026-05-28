@@ -1277,12 +1277,17 @@ async function buildMetadata(env, tokenId) {
   const imageUrl = `https://pngs.thebioms.com/preview/${padded}.png?v=${imageVersion}`;
 
   return {
-    // "BIOM #N" — no padding, max ID is 2999 so digit count tops out at
-    // 4 chars and reads cleaner than "BIOM #00001". Genus name (the old
+    // "Biom #N" — no padding, max ID is 2999 so digit count tops out at
+    // 4 chars and reads cleaner than "Biom #00001". Genus name (the old
     // "PHAGOPHILIA" style identifier) is preserved as a Species trait so
     // the character isn't lost — it just doesn't crowd the title.
-    name: `BIOM #${tokenId}`,
-    description: 'A living microbe from the Bioms collection — 3,000 generative Bioms that share traits, burn each other, and evolve. The survivors carry everything forward. thebioms.com',
+    // The capitalised form is canonical brand voice: "Biom" / "Bioms",
+    // never all-caps. The all-caps version leaked into pre-launch
+    // metadata; once OpenSea has indexed a token name it stays cached
+    // for the life of the listing, so this name has to be right before
+    // first mint.
+    name: `Biom #${tokenId}`,
+    description: 'A living microbe from the Bioms collection — 3,000 procedural microbial organisms on Ethereum. They share traits, burn each other, and evolve. The survivors carry everything forward. thebioms.com',
     // Static image — for mutated tokens this URL gets re-uploaded by
     // renderTokenMaster() after each burn/conjugate (Browser Rendering
     // pipeline). The ?v=N query bumps each regen → CDN cache busts →

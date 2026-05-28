@@ -364,7 +364,9 @@
        At T-0 #cdPreState is hidden and #cdLiveState is shown (waitlist
        form is moot once anyone can mint on OpenSea). -->
   <div id="cdPreState">
-    <div class="countdown" id="countdown" aria-live="polite" aria-label="Time until WL mint opens">
+    <!-- aria-live removed: ticking countdown spams screen readers every
+         second. aria-label still announces the purpose on focus. -->
+    <div class="countdown" id="countdown" aria-label="Time until WL mint opens">
       <div class="cd-unit"><span class="cd-num" id="cdDays">—</span><span class="cd-lbl">Days</span></div>
       <div class="cd-sep">:</div>
       <div class="cd-unit"><span class="cd-num" id="cdHrs">—</span><span class="cd-lbl">Hrs</span></div>

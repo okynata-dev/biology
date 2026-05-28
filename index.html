@@ -915,7 +915,11 @@
       <div id="dropPre">
         <h2>The drop.</h2>
         <p>WL mint opens <strong>June 5, 7&nbsp;PM GMT+7</strong> · 0.0069&nbsp;ETH · 3,000 Bioms, capped, on OpenSea.</p>
-        <div class="countdown" id="countdown" aria-live="polite" aria-label="Time until mint">
+        <!-- aria-live removed: ticking countdown announced every second
+             rendered screen readers unusable (~5,000 announcements per
+             pre-mint browse session). Sighted users see the count; SR
+             users get the aria-label on focus, which is enough. -->
+        <div class="countdown" id="countdown" aria-label="Time until mint">
           <div class="cd-unit"><span class="cd-num" id="cdDays">—</span><span class="cd-lbl">Days</span></div>
           <div class="cd-sep">:</div>
           <div class="cd-unit"><span class="cd-num" id="cdHrs">—</span><span class="cd-lbl">Hrs</span></div>

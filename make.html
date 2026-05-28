@@ -1269,7 +1269,7 @@ async function renderLive() {
     const loaderTxt = document.getElementById('collageLoaderTxt');
     liveComp.classList.add('collage-grid', 'loading');
     if (loader) loader.classList.add('show');
-    if (loaderTxt) loaderTxt.textContent = `Loading ${total} specimen${total > 1 ? 's' : ''} · 0/${total}`;
+    if (loaderTxt) loaderTxt.textContent = `Loading ${total} ${total > 1 ? 'Bioms' : 'Biom'} · 0/${total}`;
 
     // Variant frozen for this render — density check happens once so all
     // cells of one collage use the same resolution (mixing breaks the
@@ -1281,7 +1281,7 @@ async function renderLive() {
     await Promise.all(seeds.map(s => _ensureCachedBiom(s, variant).then((r) => {
       done++;
       if (loaderTxt && (done % 4 === 0 || done === total)) {
-        loaderTxt.textContent = `Loading ${total} specimen${total > 1 ? 's' : ''} · ${done}/${total}`;
+        loaderTxt.textContent = `Loading ${total} ${total > 1 ? 'Bioms' : 'Biom'} · ${done}/${total}`;
       }
       return r;
     })));
@@ -2067,7 +2067,7 @@ packBtn.addEventListener('click', async () => {
       // small gap so the browser handles each download cleanly
       await new Promise(r => setTimeout(r, 350));
     }
-    packBtn.textContent = '✓ Pack downloaded';
+    packBtn.textContent = 'Pack downloaded';
     setRenderStatus(`Pack: ${formats.length}/${formats.length} rendered`, 'ok');
     setTimeout(() => {
       packBtn.textContent = PACK_LABEL;
