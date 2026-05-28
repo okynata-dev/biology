@@ -88,6 +88,12 @@
 /soup.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
+/look
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
+/look.html
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY
 /404
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
@@ -154,6 +160,8 @@
 /unrevealed
   Cache-Control: public, max-age=60, must-revalidate
 /soup
+  Cache-Control: public, max-age=60, must-revalidate
+/look
   Cache-Control: public, max-age=60, must-revalidate
 
 # 404 explicitly NOT cached — without this, /*.html catches /404.html
