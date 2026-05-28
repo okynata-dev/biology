@@ -268,11 +268,12 @@ def main():
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--settle", type=int, default=600,
                     help="ms to wait after engine-ready before starting capture.")
-    ap.add_argument("--crf", type=int, default=18,
-                    help="H.264 quality (lower = better, larger). 18=visually lossless, "
-                         "23=YouTube default, 28=heavy compression. Default 18 — the "
-                         "2026-05 bake at 23 produced visible smearing on glass details "
-                         "when minterpolate ran at 60fps on slow-ambient biom motion.")
+    ap.add_argument("--crf", type=int, default=14,
+                    help="H.264 quality (lower = better, larger). 14=archival-grade, "
+                         "18=visually lossless, 23=YouTube default. Default 14 — the "
+                         "2026-05 bake at 23 produced visible smearing on glass details. "
+                         "Stepped 23→18→14 over user testing; 14 was the floor before "
+                         "files got noticeably bigger without visible improvement.")
     ap.add_argument("--trim-start", type=float, default=1.0,
                     help="Seconds to trim from the head of each clip — drops the blank/"
                          "loading frames before engine-ready. Default 1.0. Pass 0 to keep "
