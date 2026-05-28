@@ -144,6 +144,14 @@ def webm_to_mp4(webm_path: Path, mp4_path: Path, crf: int, trim_start: float,
     cmd += [
         "-c:v", "libx264",
         "-preset", "slow",
+        # -tune animation: H.264 preset optimised for content with low
+        # spatial detail movement + flat colour areas + glass/gradient
+        # details. CRF 23 default looked fine on a fast scrubber but
+        # produced ~350 kbps at 1080p60 on slow-ambient biom motion,
+        # which the user reported as "choppy/smeary". Decoder simply
+        # couldn't reconstruct glass/halo detail at that bit budget.
+        # -tune animation + lower CRF gets us to ~1.5 Mbps, smooth.
+        "-tune", "animation",
         "-crf", str(crf),
         "-pix_fmt", "yuv420p",          # max compatibility (iOS Safari, Twitter)
         "-movflags", "+faststart",
@@ -260,9 +268,11 @@ def main():
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--settle", type=int, default=600,
                     help="ms to wait after engine-ready before starting capture.")
-    ap.add_argument("--crf", type=int, default=23,
+    ap.add_argument("--crf", type=int, default=18,
                     help="H.264 quality (lower = better, larger). 18=visually lossless, "
-                         "23=YouTube default, 28=heavy compression. Default 23.")
+                         "23=YouTube default, 28=heavy compression. Default 18 — the "
+                         "2026-05 bake at 23 produced visible smearing on glass details "
+                         "when minterpolate ran at 60fps on slow-ambient biom motion.")
     ap.add_argument("--trim-start", type=float, default=1.0,
                     help="Seconds to trim from the head of each clip — drops the blank/"
                          "loading frames before engine-ready. Default 1.0. Pass 0 to keep "
