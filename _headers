@@ -123,13 +123,24 @@
   # permissive versions. Without the `!` lines the browser ANDs both
   # CSPs and frame-ancestors 'none' wins (since 'none' is more
   # restrictive than '*'), breaking OpenSea's iframe of animation_url.
+  #
+  # NOTE: the index hero iframe loads `preview.html` directly. CF Pages
+  # 308-redirects /preview.html → /preview, and the BROWSER follows the
+  # redirect using the FINAL URL's headers — so the /preview block
+  # below has to carry the same permissive CSP. The Cache-Control
+  # entry for /preview that used to live further down was REPLACING
+  # this whole block (CF Pages uses the last matching rule), which
+  # silently re-enforced frame-ancestors 'none' and broke the hero.
+  # All /preview rules now live here, single block.
   ! Content-Security-Policy
   ! X-Frame-Options
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
+  Cache-Control: public, max-age=60, must-revalidate
 /preview
   ! Content-Security-Policy
   ! X-Frame-Options
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
+  Cache-Control: public, max-age=60, must-revalidate
 
 # Metadata JSON — short cache so mutations can refresh quickly (Phase 2)
 # CORS open so OpenSea / marketplaces / explorers can fetch.
@@ -185,8 +196,9 @@
   Cache-Control: public, max-age=60, must-revalidate
 /make
   Cache-Control: public, max-age=60, must-revalidate
-/preview
-  Cache-Control: public, max-age=60, must-revalidate
+# /preview Cache-Control moved into the consolidated /preview block
+# above (security overrides + Cache-Control together) — having it here
+# was creating a second matching rule that REPLACED the security block.
 /unrevealed
   Cache-Control: public, max-age=60, must-revalidate
 /soup
