@@ -217,6 +217,7 @@ cd /Users/okynata/Desktop/bioms && \
 - **Never add emojis** to site copy or commit messages. The brand voice is restrained.
 - **Never call Bioms "specimens"** in user-facing copy. CSS classes and internal JS variables (`renderSpecimen`, `.ritual-specimen`) are fine — don't rename those.
 - **Never deploy lab.html changes without local smoke-test.** The burn flow has ~5500 lines of intertwined state. Use `preview_start` + the preview MCP tools, walk Act 1 → Act 5 in demo mode, confirm nothing breaks. THEN commit.
+- **Never add a per-path rule to `_headers` without grepping for duplicates first.** CF Pages does NOT merge multiple blocks for the same path — the LAST matching block replaces all earlier ones entirely. Two `/preview` blocks (one for security, one for Cache-Control) silently nuked the security overrides on 2026-05-28 and broke the homepage hero iframe. Always consolidate rules for one path into one block.
 
 ---
 
