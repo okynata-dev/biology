@@ -832,6 +832,12 @@
   </div>
 </nav>
 
+<!-- <main> wraps every content section so screen-reader 'jump to main'
+     lands on the actual page body, not the nav. id="main" stays on the
+     hero section so the existing #main skip-link still anchors to the
+     same visual spot (just inside <main> now). -->
+<main>
+
 <section class="hero" id="main">
   <div class="wrap">
     <div class="hero-grid">
@@ -945,6 +951,8 @@
     </div>
   </div>
 </section>
+
+</main>
 
 <footer>
   <div class="footer-meta">
