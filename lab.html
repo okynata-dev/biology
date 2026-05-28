@@ -6730,9 +6730,52 @@ collectionGrid.addEventListener('click', (e) => {
         walletPollTimer = null;
         const statusEl = document.getElementById('flowIntroStatus');
         if (lab.ownedSeeds.length < 2) {
-          statusEl.textContent = lab.contractDeployed
+          // Empty / under-capacity wallet was a dead-end before — the
+          // text just said 'Need at least two Bioms' and that was it.
+          // Now we offer actionable next steps inline: try the demo
+          // (no chain interaction), or browse the collection on OpenSea
+          // and pick some up. The OpenSea button only shows post-mint
+          // (contractDeployed && ownedSeeds checked against on-chain).
+          const isPostMint = lab.contractDeployed;
+          const msg = isPostMint
             ? 'Need at least two Bioms in this wallet to continue.'
-            : 'The mint has not opened yet. Try the demo below.';
+            : 'The mint has not opened yet.';
+          statusEl.innerHTML = '';
+          const text = document.createElement('div');
+          text.textContent = msg;
+          text.style.marginBottom = '14px';
+          statusEl.appendChild(text);
+          const ctaRow = document.createElement('div');
+          ctaRow.style.cssText = 'display:flex; gap:10px; flex-wrap:wrap; justify-content:center;';
+          // Try the demo button — same handler as the intro demo CTA.
+          const demoBtn = document.createElement('button');
+          demoBtn.type = 'button';
+          demoBtn.className = 'btn btn-ghost';
+          demoBtn.textContent = 'Try the demo';
+          demoBtn.addEventListener('click', () => {
+            statusEl.innerHTML = '';
+            statusEl.className = 'flow-status working';
+            statusEl.textContent = 'Drawing six random Bioms';
+            lab.loadDemo(6);
+            setTimeout(() => {
+              statusEl.textContent = '';
+              statusEl.className = 'flow-status';
+              goToPick();
+            }, 350);
+          });
+          ctaRow.appendChild(demoBtn);
+          // OpenSea link only after the mint opens — pre-mint the
+          // listing doesn't exist as a buyable thing yet.
+          if (isPostMint) {
+            const seaLink = document.createElement('a');
+            seaLink.className = 'btn btn-ghost';
+            seaLink.href = 'https://opensea.io/collection/bioms';
+            seaLink.target = '_blank';
+            seaLink.rel = 'noopener';
+            seaLink.textContent = 'See on OpenSea';
+            ctaRow.appendChild(seaLink);
+          }
+          statusEl.appendChild(ctaRow);
           statusEl.className = 'flow-status error';
           return;
         }

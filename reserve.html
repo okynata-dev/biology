@@ -287,6 +287,20 @@
   }
   .success-cta-btn:hover { background: var(--ink); color: var(--bg); }
 
+  /* Submit error region. Quiet warm-ember tint (matches the brand burn
+     accent at 1/3 strength) — readable as a problem without screaming. */
+  .form-error {
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-radius: var(--r-sm);
+    background: var(--burn-soft);
+    border: 1px solid var(--burn-glow);
+    color: var(--burn);
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .form-error:empty { display: none; }
+
   .success-secondary {
     margin-top: 22px;
     padding-top: 20px;
@@ -396,6 +410,14 @@
       </div>
       <button type="submit" class="btn" id="reserveSubmit" disabled>Save my spot</button>
     </form>
+    <!-- Submit error region. Hidden until a submit fails. aria-live=polite
+         so screen readers announce on appearance, but not on every text
+         change (assertive would spam during typing-correction flow). The
+         submit handler writes a humanised message based on err.code, so
+         users see WHY it failed instead of a vague 'Try again' on the
+         button. Without this, on mint day a 5xx blip would leave users
+         re-submitting the same form thinking nothing is happening. -->
+    <div class="form-error" id="formError" hidden aria-live="polite" role="status"></div>
     <div class="live-counter" id="liveCounter" hidden>
       <strong id="liveCount">—</strong> already in
     </div>
@@ -540,8 +562,40 @@ function showSuccess(resp) {
   // users want next regardless of first vs returning signup.
 }
 
+// Humanise worker error codes for the form-error region. Each code maps
+// to a short user-facing line + (optional) actionable hint. Codes that
+// aren't in the map fall back to a generic 'Try again in a moment.'
+const ERROR_COPY = {
+  rate_limited: 'Too many attempts from this network. Wait a few minutes and try again.',
+  origin_required: 'Your browser blocked the request. Refresh the page and try again.',
+  forbidden_origin: 'Your browser blocked the request. Refresh the page and try again.',
+  bad_address: 'That address didn\'t validate. Check the 0x format or use the ENS name.',
+  bad_value: 'That entry doesn\'t look like a wallet address.',
+  ens_unresolvable: 'We couldn\'t resolve that ENS name. Try the 0x address directly.',
+  body_too_large: 'The form submission was too large. Refresh and try again.',
+  value_too_long: 'That entry is too long — paste only the address.',
+  invalid_json: 'Something got malformed. Refresh and try again.',
+  bad_kind: 'Form layout outdated — refresh the page.',
+};
+
+const formError = document.getElementById('formError');
+function showFormError(message) {
+  formError.textContent = message;
+  formError.hidden = false;
+}
+function clearFormError() {
+  formError.textContent = '';
+  formError.hidden = true;
+}
+
+// Clear the error region when the user starts editing — most retry
+// attempts start with a fresh input. Lets us re-show on next failure
+// without leaving stale text underneath.
+input.addEventListener('input', clearFormError);
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
+  clearFormError();
   const r = classify(input.value);
   if (!r.valid) return;
   submitBtn.disabled = true;
@@ -550,11 +604,15 @@ form.addEventListener('submit', async (e) => {
     const resp = await submitReservation(r.value);
     showSuccess(resp);
   } catch (err) {
-    // Re-enable the button so the user can try again. Don't show a
-    // wall of error text — most failures here are transient (network
-    // blip, rate-limit) and a retry just works.
+    // Re-enable the button + show a humanised reason in the error
+    // region so the user understands WHY it failed (was: just 'Try
+    // again' on the button, which left users re-submitting the same
+    // payload thinking nothing was happening).
     submitBtn.disabled = false;
     submitBtn.textContent = 'Try again';
+    const code = err && err.message;
+    const msg = ERROR_COPY[code] || 'Network blip — try again in a moment. If this keeps happening, refresh the page.';
+    showFormError(msg);
   }
 });
 
