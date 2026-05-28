@@ -1598,6 +1598,17 @@ async function _sha256Hex(text) {
 }
 
 async function handleWaitlistAdd(req, env, origin) {
+  // Stricter Origin check on this endpoint than the global one in fetch().
+  // The global guard allows missing Origin to support server-to-server
+  // calls and webhooks. The waitlist is a public form that has no real
+  // server-to-server caller — every legit POST comes from a browser
+  // submitting reserve.html. Requiring Origin closes a curl-from-botnet
+  // attack vector that would otherwise hit D1 + Alchemy quotas freely.
+  // The global guard already 403s on a present-but-wrong Origin, so this
+  // only catches the present-but-empty case (curl with no Origin set).
+  const reqOrigin = req.headers.get('Origin') || '';
+  if (!reqOrigin) return error('origin_required', 403, origin);
+
   let body;
   try { body = await req.json(); }
   catch { return error('invalid_json', 400, origin); }
