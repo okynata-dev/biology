@@ -63,7 +63,16 @@ function error(msg, status = 400, origin = '') {
 // ----- Game constants (mirror lab.html) -----
 // MAX_TOKEN_ID — single source of truth for the supply bound. If Series II
 // ever ships, override via env.MAX_TOKEN_ID (string) instead of code edits.
-const DEFAULT_MAX_TOKEN_ID = 2999;  // 0..2999 = 3000 tokens
+//
+// IMPORTANT (2026-05-29): the OpenSea SeaDrop contract mints token IDs
+// 1..3000, NOT 0..2999 (ERC721SeaDrop._startTokenId() == 1, confirmed by
+// a test-contract mint). The worker maps tokenId -> art seed by identity
+// (token N renders engine seed N), so the valid range must include 3000.
+// Bound is therefore 3000, not 2999. Token 0 stays valid-but-unused (no
+// token #0 ever mints), and art seed 0 is simply not part of the minted
+// collection — the collection is engine seeds 1..3000. The static master
+// for seed 3000 was rendered + uploaded to R2 alongside this change.
+const DEFAULT_MAX_TOKEN_ID = 3000;  // contract mints 1..3000 (SeaDrop is 1-indexed)
 function maxTokenId(env) {
   const v = parseInt(env && env.MAX_TOKEN_ID, 10);
   return Number.isFinite(v) && v >= 0 ? v : DEFAULT_MAX_TOKEN_ID;
@@ -1277,7 +1286,7 @@ async function buildMetadata(env, tokenId) {
   const imageUrl = `https://pngs.thebioms.com/preview/${padded}.png?v=${imageVersion}`;
 
   return {
-    // "Biom #N" — no padding, max ID is 2999 so digit count tops out at
+    // "Biom #N" — no padding, max ID is 3000 so digit count tops out at
     // 4 chars and reads cleaner than "Biom #00001". Genus name (the old
     // "PHAGOPHILIA" style identifier) is preserved as a Species trait so
     // the character isn't lost — it just doesn't crowd the title.
