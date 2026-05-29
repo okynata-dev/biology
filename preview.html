@@ -10,6 +10,27 @@
 <title>Bioms</title>
 <meta name="description" content="A single Biom — generative microbiology rendered live in your browser.">
 <meta name="theme-color" content="#ffffff">
+
+<!-- Social card. preview.html had NO og/twitter tags, so shared token
+     links rendered a blank card on X/Discord/iMessage. These give a
+     brand card for any shared /preview link. NOTE: this is the GENERIC
+     card (same image for every seed) — true per-token og:image needs
+     server-side injection (crawlers don't run JS), tracked as a
+     post-launch worker route. Static tags here are safe: meta tags
+     don't affect the iframe render OpenSea uses as animation_url. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bioms">
+<meta property="og:title" content="Bioms — a living microbe">
+<meta property="og:description" content="Three thousand procedural microbial organisms on Ethereum. They share traits, burn each other, and evolve.">
+<meta property="og:url" content="https://thebioms.com/preview">
+<meta property="og:image" content="https://thebioms.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A Biom — glass-morph microbial cells">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@theBioms">
+<meta name="twitter:image" content="https://thebioms.com/og-image.png">
+<meta name="twitter:image:alt" content="A Biom — glass-morph microbial cells">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <style>
