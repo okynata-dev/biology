@@ -1,46 +1,42 @@
 #!/usr/bin/env python3
 """
-make-videos.py — record a short looping MP4 of every biom's live render.
+make-videos.py — render a SEAMLESSLY LOOPING MP4 of every biom.
 
-Each output is a square H.264 MP4 of the biom's natural breathing animation,
-suitable for downloads, embeds, Twitter / Discord posts, and the
-"Download MP4" CTA inside preview.html.
+Each output is a square H.264 MP4 of the biom's idle motion that loops with
+no visible seam (the last frame's motion state is identical to the first),
+suitable for the "Download MP4" CTA in preview.html, embeds, and Twitter /
+Discord / Telegram posts.
+
+How the seamless loop works:
+  The live engine's idle motion is a sum of sines with INCOMMENSURATE
+  frequencies — it never exactly repeats, so a naive recording jumps on
+  loop. preview.html's ?loop=N mode snaps every motion frequency to a whole
+  number of cycles per N seconds, making the motion EXACTLY N-periodic:
+  frame at t=N == frame at t=0. We then render frames DETERMINISTICALLY via
+  window.__seek(t) (t = frame/fps), so the clip is a perfect, jitter-free
+  loop — no real-time capture, no dropped/duplicated frames, no minterpolate.
+
+  The live token (animation_url, no params) is untouched: ?loop is a no-op
+  there, so OpenSea keeps the infinite, non-quantized motion.
 
 Pipeline per seed:
-  Playwright launches Chromium with record_video_dir set
-    ↓ opens preview.html?seed=N
-    ↓ waits for body.engine-ready
-    ↓ stays open for VIDEO_DURATION seconds (records every frame)
-    ↓ closes page → Playwright finalises the WebM (VP8)
-    ↓ ffmpeg converts WebM → MP4 (H.264, +faststart, no audio)
+  Playwright opens preview.html?seed=N&loop=LOOP&render=1
+    ↓ waits for window.__biomReady
+    ↓ hides the Download CTAs
+    ↓ for i in 0..LOOP*fps-1: __seek(i/fps) → screenshot frame
+    ↓ ffmpeg encodes the PNG sequence → H.264 MP4 (+faststart, no audio)
     ↓ writes pngs/video/{seed:05d}.mp4
-    ↓ removes the WebM source
 
-Why H.264 / MP4 over native WebM:
-  Marketplaces (OpenSea), Twitter, Discord, iOS Mail and a chunk of
-  mobile Safari versions render H.264 reliably; VP8 is hit-or-miss on
-  those surfaces. The file-size cost is small for a 15s 1080p loop
-  (≈ 1 MB), and faststart lets the player begin before the file
-  finishes downloading.
-
-Why 15 seconds (and not 60 as originally discussed):
-  Breathing-cycle period varies per biom but lives in the 3-5 s band,
-  so 15 s gives 3-4 full loops — enough for the eye to read "alive"
-  without burning storage or social-platform attention. 60 s files
-  are ~4 MB each → 12 GB for the collection, which pushes us past R2
-  free tier with no perceptual benefit.
+Seeds map to token IDs by identity (SeaDrop is 1-indexed): tokens are
+1..3000, so the default render range is 1..3000. (Old 0-indexed batches
+left a stray 00000.mp4; it's unused — no token 0 — and harmless.)
 
 Usage:
-    python3 scripts/make-videos.py                  # all 3000
+    python3 scripts/make-videos.py                  # all tokens 1..3000
     python3 scripts/make-videos.py --only 44,132    # specific seeds
     python3 scripts/make-videos.py --workers 4      # parallel browsers
-    python3 scripts/make-videos.py --duration 20    # longer loops
-    python3 scripts/make-videos.py --size 720       # smaller frame
-
-Output:
-    pngs/video/00000.mp4
-    pngs/video/00001.mp4
-    ...
+    python3 scripts/make-videos.py --loop 16        # loop length (s)
+    python3 scripts/make-videos.py --fps 30 --size 1080
 
 After running, upload via:
     bash scripts_upload_videos.sh
@@ -72,8 +68,8 @@ DST  = ROOT / "pngs" / "video"
 
 
 def find_chrome():
-    """Auto-detect Chrome / Chromium binary so users get the system render
-    they're familiar with. None lets Playwright pick its own."""
+    """Auto-detect Chrome / Chromium so output matches the local render.
+    None lets Playwright pick its bundled Chromium (CI path)."""
     system = platform.system()
     candidates = []
     if system == "Darwin":
@@ -108,134 +104,74 @@ def start_server(directory, port):
     return httpd
 
 
-def webm_to_mp4(webm_path: Path, mp4_path: Path, crf: int, trim_start: float,
-                fps: int):
-    """ffmpeg convert. CRF 23 is the YouTube-ish quality default; 18-20
-    is visually lossless but ~2× file size. -an strips any audio track
-    (Bioms are silent). +faststart moves the moov atom to the front so
-    players can start before the file finishes downloading.
+def encode_frames(frame_glob: Path, mp4_path: Path, fps: int, crf: int):
+    """Encode a deterministic frame sequence into a looping H.264 MP4.
 
-    trim_start: seconds to skip from the head of the recording. Playwright
-    starts recording from context creation, so the first ~0.5-1s of every
-    capture is a blank/loading frame before engine-ready fires. Default 1s
-    trim drops that cleanly. Pass 0 to keep the full clip.
-
-    fps: target output framerate. Playwright's record_video captures at a
-    hard-coded 25 fps on Linux runners, which looks choppy on 60/120 Hz
-    displays for slow glass animations. Bumping to 60 fps via ffmpeg's
-    `minterpolate` filter generates real motion-compensated intermediate
-    frames (not just duplicates), so the breathing reads as smooth.
-    Cost: ~3-5× the encode time per file. Pass fps == source rate (25)
-    to skip interpolation entirely."""
-    cmd = ["ffmpeg", "-y", "-loglevel", "error"]
-    if trim_start > 0:
-        # -ss BEFORE -i is fast (keyframe seek). We re-encode anyway so
-        # the slight inaccuracy doesn't matter, and it cuts the seek
-        # overhead vs putting -ss after -i.
-        cmd += ["-ss", f"{trim_start}"]
-    cmd += ["-i", str(webm_path)]
-    if fps > 25:
-        # minterpolate parameters tuned for the biom case: slow ambient
-        # motion, no rapid scene changes, no occlusion. `mci` (motion
-        # compensated interpolation) + `aobmc` (adaptive overlapped block)
-        # gives noticeably smoother output than naive frame duplication
-        # without tearing or ghost artefacts.
-        cmd += ["-vf", f"minterpolate=fps={fps}:mi_mode=mci:mc_mode=aobmc:vsbmc=1"]
-    cmd += [
+    No minterpolate (frames are already the exact per-time states), no head
+    trim (deterministic render never has a loading flash). -tune animation
+    suits the flat-colour / glass / gradient content; +faststart lets players
+    begin before the file finishes; -an drops the (absent) audio track.
+    The clip is exactly one motion period, so it loops with no seam."""
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-framerate", str(fps),
+        "-i", str(frame_glob),
         "-c:v", "libx264",
         "-preset", "slow",
-        # -tune animation: H.264 preset optimised for content with low
-        # spatial detail movement + flat colour areas + glass/gradient
-        # details. CRF 23 default looked fine on a fast scrubber but
-        # produced ~350 kbps at 1080p60 on slow-ambient biom motion,
-        # which the user reported as "choppy/smeary". Decoder simply
-        # couldn't reconstruct glass/halo detail at that bit budget.
-        # -tune animation + lower CRF gets us to ~1.5 Mbps, smooth.
         "-tune", "animation",
         "-crf", str(crf),
-        "-pix_fmt", "yuv420p",          # max compatibility (iOS Safari, Twitter)
+        "-pix_fmt", "yuv420p",        # max compatibility (iOS Safari, Twitter)
         "-movflags", "+faststart",
-        "-an",                           # no audio track
+        "-an",
         str(mp4_path),
     ]
     subprocess.run(cmd, check=True)
 
 
-def render_one(port: int, seed: int, size: int, duration_s: float,
-               settle_ms: int, crf: int, trim_start: float, fps: int,
-               chrome_path):
-    """Record one biom. Spins up a fresh Playwright context per seed so
-    record_video_dir applies cleanly — the context-per-seed cost (~600ms
-    of browser boot) is dwarfed by the recording duration itself.
-
-    The trim_start arg is treated as a MINIMUM: we also measure how long
-    Playwright takes to reach `body.engine-ready` from context creation
-    and trim AT LEAST that much. On CI the page can take 1.5-2s to paint
-    before the engine signals ready; a hard-coded 1.0s trim left a white
-    flash at the start of every clip."""
+def render_one(port: int, seed: int, size: int, loop_s: float, fps: int,
+               crf: int, chrome_path):
+    """Render one biom's seamless loop. A fresh context per seed keeps state
+    clean; deterministic __seek stepping makes the loop exact."""
+    frames = int(round(loop_s * fps))
     with sync_playwright() as p:
         launch_args = {"headless": True}
         if chrome_path:
             launch_args["executable_path"] = chrome_path
         browser = p.chromium.launch(**launch_args)
-        tmpdir = Path(tempfile.mkdtemp(prefix="bioms-video-"))
+        tmpdir = Path(tempfile.mkdtemp(prefix="bioms-loop-"))
         try:
-            # Mark when recording starts. record_video_dir captures frames
-            # from the moment new_context returns, so we measure from here.
-            t_record_start = time.time()
             ctx = browser.new_context(
                 viewport={"width": size, "height": size},
-                record_video_dir=str(tmpdir),
-                record_video_size={"width": size, "height": size},
+                device_scale_factor=1,
             )
             page = ctx.new_page()
-            # Strip the standalone-only Download CTAs from EVERY paint:
-            # preview.html shows them when window.self === window.top (true
-            # in our headless context). Without this they'd bake into the
-            # video — and a post-load JS remove() leaves a 1-2 frame flash
-            # at the start of the recording while the page is parsing.
-            # init_script runs before any page script on every navigation,
-            # so the !important style block is in place from frame 0.
-            # The save-as-PNG context menu wiring is untouched — that menu
-            # only renders on right-click, not during passive playback.
-            page.add_init_script(
-                "document.addEventListener('DOMContentLoaded', () => {"
-                "  const s = document.createElement('style');"
-                "  s.textContent = '.download-cta-row, .download-cta { display: none !important; }';"
-                "  document.head.appendChild(s);"
-                "});"
-            )
-            url = f"http://127.0.0.1:{port}/preview.html?seed={seed}"
-            page.goto(url, wait_until="load", timeout=15000)
-            page.wait_for_selector("body.engine-ready", timeout=8000)
-            # Belt-and-suspenders: also drop the nodes outright in case the
-            # !important style is ever beaten by an inline override.
+            url = (f"http://127.0.0.1:{port}/preview.html"
+                   f"?seed={seed}&loop={loop_s}&render=1")
+            page.goto(url, wait_until="load", timeout=20000)
+            page.wait_for_function("window.__biomReady === true", timeout=12000)
+            # The seamless-loop math + deterministic stepping live in the page;
+            # __seek must exist or we'd silently record a frozen frame.
+            if not page.evaluate("() => typeof window.__seek === 'function'"):
+                return (seed, False, "no __seek (loop/render mode not active)")
+            # Drop the standalone Download CTAs so they don't bake into frames.
             page.evaluate(
-                "document.querySelectorAll('.download-cta-row, .download-cta').forEach(n => n.remove())"
+                "() => { const r = document.getElementById('downloadCtaRow');"
+                " if (r) r.style.display = 'none'; }"
             )
-            page.wait_for_timeout(settle_ms)
-            # Mark when actual animation starts being captured. Anything
-            # before this point in the recording is loading/blank content.
-            t_engine_ready = time.time() - t_record_start
-            page.wait_for_timeout(int(duration_s * 1000))
-            # Closing the context finalises the WebM file. Page must be
-            # closed first or Playwright leaves the WebM truncated.
-            page.close()
+            for i in range(frames):
+                page.evaluate("(t) => window.__seek(t)", i / fps)
+                # JPEG, not PNG: PNG encoding is ~5× slower (170ms vs 34ms
+                # per 800px frame) and dominates wall-time at 480 frames/seed.
+                # q95 is visually lossless for this ambient glass content, and
+                # ffmpeg re-encodes to H.264 (yuv420p) anyway, so the
+                # intermediate codec adds no perceptible degradation.
+                page.screenshot(path=str(tmpdir / f"f{i:05d}.jpg"),
+                                type="jpeg", quality=95)
             ctx.close()
 
-            # Playwright writes one .webm into tmpdir — find it.
-            webms = list(tmpdir.glob("*.webm"))
-            if not webms:
-                return (seed, False, "no_webm_produced")
-            webm = webms[0]
             padded = f"{seed:05d}"
             mp4 = DST / f"{padded}.mp4"
-            # Dynamic trim: at least t_engine_ready (the exact moment the
-            # biom started painting), or the user's explicit floor —
-            # whichever is larger. A tiny safety pad covers the gap between
-            # our timestamp and the first painted frame Playwright captured.
-            effective_trim = max(trim_start, t_engine_ready + 0.15)
-            webm_to_mp4(webm, mp4, crf, effective_trim, fps)
+            encode_frames(tmpdir / "f%05d.jpg", mp4, fps, crf)
             return (seed, True, None)
         except Exception as e:
             return (seed, False, f"{type(e).__name__}: {e}")
@@ -245,12 +181,10 @@ def render_one(port: int, seed: int, size: int, duration_s: float,
 
 
 def worker_run(worker_idx: int, seeds_chunk, port: int, size: int,
-               duration_s: float, settle_ms: int, crf: int, trim_start: float,
-               fps: int, chrome_path):
+               loop_s: float, fps: int, crf: int, chrome_path):
     results = []
     for i, seed in enumerate(seeds_chunk):
-        r = render_one(port, seed, size, duration_s, settle_ms, crf, trim_start,
-                       fps, chrome_path)
+        r = render_one(port, seed, size, loop_s, fps, crf, chrome_path)
         results.append(r)
         if (i + 1) % 10 == 0:
             ok_so_far = sum(1 for _, ok, _ in results if ok)
@@ -260,30 +194,19 @@ def worker_run(worker_idx: int, seeds_chunk, port: int, size: int,
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--only", help="Comma-separated seed list (default: 0..2999)")
+    ap.add_argument("--only", help="Comma-separated seed list (default: tokens 1..3000)")
     ap.add_argument("--size", type=int, default=1080,
-                    help="Square render size (default 1080 — Instagram-friendly).")
-    ap.add_argument("--duration", type=float, default=15.0,
-                    help="Recording length in seconds (default 15).")
+                    help="Square render size (default 1080 — social-friendly).")
+    ap.add_argument("--loop", type=float, default=16.0,
+                    help="Loop length in seconds (default 16). The motion is "
+                         "quantized to be exactly periodic over this window.")
+    ap.add_argument("--fps", type=int, default=30,
+                    help="Output framerate (default 30). Frames are rendered "
+                         "deterministically at t=frame/fps — no interpolation.")
+    ap.add_argument("--crf", type=int, default=18,
+                    help="H.264 quality (lower = better, larger). 14=archival, "
+                         "18=visually lossless (default), 23=YouTube.")
     ap.add_argument("--port", type=int, default=8765)
-    ap.add_argument("--settle", type=int, default=600,
-                    help="ms to wait after engine-ready before starting capture.")
-    ap.add_argument("--crf", type=int, default=14,
-                    help="H.264 quality (lower = better, larger). 14=archival-grade, "
-                         "18=visually lossless, 23=YouTube default. Default 14 — the "
-                         "2026-05 bake at 23 produced visible smearing on glass details. "
-                         "Stepped 23→18→14 over user testing; 14 was the floor before "
-                         "files got noticeably bigger without visible improvement.")
-    ap.add_argument("--trim-start", type=float, default=1.0,
-                    help="Seconds to trim from the head of each clip — drops the blank/"
-                         "loading frames before engine-ready. Default 1.0. Pass 0 to keep "
-                         "everything.")
-    ap.add_argument("--fps", type=int, default=60,
-                    help="Output framerate. Playwright captures at a fixed 25 fps; values "
-                         "above that trigger ffmpeg motion-interpolation (mci/aobmc) to "
-                         "synthesize smooth intermediate frames. 60 reads as visibly "
-                         "smoother on 60/120 Hz displays; 25 skips interpolation. "
-                         "Default 60.")
     ap.add_argument("--workers", type=int, default=2,
                     help="Parallel browsers. Each holds ~250 MB; 4 is comfortable on M1.")
     args = ap.parse_args()
@@ -293,15 +216,17 @@ def main():
     if args.only:
         seeds = [int(s) for s in args.only.split(",")]
     else:
-        seeds = list(range(3000))
+        # Tokens are 1..3000 (SeaDrop 1-indexed); seed == tokenId by identity.
+        seeds = list(range(1, 3001))
 
     DST.mkdir(parents=True, exist_ok=True)
     chrome = find_chrome()
 
     httpd = start_server(ROOT, args.port)
+    frames = int(round(args.loop * args.fps))
     print(f"  → static server on :{args.port} (root: {ROOT})")
-    print(f"  → recording {len(seeds)} seeds at {args.size}px for {args.duration}s "
-          f"through {args.workers} worker(s)")
+    print(f"  → {len(seeds)} seeds · {args.size}px · {args.loop}s loop · {args.fps}fps "
+          f"({frames} frames/seed) · {args.workers} worker(s)")
     if chrome:
         print(f"  → using Chrome: {chrome}")
     t0 = time.time()
@@ -314,8 +239,7 @@ def main():
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = [
             pool.submit(worker_run, i, chunk, args.port, args.size,
-                        args.duration, args.settle, args.crf, args.trim_start,
-                        args.fps, chrome)
+                        args.loop, args.fps, args.crf, chrome)
             for i, chunk in enumerate(chunks) if chunk
         ]
         for f in as_completed(futures):

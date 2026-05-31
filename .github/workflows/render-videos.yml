@@ -1,16 +1,16 @@
-# Cloud-side render of every biom's 15s MP4 loop.
+# Cloud-side render of every biom's seamless looping MP4.
 #
-# Why this exists: scripts/make-videos.py works locally but rendering 3000
-# 15-second WebM captures + ffmpeg encoding hammers the laptop hard enough
-# that macOS thermal-throttles, which makes Chromium drop frames and bakes
-# stutters into the output. Datacenter runners don't throttle, so we
-# offload here instead.
+# Why this exists: scripts/make-videos.py renders LOOP*fps deterministic
+# frames per biom (via preview.html?loop=N&render=1 + window.__seek) and
+# ffmpeg-encodes them. Doing 3000 of those locally takes hours and pins the
+# laptop; datacenter runners parallelise it cleanly.
 #
 # How it works:
-#   workflow_dispatch fans out into N matrix jobs (default 10, max 30).
-#   Each runner renders its slice of seeds 0..2999, then immediately
-#   uploads its MP4s to R2 via wrangler. No artifacts pass through GitHub
-#   so the workflow finishes the moment the last chunk uploads.
+#   workflow_dispatch fans out into N matrix jobs (default 20, max 30).
+#   Each runner renders its slice of tokens 1..3000 (seed == tokenId), then
+#   immediately uploads its MP4s to R2 via wrangler (overwriting the old
+#   files at the same keys). No artifacts pass through GitHub, so the
+#   workflow finishes the moment the last chunk uploads.
 #
 # Wall-time at default chunks=10: ~30-35 min total
 #   (Ubuntu 4 vCPU x ~45s/seed solo, 300 seeds/runner, 4 parallel browsers).
@@ -34,20 +34,16 @@ on:
   workflow_dispatch:
     inputs:
       chunks:
-        description: 'Parallel chunks (1-30). More = faster, but watch the free-tier concurrent-job cap (~20).'
-        default: '10'
+        description: 'Parallel chunks (1-30). More = faster, but watch the free-tier concurrent-job cap (~20). 20 recommended for the deterministic loop render.'
+        default: '20'
         type: string
-      duration:
-        description: 'Recording length in seconds (passed to make-videos.py --duration).'
-        default: '15'
-        type: string
-      trim_start:
-        description: 'Minimum seconds to trim from head (drops pre-engine-ready frames). Dynamic detection trims more if needed.'
-        default: '1'
+      loop:
+        description: 'Loop length in seconds. Motion is quantized to be exactly periodic over this window → seamless loop.'
+        default: '16'
         type: string
       fps:
-        description: 'Output FPS. 60 = smooth (motion-interpolated, ~3x slower encode). 30 = light smoothing. 25 = no interpolation (fast).'
-        default: '60'
+        description: 'Output FPS. Frames are rendered deterministically (no interpolation); 30 is smooth for the slow ambient motion.'
+        default: '30'
         type: string
 
 jobs:
@@ -103,13 +99,16 @@ jobs:
         run: |
           chunk=${{ matrix.chunk }}
           total=${{ matrix.total }}
-          # Even split with the last chunk taking any remainder. Comma-
-          # joined list passed to make-videos.py --only.
+          # Tokens are 1..3000 (SeaDrop 1-indexed; seed == tokenId). Even
+          # split with the last chunk taking any remainder. Comma-joined
+          # list passed to make-videos.py --only.
           read start end seeds <<< "$(python3 -c "
-          chunk, total, n = $chunk, $total, 3000
+          chunk, total = $chunk, $total
+          lo, hi = 1, 3001        # tokens 1..3000 inclusive
+          n = hi - lo
           per = (n + total - 1) // total
-          s = chunk * per
-          e = min(s + per, n)
+          s = lo + chunk * per
+          e = min(s + per, hi)
           print(s, e, ','.join(str(i) for i in range(s, e)))
           ")"
           echo "Chunk $chunk: rendering seeds $start..$((end-1)) ($(($end - $start)) seeds)"
@@ -121,8 +120,7 @@ jobs:
           python scripts/make-videos.py \
             --only "${{ steps.seeds.outputs.seeds }}" \
             --workers 4 \
-            --duration ${{ github.event.inputs.duration }} \
-            --trim-start ${{ github.event.inputs.trim_start }} \
+            --loop ${{ github.event.inputs.loop }} \
             --fps ${{ github.event.inputs.fps }}
           ls -lh pngs/video/ | head -5
           echo "Total: $(ls pngs/video/*.mp4 2>/dev/null | wc -l) files, $(du -sh pngs/video/ | cut -f1)"

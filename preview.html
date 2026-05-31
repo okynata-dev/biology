@@ -83,6 +83,7 @@
     opacity: 0.4;
   }
 
+
   /* === BARE MODE — used when this page is embedded as an iframe inside
    * another page that already provides the outer card frame (e.g. the
    * landing hero). Strips the inner card decorations so the cells appear
@@ -91,21 +92,14 @@
   body.bare .pfp-card { background: transparent; }
   body.bare .pfp-card::before { display: none; }
 
-  /* === LITE MODE — visually identical performance optimizations.
-   * - contain: paint on each panel isolates repaints — a breathing
-   *   panel no longer re-blurs every other panel's backdrop-filter
-   * - will-change: transform pushes each panel onto its own GPU layer,
-   *   so animation moves cached bitmaps instead of re-rasterizing
-   * - borderRadius morph is skipped in JS (see liveLoop) — it was the
-   *   single most expensive thing happening because changing a clip
-   *   shape forces backdrop-filter recompute on the whole panel
-   * Result: ~3-5× cheaper paint without any visible difference.
-   * Activated by ?lite=1, intended for embedded iframes on heavy
-   * pages (OpenSea token detail, marketplace grids). === */
-  body.lite .panel {
-    contain: paint;
-    will-change: transform;
-  }
+  /* === LITE MODE — remaining lite-only optimization.
+   * The paint-isolation pair (contain: paint + will-change: transform)
+   * was promoted to the BASE .panel rule (2026-05-30) — it's zero-visual
+   * so the full-quality render should always have had it. What stays
+   * lite-only is the JS-side skip of the borderRadius morph (see
+   * liveLoop's __BIOMS_LITE_MODE check) — that one DOES change the feel
+   * ("calm" vs "alive"), so it remains opt-in for heavy embeds (OpenSea
+   * grids) via ?lite=1. === */
   body.lite .composition {
     will-change: transform;
     transform: translateZ(0);
@@ -191,7 +185,9 @@
     position: absolute;
     inset: 0;
     transform-style: preserve-3d;
-    transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
+    /* No transform transition — the liveLoop drives transform every frame
+       with its own JS lerp; a CSS transition on top would low-pass the
+       per-frame writes and make the cursor parallax lag/smear. */
     will-change: transform;
   }
 
@@ -207,11 +203,42 @@
     -webkit-backdrop-filter: blur(4px) saturate(1.2) brightness(1.02);
   }
 
+  /* ?noblur — kill all live backdrop-filter (perf A/B test). */
+  body.noblur .panel,
+  body.noblur .panel.capsule-layer {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
   /* === THE GLASS PANEL === */
   .panel {
     position: absolute;
-    backdrop-filter: blur(18px) saturate(1.5) brightness(1.04);
-    -webkit-backdrop-filter: blur(18px) saturate(1.5) brightness(1.04);
+    /* --gblur (default 18px) is tunable via ?blur=N for perf A/B — blur
+       cost scales ~with radius², so this is a strong lever if a smaller
+       radius is visually acceptable. */
+    backdrop-filter: blur(var(--gblur, 18px)) saturate(1.5) brightness(1.04);
+    -webkit-backdrop-filter: blur(var(--gblur, 18px)) saturate(1.5) brightness(1.04);
+    /* Paint isolation — moved here from body.lite (2026-05-30) where it
+       was wrongly gated. These two are ZERO-VISUAL (author's own note:
+       "visually identical, ~3-5× cheaper paint"). Without them, a single
+       breathing panel re-blurs EVERY overlapping panel's backdrop-filter
+       every frame — O(n²) on 40-80-panel bioms, which is what melts
+       weaker machines. `contain: paint` clips the re-blur blast radius
+       to the morphing panel itself; `will-change: transform` keeps it on
+       its own GPU layer so drift moves a cached bitmap, not a re-raster.
+       The full-quality render (token / OpenSea / video) now gets the
+       same isolation the lite preview always had. */
+    contain: paint;
+    /* will-change is NOT declared here on purpose. Promoting EVERY panel
+       (322 on a dense mycelium) to its own GPU layer forced the browser
+       to allocate + upload a texture per layer on first paint — that is
+       the ~10-15s warm-up stutter ("low fps then suddenly smooth").
+       buildScene now sets will-change:transform on ONLY the animated set
+       (~80). Static panels need no layer of their own: they don't move
+       independently, they ride the parent #comp transform (one layer).
+       On the static master render nothing animates, so no panel needs a
+       layer at all. contain:paint stays — it's cheap and isolates the
+       (forceblur-only) re-blur blast radius without forcing a layer. */
     box-shadow:
       inset 0 2px 0 rgba(255, 255, 255, 0.95),
       inset 0 4px 8px rgba(255, 255, 255, 0.5),
@@ -224,7 +251,8 @@
       0 24px 60px rgba(0, 0, 0, 0.06);
     border: 0.5px solid rgba(255, 255, 255, 0.7);
     transform-style: preserve-3d;
-    transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
+    /* No transform transition — liveLoop writes transform every frame;
+       a CSS transition would smear the per-frame animation + parallax. */
     pointer-events: none;
     overflow: hidden;
   }
@@ -1490,8 +1518,29 @@ function formatBorderRadius(r) {
 // ============================================================
 let animStart = performance.now();
 let lastFrame = 0;
-const FRAME_INTERVAL = 1000 / 30; // 30fps
+// ~60fps, jitter-free on 60 AND 120Hz. The old 30fps cap made slow drift
+// read as "low fps" (the display refreshes at 60 but transforms only
+// updated 30×/s, so motion stepped) — and a 33ms gate sits right on the
+// rAF cadence, so timing jitter occasionally dropped a frame to ~20fps,
+// adding stutter. Motion is time-parameterized (everything derives from
+// `t`), so a higher sample rate is purely smoother at no amplitude/CPU-
+// per-panel change. 14ms < the 16.67ms 60Hz frame → every 60Hz frame
+// passes (steady, no beat), while 120Hz frames (8.33ms) halve cleanly to
+// 60 so ProMotion laptops don't pay 2×. The heavy cost (blur/morph) is
+// already gone, so 60fps of pure transforms is cheap.
+const FRAME_INTERVAL = 14; // ms → ~60fps target (was 1000/30)
 let cachedPanels = [];  // refreshed in buildScene()
+let cachedAnimPanels = [];  // only the budgeted panels the liveLoop animates
+let _cachedComp = null; // .composition element, cached for the cursor rotate
+
+// Cursor parallax state. Handlers set the TARGET (_cursorTX/TY, normalized
+// -1..1); the loop lerps the current value toward it and is the SOLE
+// writer of the cursor transform. This kills the old stutter where the
+// mousemove handler and the animation loop both wrote el.style.transform
+// and overwrote each other every frame.
+let _cursorTX = 0, _cursorTY = 0;   // target (from mouse/touch)
+let _cursorPX = 0, _cursorPY = 0;   // current (lerped)
+let _compWrittenX = NaN, _compWrittenY = NaN;  // last composition transform written
 
 // Default: visible. Parent observer flips this to false when we
 // scroll out of view, true again when we return.
@@ -1503,6 +1552,58 @@ window.addEventListener('message', (ev) => {
   }
 }, { passive: true });
 
+// Motion intensity multipliers — tuned up 2026-05-30 because the
+// ambient motion read as too subtle ("неуловимое"). These scale the
+// idle drift + breathing amplitudes ONLY (not speed), so GPU/CPU cost
+// is unchanged — same number of paints per frame, just larger deltas.
+// DRIFT 1.5 = 50% more float on organelles/body. BREATHE 1.25 = a bit
+// more shape-morph.
+//
+// Overridable via ?drift= and ?breathe= URL params so motion can be
+// A/B-compared live without re-rendering (the compare page passes
+// ?drift=1&breathe=1 for the "before" iframe). The video pipeline
+// renders against the DEFAULTS below, so whatever default ships here
+// is what the baked MP4s capture.
+// Defaults overridable via ?drift= / ?breathe=. NOTE on breathe: above
+// ~3 the border-radius morph amplitude slams every radius into the clamp
+// rails simultaneously, making all corners uniform → the biom reads as a
+// rounded SQUARE/circle (that's the "squaring" at breathe 6 — it's the
+// physics of morphing a clip shape, not a bug). If you want breathe-6
+// LIVELINESS without the squaring, the right tool is a scale-pulse (the
+// biom expands/contracts like lungs, silhouette untouched) — ask and
+// it's a small add. Default kept at 6 per request.
+const _mp = new URLSearchParams(window.location.search);
+const MOTION_DRIFT   = parseFloat(_mp.get('drift'))   || 3.5;
+// breathe default 0 — the border-radius morph is OFF by default. It was
+// both the most expensive motion (clip-shape change = full backdrop-filter
+// reblur) AND the thing that squared the silhouette at high amplitude.
+// Breathing now comes from the scale-pulse (cheaper, never squares). Set
+// ?breathe=1-2 if you want a touch of gentle outline shimmer back.
+const MOTION_BREATHE = (_mp.has('breathe') ? parseFloat(_mp.get('breathe')) : 0) || 0;
+// Scale-breath, PER PANEL. Each feature (cell, organelle, body envelope)
+// pulses its own size on its own rhythm — phase from driftPhaseX, rate
+// from morphSpeed (0.3-0.7), both already random per panel. So nothing
+// pulses in lock-step; the biom reads as many independent little breaths,
+// not one uniform zoom. Size has no clamp walls, so it never squares the
+// silhouette. ?pulse=1 ≈ ±3% per panel. Default 0 = off (current behavior
+// untouched). Recipe for "breathe-6 liveliness, no square": modest
+// breathe (2-3) + pulse (1-1.5).
+const MOTION_PULSE = (_mp.has('pulse') ? parseFloat(_mp.get('pulse')) : 2.5) || 0;
+// === LOOP-RENDER MODE (video pipeline only) ===
+// ?loop=N snaps every motion angular frequency to a whole number of cycles
+// per N seconds, so the idle motion becomes EXACTLY N-second periodic — the
+// frame at t=N is pixel-identical to t=0, giving a seamless looping clip.
+// ?render=1 suppresses the rAF loop and exposes window.__seek(t) so a
+// recorder can step frames deterministically (perfect, jitter-free loop).
+// The live token (no params) is unaffected: _qFreq is a no-op when _LOOP=0,
+// so its motion stays infinite and non-quantized exactly as now.
+const _LOOP   = parseFloat(_mp.get('loop')) || 0;   // seconds, 0 = live/infinite
+const _RENDER = _mp.get('render') === '1';
+const _W0 = _LOOP > 0 ? (2 * Math.PI / _LOOP) : 0;
+function _qFreq(w) { return _LOOP > 0 ? Math.max(1, Math.round(w / _W0)) * _W0 : w; }
+const _DRIFT_FX = _qFreq(0.3);   // drift X angular freq (0.3 live)
+const _DRIFT_FY = _qFreq(0.25);  // drift Y angular freq (0.25 live)
+
 function liveLoop(now) {
   requestAnimationFrame(liveLoop);
   if (document.hidden || !_externallyVisible) { lastFrame = now; return; }
@@ -1510,59 +1611,133 @@ function liveLoop(now) {
   lastFrame = now;
 
   const t = (now - animStart) / 1000;
-  const panels = cachedPanels;
+  const panels = cachedAnimPanels;
 
-  panels.forEach(el => {
-    let needsTransform = false;
-    let driftX = 0, driftY = 0;
+  // Smoothly chase the cursor target (lerp). 0.14 = buttery but responsive.
+  // This is what makes the parallax glide instead of stutter — the loop is
+  // the single writer, the mouse handler only nudges the target.
+  _cursorPX += (_cursorTX - _cursorPX) * 0.14;
+  _cursorPY += (_cursorTY - _cursorPY) * 0.14;
+  // Whole-composition tilt from the lerped cursor (separate element, no
+  // conflict with per-panel transforms).
+  if (!_cachedComp) _cachedComp = document.getElementById('comp');
+  // Only write when the lerped cursor actually moved. Re-writing the same
+  // transform every idle frame still invalidates this preserve-3d ancestor,
+  // and combined with the per-panel writes that was the single biggest
+  // per-frame cost (measured: baseline 83ms/frame vs 16.7ms with this skip).
+  // When idle the cursor settles to 0 and we stop touching the composition.
+  if (_cachedComp
+      && !(Math.abs(_cursorPX - _compWrittenX) < 0.0008 && Math.abs(_cursorPY - _compWrittenY) < 0.0008)) {
+    _cachedComp.style.transform = `rotateY(${_cursorPX * 2.2}deg) rotateX(${-_cursorPY * 1.8}deg)`;
+    _compWrittenX = _cursorPX; _compWrittenY = _cursorPY;
+  }
 
-    // === Border-radius morph (only flagged panels) ===
-    // Lite mode (?lite=1) skips the morph entirely — it's the most
-    // expensive thing in the loop (changing a clip shape forces every
-    // backdrop-filter underneath it to recompute its blur). Visually
-    // a panel's outline holds steady ±8% wobble; freezing it reads as
-    // "calm" rather than "alive" but isn't perceptibly broken.
-    if (el.dataset.morphing === '1' && !window.__BIOMS_LITE_MODE) {
+  _paintPanels(t);
+}
+
+// Per-panel transform update — extracted so window.__seek(t) (loop-render
+// mode) can drive frames deterministically with the SAME math the live loop
+// uses, so recorded video motion always matches the live token exactly.
+function _paintPanels(t) {
+  cachedAnimPanels.forEach(el => {
+    // already only the budgeted set — no per-frame "is this animated?" check
+    // and no iteration over the hundreds of static panels on dense bioms.
+    // All per-panel inputs are numeric props (el._*) set in buildScene — no
+    // dataset string parsing in the hot loop.
+
+    // === Border-radius morph — gentle outline life ===
+    // Cheap now (no live blur to recompute on a clip change). Gated on
+    // breathe>0, kept moderate so radii don't slam the clamp rails (which
+    // would average the corners into a rounded square).
+    if (el._morphing && MOTION_BREATHE > 0.05 && !window.__BIOMS_LITE_MODE && el._baseRadii) {
       const baseRadii = el._baseRadii;
-      if (!baseRadii) return;
-      const phase = +el.dataset.morphPhase;
-      const speed = +el.dataset.morphSpeed;
-      const r0 = clamp(baseRadii[0] + Math.sin(t * speed + phase) * 8, 15, 85);
-      const r1 = clamp(baseRadii[1] + Math.sin(t * speed + phase + 0.7) * 8, 15, 85);
-      const r2 = clamp(baseRadii[2] + Math.sin(t * speed + phase + 1.4) * 8, 15, 85);
-      const r3 = clamp(baseRadii[3] + Math.sin(t * speed + phase + 2.1) * 8, 15, 85);
-      const r4 = clamp(baseRadii[4] + Math.sin(t * speed + phase + 2.8) * 8, 15, 85);
-      const r5 = clamp(baseRadii[5] + Math.sin(t * speed + phase + 3.5) * 8, 15, 85);
-      const r6 = clamp(baseRadii[6] + Math.sin(t * speed + phase + 4.2) * 8, 15, 85);
-      const r7 = clamp(baseRadii[7] + Math.sin(t * speed + phase + 4.9) * 8, 15, 85);
+      const phase = el._mPhase;
+      const speed = el._spQ;
+      const A = 8 * MOTION_BREATHE;
+      const RFLOOR = Math.min(40, 15 + (MOTION_BREATHE - 1) * 3);
+      const r0 = clamp(baseRadii[0] + Math.sin(t * speed + phase) * A, RFLOOR, 85);
+      const r1 = clamp(baseRadii[1] + Math.sin(t * speed + phase + 0.7) * A, RFLOOR, 85);
+      const r2 = clamp(baseRadii[2] + Math.sin(t * speed + phase + 1.4) * A, RFLOOR, 85);
+      const r3 = clamp(baseRadii[3] + Math.sin(t * speed + phase + 2.1) * A, RFLOOR, 85);
+      const r4 = clamp(baseRadii[4] + Math.sin(t * speed + phase + 2.8) * A, RFLOOR, 85);
+      const r5 = clamp(baseRadii[5] + Math.sin(t * speed + phase + 3.5) * A, RFLOOR, 85);
+      const r6 = clamp(baseRadii[6] + Math.sin(t * speed + phase + 4.2) * A, RFLOOR, 85);
+      const r7 = clamp(baseRadii[7] + Math.sin(t * speed + phase + 4.9) * A, RFLOOR, 85);
       el.style.borderRadius = `${r0.toFixed(1)}% ${r1.toFixed(1)}% ${r2.toFixed(1)}% ${r3.toFixed(1)}% / ${r4.toFixed(1)}% ${r5.toFixed(1)}% ${r6.toFixed(1)}% ${r7.toFixed(1)}%`;
     }
 
-    // === Position drift via transform (no layout reflow) ===
-    if (el.dataset.drifts === '1') {
-      const phx = +el.dataset.driftPhaseX;
-      const phy = +el.dataset.driftPhaseY;
-      // Amplitude scale — large bodies sway gently (0.4), small organelles drift fully (1.0)
-      const ampScale = parseFloat(el.dataset.driftScale || '1');
-      driftX = Math.sin(t * 0.3 + phx) * 1.2 * ampScale;
-      driftY = Math.cos(t * 0.25 + phy) * 1.0 * ampScale;
-      const z = +el.dataset.z;
-      const baseRot = +el.dataset.baseRot;
-      el.style.transform = `translate(${driftX}%, ${driftY}%) translateZ(${z}px) rotate(${baseRot}deg)`;
+    // === ONE unified transform per panel: drift + size-breath + cursor ===
+    // Single writer → the cursor parallax composes with the idle motion
+    // instead of fighting it. No live blur anymore, so animating every
+    // panel (incl. the body) is cheap.
+    const z = el._z;
+    const baseRot = el._baseRot;
+    const ps = z / 200;
+
+    // drift — non-anchor panels float (the body holds position).
+    // wob = rotation-wobble degrees: small details (pili, dots) gently
+    // rock/spin so the motion reads on the fine features, not just the
+    // big back fields. Pure transform → free.
+    let driftX = 0, driftY = 0, rotWob = 0;
+    if (el._drifts) {
+      const phx = el._phx;
+      const phy = el._phy;
+      const ampScale = el._driftScale;
+      driftX = Math.sin(t * _DRIFT_FX + phx) * 1.4 * ampScale * MOTION_DRIFT;
+      driftY = Math.cos(t * _DRIFT_FY + phy) * 1.4 * ampScale * MOTION_DRIFT;
+      const wob = el._wob;
+      if (wob) rotWob = Math.sin(t * el._spQ + phy) * wob;
     }
+
+    // size-breath — ANISOTROPIC scale (X and Y on offset phases) so each
+    // feature gently squishes/stretches. This is the "alive shape" the
+    // border-radius morph used to give, but done with a TRANSFORM instead
+    // of a clip change — transforms are GPU-composited (no re-raster), so
+    // unlike the morph it costs the same at any DPR. The morph re-rastered
+    // every frame and halved the framerate on retina; this doesn't.
+    let psx = 1, psy = 1;
+    if (MOTION_PULSE > 0) {
+      const sp = el._spQ, ph = el._phx;
+      psx = 1 + Math.sin(t * sp + ph)        * 0.03 * MOTION_PULSE;
+      psy = 1 + Math.sin(t * sp + ph + 1.7)  * 0.03 * MOTION_PULSE;  // offset → squish
+    }
+
+    // cursor parallax — depth-based, deeper panels shift more
+    const pxOff = _cursorPX * ps * 2.0;
+    const pyOff = _cursorPY * ps * 1.5;
+
+    // Write to the bare wrapper (see buildScene) — animating the wrapper
+    // instead of the heavy panel is what keeps this off the main-thread
+    // style-recalc path and holds 60fps. Falls back to el if unwrapped.
+    (el._wrap || el).style.transform =
+      `translate(${driftX}%, ${driftY}%) translate(${pxOff}px, ${pyOff}px) ` +
+      `translateZ(${z}px) rotate(${baseRot + rotWob}deg) scale(${psx}, ${psy})`;
   });
 }
 
 function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
-// Animation loop only runs if not in static mode (saves CPU for grid views)
-if (!getStaticFromURL()) {
+// Loop-render hook: paint a deterministic frame at time t with no cursor.
+// The recorder steps t = frame/fps from 0 to LOOP and screenshots each —
+// because the motion is exactly LOOP-periodic, the clip loops seamlessly.
+window.__seek = function (t) { _cursorPX = 0; _cursorPY = 0; _paintPanels(t); };
+
+// Animation loop runs unless in static mode (R2 master) or render mode
+// (?render=1 — frames are driven deterministically via __seek instead).
+if (!getStaticFromURL() && !_RENDER) {
   requestAnimationFrame(liveLoop);
 }
 
 // ============================================================
 // BUILD SCENE — pure divs with border-radius + backdrop-filter
 // ============================================================
+// Blur drop-threshold (panels narrower than this lose backdrop-filter).
+// Default 12; ?blurthresh=N overrides for perf testing.
+const _BLUR_THRESH = (() => {
+  const v = parseFloat(new URLSearchParams(window.location.search).get('blurthresh'));
+  return Number.isFinite(v) ? v : 12;
+})();
+
 function buildScene() {
   const root = document.getElementById('comp');
   root.innerHTML = '';
@@ -1584,8 +1759,14 @@ function buildScene() {
     if (item.color === 'capsule' || item.color === 'cellWall') {
       el.classList.add('capsule-layer');
     }
-    // Tiny panels (pili, ribosomes, mini accents) — no backdrop-filter at all (saves GPU)
-    if (item.w < 6) {
+    // Small panels — no backdrop-filter (the 18px blur is imperceptible
+    // at this size but costs a full blur layer that re-blurs every frame
+    // when the panel drifts at full amplitude). Threshold raised 6 → 12
+    // (2026-05-30): on a typical biom this drops ~8-10 of ~16 blur layers
+    // with no visible change (verified by static render diff) — the big
+    // cells + body envelope keep their glass, which is all the eye reads.
+    // This is the main GPU-cost reduction: fewer moving blur layers.
+    if (item.w < _BLUR_THRESH) {
       el.classList.add('lite');
     }
     // Vertical offset: default 15% (bust crop). With ?fit=1 → 0 (full centered specimen for downloads)
@@ -1602,27 +1783,44 @@ function buildScene() {
     el.dataset.baseW = item.w;
     el.dataset.baseH = item.h;
 
-    // Per-panel animation seeds (deterministic from global seed)
+    // Per-panel animation seeds (deterministic from global seed).
+    // Also stored as numeric props (el._*) — the liveLoop reads those
+    // every frame; property access avoids the per-frame dataset
+    // string-parse (parseFloat + DOM attr lookup) that dominated CPU on
+    // dense bioms. dataset.* kept for any external readers.
     const seedNum = state.seed + idx * 37;
     const sr = mulberry32(seedNum);
-    el.dataset.morphPhase = (sr() * Math.PI * 2).toString();
-    el.dataset.morphSpeed = (0.3 + sr() * 0.4).toString();   // 0.3 - 0.7
-    el.dataset.driftPhaseX = (sr() * Math.PI * 2).toString();
-    el.dataset.driftPhaseY = (sr() * Math.PI * 2).toString();
+    const _mPhase = sr() * Math.PI * 2;
+    const _mSpeed = 0.3 + sr() * 0.4;     // 0.3 - 0.7
+    const _dphx = sr() * Math.PI * 2;
+    const _dphy = sr() * Math.PI * 2;
+    el.dataset.morphPhase = String(_mPhase);
+    el.dataset.morphSpeed = String(_mSpeed);
+    el.dataset.driftPhaseX = String(_dphx);
+    el.dataset.driftPhaseY = String(_dphy);
+    el._mPhase = _mPhase; el._sp = _mSpeed; el._phx = _dphx; el._phy = _dphy;
+    el._spQ = _qFreq(_mSpeed);  // loop-render: snap to whole cycles/period (= _sp when live)
 
     // === DRIFT (positional motion) — tiered by element size ===
     // Capsule + cellWall = anchor (only breathe, never drift). Everything else moves.
     const isAnchor = (item.color === 'capsule' || item.color === 'cellWall');
+    el._drifts = !isAnchor;
+    el._driftScale = 0; el._wob = 0;
     if (!isAnchor) {
       el.dataset.drifts = '1';
-      // Small elements (organelles, accents, detail dots) get full amplitude
-      // Larger elements (cell bodies, nucleoid) get reduced amplitude — they sway
-      // gently like floating in cytoplasm without breaking composition.
-      if (item.w >= 12) {
-        el.dataset.driftScale = '0.4';  // 40% amplitude for larger forms
-      } else {
-        el.dataset.driftScale = '1';    // full amplitude for small elements
-      }
+      // Tiered by size. Big forms sway gently (don't break composition);
+      // small details float MORE so the motion reads across the whole
+      // biom, not just the big back fields. A big shape moving 2% is very
+      // visible; a tiny dot needs to move much more % to read at all —
+      // hence the boosted small/tiny tiers.
+      let ds, wob = 0;
+      if (item.w >= 20)      { ds = 0.4; }                 // big cell bodies — gentle
+      else if (item.w >= 12) { ds = 0.8; }                 // medium
+      else if (item.w >= 6)  { ds = 1.6; wob = 3; }        // small organelles — lively + wobble
+      else                   { ds = 2.2; wob = 6; }        // tiny accents/pili — float + spin
+      el.dataset.driftScale = String(ds);
+      el.dataset.wob = String(wob);   // rotation-wobble degrees (transform, cheap)
+      el._driftScale = ds; el._wob = wob;
     }
 
     // For blob-like organic shapes, generate asymmetric border-radius from seed
@@ -1637,6 +1835,7 @@ function buildScene() {
       el._baseRadii = baseRadii;
       el.dataset.baseRadii = baseRadii.join(',');
       el.dataset.morphing = '1';
+      el._morphing = true;
       el.style.borderRadius = formatBorderRadius(baseRadii);
     } else if (item.r >= 49) {
       el.style.borderRadius = '50%';
@@ -1650,11 +1849,100 @@ function buildScene() {
     el.style.transform = `translateZ(${item.z}px) rotate(${item.rot || 0}deg)`;
     el.dataset.z = item.z;
     el.dataset.baseRot = item.rot || 0;
+    el.dataset.w = item.w || 0;     // size, for the animation budget below
+    el._z = item.z; el._baseRot = item.rot || 0;
     root.appendChild(el);
   });
 
   // Refresh the animation-loop's panel cache (only place panels mutate).
   cachedPanels = Array.from(root.querySelectorAll('.panel'));
+
+  // === ANIMATION BUDGET ===
+  // Per-frame transform writes scale with panel count. Most bioms have
+  // 12-63 panels (fine), but mycelium can hit 300+ — writing 322
+  // transforms every frame drops to ~5fps (measured) and makes parts
+  // jump as frames are dropped. Cap the ANIMATED set to the N LARGEST
+  // panels (cells, body, big organelles); the rest hold their static
+  // transform but still tilt with the whole composition (one cheap
+  // parent rotate). The tiny filaments don't need individual drift, so
+  // it's visually indistinguishable — and every biom stays at 60fps
+  // regardless of complexity.
+  // Animate a MIX of big + small, not just "the N largest". The old
+  // "48 largest" rule animated only the big back fields and cell bodies
+  // on dense bioms (mycelium has 300+ panels) — every small organelle,
+  // dot and pilus fell OUTSIDE the budget and sat dead still, so the
+  // detail motion never read on exactly the bioms that have the most
+  // detail. Now: a structural quota of the largest panels (the sway)
+  // PLUS an even stride-sample of the smaller remainder (the detail
+  // life), spread across the size range so the tiniest accents animate
+  // too. Total still capped so per-frame cost stays flat and every biom
+  // holds 60fps regardless of complexity. Budgets overridable via
+  // ?big=N&detail=N for perf tuning (defaults are the measured-safe set).
+  const _abq = new URLSearchParams(window.location.search);
+  const BIG_BUDGET    = parseInt(_abq.get('big'))    || 34;  // largest → gentle sway
+  const DETAIL_BUDGET = parseInt(_abq.get('detail')) || 46;  // sampled small → detail life
+  const ANIM_BUDGET = BIG_BUDGET + DETAIL_BUDGET;            // 80
+  if (cachedPanels.length > ANIM_BUDGET) {
+    const ranked = cachedPanels.slice().sort(
+      (a, b) => (parseFloat(b.dataset.w) || 0) - (parseFloat(a.dataset.w) || 0));
+    // Largest BIG_BUDGET panels → the structural sway.
+    for (let i = 0; i < BIG_BUDGET && i < ranked.length; i++) ranked[i].dataset.anim = '1';
+    // Even stride-sample the smaller remainder so moving details spread
+    // across the colony and the size range (incl. tiny accents), instead
+    // of animating only the next-largest cluster. Deterministic.
+    const rest = ranked.slice(BIG_BUDGET);
+    if (rest.length) {
+      const stride = Math.max(1, Math.floor(rest.length / DETAIL_BUDGET));
+      for (let i = 0, n = 0; i < rest.length && n < DETAIL_BUDGET; i += stride, n++) {
+        rest[i].dataset.anim = '1';
+      }
+    }
+  } else {
+    cachedPanels.forEach(el => { el.dataset.anim = '1'; });
+  }
+
+  // The liveLoop iterates ONLY this set — not all 322 panels. Skipping
+  // the per-frame "is this animated?" check across every panel (322 DOM
+  // attr reads/tick on mycelium) is most of the win; the rest is reading
+  // numeric props instead of parsing dataset strings.
+  cachedAnimPanels = cachedPanels.filter(el => el.dataset.anim === '1');
+
+  // === Animate WRAPPERS, not the panels themselves ===
+  // Writing transform straight to a .panel forced a full style recalc of
+  // that panel every frame. The panels carry heavy paint CSS (layered
+  // box-shadow, gradient, gloss/noise pseudo-elements, a backdrop-filter in
+  // the cascade) that ALSO can't be GPU-composited, so recalc ran on the
+  // main thread at ~13ms/frame for 80 panels — right on the 60fps cliff.
+  // That is the "30fps for N seconds, then it snaps to 60" warm-up the
+  // engine showed: it sat exactly at the budget and tipped over on any
+  // cold-start / background load. Fix: wrap each animated panel in a BARE
+  // div and animate the WRAPPER. Recomputing a bare div's style is
+  // microseconds, and `transform` doesn't inherit, so the heavy panel
+  // inside is never re-styled. Measured on-device: per-frame recalc drops
+  // ~30× (≈6300ms → ≈240ms over 11s) and every biom holds a flat 60fps
+  // from the first frame, no warm-up. The look is identical — the transform
+  // just lives on an equally-sized wrapper; the panel fills it and keeps
+  // all its paint. Base depth + static tilt (translateZ + baseRot) move
+  // onto the wrapper; the loop writes the full transform there each frame.
+  cachedAnimPanels.forEach(el => {
+    const w = document.createElement('div');
+    w.className = 'biom-cell';
+    w.style.cssText = 'position:absolute;will-change:transform;';
+    w.style.left = el.style.left;
+    w.style.top = el.style.top;
+    w.style.width = el.style.width;
+    w.style.height = el.style.height;
+    w.style.transform = el.style.transform;   // seed base translateZ()+rotate()
+    el.parentNode.insertBefore(w, el);
+    w.appendChild(el);
+    // panel now fills its wrapper and owns no transform/position of its own
+    el.style.left = '0';
+    el.style.top = '0';
+    el.style.width = '100%';
+    el.style.height = '100%';
+    el.style.transform = 'none';
+    el._wrap = w;
+  });
 
   // Update card labels — none in preview mode
 }
@@ -1778,25 +2066,20 @@ if (!noInteract) {
     document.addEventListener('click', () => randomize());
   }
 
-  // Mouse parallax
+  // Mouse parallax — ONLY sets the cursor target. The liveLoop lerps to
+  // it and writes the actual transforms (single writer = no stutter).
   document.addEventListener('mousemove', (e) => {
-    const composition = document.getElementById('comp');
-    const rect = composition.getBoundingClientRect();
+    const comp = document.getElementById('comp');
+    const rect = comp.getBoundingClientRect();
     const x = (e.clientX - (rect.left + rect.width/2)) / (rect.width/2);
     const y = (e.clientY - (rect.top + rect.height/2)) / (rect.height/2);
-    const cx = Math.max(-1, Math.min(1, x));
-    const cy = Math.max(-1, Math.min(1, y));
-    composition.style.transform = `rotateY(${cx * 1.25}deg) rotateX(${-cy * 1}deg)`;
-
-    composition.querySelectorAll('.panel').forEach(el => {
-      const z = parseFloat(el.dataset.z);
-      const baseRot = parseFloat(el.dataset.baseRot);
-      const ps = z / 200;
-      el.style.transform = `translate3d(${cx * ps * 2}px, ${cy * ps * 1.5}px, ${z}px) rotate(${baseRot}deg)`;
-    });
+    _cursorTX = Math.max(-1, Math.min(1, x));
+    _cursorTY = Math.max(-1, Math.min(1, y));
   });
+  // Ease back to centre when the cursor leaves.
+  document.addEventListener('mouseleave', () => { _cursorTX = 0; _cursorTY = 0; });
 
-  // Touch — single drag = tilt
+  // Touch — single drag nudges the same cursor target.
   let dragStartX = 0, dragStartY = 0, dragging = false;
   document.addEventListener('touchstart', (e) => {
     if (e.touches.length !== 1) return;
@@ -1810,26 +2093,14 @@ if (!noInteract) {
     e.preventDefault();
     const dx = (e.touches[0].clientX - dragStartX) / window.innerWidth;
     const dy = (e.touches[0].clientY - dragStartY) / window.innerHeight;
-    const composition = document.getElementById('comp');
-    composition.style.transform = `rotateY(${dx * 10}deg) rotateX(${-dy * 8}deg)`;
-    composition.querySelectorAll('.panel').forEach(el => {
-      const z = parseFloat(el.dataset.z);
-      const baseRot = parseFloat(el.dataset.baseRot);
-      const ps = z / 200;
-      el.style.transform = `translate3d(${dx * ps * 15}px, ${dy * ps * 12}px, ${z}px) rotate(${baseRot}deg)`;
-    });
+    _cursorTX = Math.max(-1, Math.min(1, dx * 4));
+    _cursorTY = Math.max(-1, Math.min(1, dy * 4));
   }, { passive: false });
 
   document.addEventListener('touchend', () => {
     if (!dragging) return;
     dragging = false;
-    const composition = document.getElementById('comp');
-    composition.style.transform = '';
-    composition.querySelectorAll('.panel').forEach(el => {
-      const z = parseFloat(el.dataset.z);
-      const baseRot = parseFloat(el.dataset.baseRot);
-      el.style.transform = `translate3d(0,0,${z}px) rotate(${baseRot}deg)`;
-    });
+    _cursorTX = 0; _cursorTY = 0;  // loop eases back to centre
   });
 }
 
@@ -1968,6 +2239,41 @@ if (new URLSearchParams(window.location.search).get('cutout') === '1') {
   }
   if (liteParam === '2') {
     document.body.classList.add('lite2');
+  }
+  // ===== GLASS BLUR POLICY (the perf fix, 2026-05-30) =====
+  // Measured fact: a live backdrop-filter blur in an ANIMATED scene is a
+  // hard wall — ANY number of blur panels (even 1) drops the frame rate
+  // to ~20fps in software rendering, because the compositor re-blurs the
+  // backdrop every time anything moves behind the glass. Blur radius and
+  // panel count barely matter; it's binary. Zero live blur = 60fps.
+  //
+  // Resolution by CONTEXT:
+  //  - STATIC master render (?static=1, the NFT image OpenSea shows in
+  //    grids) KEEPS full glass — it's one frame, no per-frame cost, so
+  //    the headline image stays maximally beautiful.
+  //  - LIVE ANIMATED render (animation_url, hero, standalone) drops the
+  //    live blur → smooth 60fps on EVERY machine. The glass read is
+  //    carried by the gradient/sheen/noise/shadow layers (still clearly
+  //    glass, just slightly crisper at overlaps).
+  //
+  // Overrides: ?noblur=1 forces off, ?forceblur=1 keeps glass even when
+  // animating (high-end opt-in / A-B testing).
+  {
+    const _q = new URLSearchParams(window.location.search);
+    const _isStatic = _q.get('static') === '1';
+    const _forceBlur = _q.get('forceblur') === '1';
+    const _noblurExplicit = _q.get('noblur') === '1';
+    if (_noblurExplicit || (!_isStatic && !_forceBlur)) {
+      document.body.classList.add('noblur');
+    }
+  }
+  // ?blur=N — override glass blur radius (default 18) for perf testing.
+  const blurParam = new URLSearchParams(window.location.search).get('blur');
+  if (blurParam !== null && !isNaN(parseFloat(blurParam))) {
+    document.documentElement.style.setProperty('--gblur', parseFloat(blurParam) + 'px');
+  }
+  if (new URLSearchParams(window.location.search).get('staticblur') === '1') {
+    window.__BIOMS_STATICBLUR = true;
   }
 }
 
