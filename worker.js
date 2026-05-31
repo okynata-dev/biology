@@ -270,6 +270,42 @@ function _constantTimeEquals(a, b) {
   return mismatch === 0;
 }
 
+// Reusable admin gate for sensitive read endpoints (the burn/conjugate
+// log, the full waitlist dump). Token via the x-admin-token header ONLY —
+// never the query string, which leaks into Cloudflare access logs and
+// browser history. Returns an error Response if unauthorized, or null to
+// let the caller proceed.
+function _adminGate(req, env, origin) {
+  if (!env.ADMIN_TOKEN) return error('admin_token_not_set', 503, origin);
+  const token = req.headers.get('x-admin-token') || '';
+  if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('forbidden', 403, origin);
+  return null;
+}
+
+// Fail-open per-IP throttle for the burn endpoint. The per-signer limit
+// (a count of used_nonces) only sees SUCCESSFUL burns, so it can't stop a
+// caller from spamming valid-signature-but-doomed requests that each cost
+// an Alchemy round-trip (ownerOf + getTransactionReceipt). This caps
+// attempts per IP per minute. CRITICAL: any error in the limiter returns
+// true (proceed) — a limiter glitch must never block a legitimate burn on
+// drop day. Threshold is generous; it only catches egregious spam.
+async function _ipRateOk(env, req) {
+  try {
+    const ip = req.headers.get('CF-Connecting-IP') || req.headers.get('X-Forwarded-For') || 'unknown';
+    const salt = env.WAITLIST_IP_SALT || 'bioms-rl';
+    const ipHash = await _sha256Hex(ip + ':burn:' + salt);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const limit = parseInt(env.BURN_IP_RATE_PER_MIN || '20', 10);
+    const row = await env.DB.prepare(
+      'SELECT COUNT(*) AS n FROM rl_hits WHERE ip_hash = ? AND ts > ?'
+    ).bind(ipHash, nowSec - 60).first();
+    await env.DB.prepare('INSERT INTO rl_hits (ip_hash, ts) VALUES (?, ?)').bind(ipHash, nowSec).run();
+    return !(row && row.n >= limit);
+  } catch (_) {
+    return true; // fail-open
+  }
+}
+
 // ERC-721 Transfer event signature — used to detect a burn from a tx
 // receipt. The topic hash is keccak256("Transfer(address,address,uint256)").
 const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
@@ -888,6 +924,11 @@ async function handleBurn(req, env, ctx, origin) {
   if (recentRow && recentRow.n >= rateLimit) {
     return error('rate_limited', 429, origin);
   }
+
+  // 2b. Per-IP throttle (fail-open) — guards Alchemy quota against
+  // valid-signature spam the per-signer counter (successful burns only)
+  // can't see. Runs before the ownerOf / verifyBurnTx round-trips below.
+  if (req && !(await _ipRateOk(env, req))) return error('rate_limited', 429, origin);
 
   // 3. Replay protection
   const nonceRow = await env.DB.prepare(
@@ -2010,7 +2051,13 @@ export default {
         return await handleVideo(env, id, origin);
       }
       if (path === '/api/conjugate' && req.method === 'POST') {
-        return await handleConjugate(req, env, ctx, origin);
+        // Crossbreed/conjugate was removed from the product (the Lab is
+        // burn-only). The handler is preserved for rollback, but the route
+        // is disabled so it can't mutate token metadata without an on-chain
+        // burn — that would bypass the burn economy (free, gas-less
+        // mutation). Re-enable by restoring the call below.
+        return error('gone', 410, origin);
+        // return await handleConjugate(req, env, ctx, origin);
       }
       if (path === '/api/burn' && req.method === 'POST') {
         return await handleBurn(req, env, ctx, origin);
@@ -2024,6 +2071,10 @@ export default {
         return await handleAdminRegen(req, env, id, origin);
       }
       if (path === '/api/log') {
+        // The log exposes the full burn history (donor/recipient/trait/
+        // signer). Not used by the frontend; gate behind the admin token.
+        const gate = _adminGate(req, env, origin);
+        if (gate) return gate;
         return await handleLog(env, url, origin);
       }
       if (path === '/api/waitlist/list') {

@@ -349,7 +349,7 @@
   // still exists and is exposed for places that want the per-token
   // nickname; metadata surfaces it as the Species trait.
   function label(seed) {
-    return `BIOM #${seed}`;
+    return `Biom #${seed}`;
   }
   // Sub-label — the genus/species nickname (PHAGOPHILIA, STREPTONAX...).
   // Use this on cards as a small secondary line under the BIOM #N title

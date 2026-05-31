@@ -886,7 +886,7 @@
       <div class="lab-copy">
         <h2 class="lab-headline">Evolve.</h2>
         <p>Burn one Biom to feed another. The survivor inherits everything — palette, organelles, the body itself. The donor is gone, forever.</p>
-        <p>Phoenix takes eight Bioms — burn two together to get a Hybrid (rank 2), two Hybrids to get a Chimera (rank 4), two Chimeras for a Phoenix (rank 8). Most collectors will never get there. The ones who do make a small, irreversible decision over and over.</p>
+        <p>Each burn raises the survivor a rank — Genesis, Hybrid, Chimera, Phoenix. Reaching Phoenix means feeding seven Bioms into one. Most collectors will never get there. The ones who do make a small, irreversible decision over and over.</p>
         <div class="lab-ladder" aria-label="Rarity ladder">
           <span class="step s1">Genesis</span>
           <span class="sep">→</span>
@@ -1026,7 +1026,7 @@ function mountHero(el, seed) {
   // WCAG 4.1.2 — iframes need a label, otherwise screen readers say
   // "untitled frame". The hero specimen is the main visual block so
   // it needs to identify itself.
-  iframe.title = 'Live Biom specimen';
+  iframe.title = 'Live Biom';
   iframe.style.cssText = 'width:100%;height:100%;border:0;display:block;position:absolute;inset:0;';
   // bare=1 strips the inner card frame so the specimen sits on the
   // hero-stage paper background directly.
@@ -1240,7 +1240,7 @@ if (catalogGrid) {
     a.href = `preview.html?seed=${seed}`;
     a.target = '_blank';
     a.rel = 'noopener';
-    a.setAttribute('aria-label', 'Open a Biom specimen in a new tab');
+    a.setAttribute('aria-label', 'Open a Biom in a new tab');
 
     const pic = document.createElement('picture');
     const srcWebp = document.createElement('source');
@@ -1249,7 +1249,7 @@ if (catalogGrid) {
     pic.appendChild(srcWebp);
     const img = document.createElement('img');
     img.src = thumbPngFallback(seed);
-    img.alt = 'Biom specimen';
+    img.alt = 'A Biom';
     img.loading = 'lazy';
     img.decoding = 'async';
     // If even the PNG thumb 404s (e.g. before thumbs are uploaded to

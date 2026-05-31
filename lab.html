@@ -4147,11 +4147,15 @@ function burnOutcome(burnSeed, absorbSeed) {
   const burnEff = effectiveState(burnSeed);
   const absEff  = effectiveState(absorbSeed);
 
-  // Rank — sum of parent ranks. Two Genesis (1+1) = rank 2.
-  // Two rank-4 (4+4) = rank 8. Exponential growth via doubling strategy.
+  // Rank — LINEAR, matching the authoritative on-chain model. The worker
+  // appends ONLY the donor's id to the survivor's absorbed_seeds and sets
+  // rank = 1 + absorbed_seeds.length, so each burn adds exactly 1 rank and
+  // the donor's own rank does NOT transfer. Genesis ← Genesis = rank 2;
+  // a rank-4 fed into a rank-2 yields rank 3, not rank 6. (Previously this
+  // summed parent ranks, which over-predicted vs. what the chain records.)
   const burnRank = burnEff.rank;
   const absRank  = absEff.rank;
-  const newRank  = burnRank + absRank;
+  const newRank  = absRank + 1;
   // Legacy: keep generation in sync for any old code still reading it.
   const newGeneration = newRank - 1;
 
@@ -5999,7 +6003,7 @@ const ritualContinue      = document.getElementById('ritualContinue');
 const ritualLabel = (seed) => `Biom #${String(seed).padStart(4, '0')}`;
 
 const BURN_HOLD_MS = 3000;
-let _ritual = { burnSeed: null, absorbSeed: null, holdTimer: null, committed: false, active: false };
+let _ritual = { burnSeed: null, absorbSeed: null, holdTimer: null, committed: false, active: false, submitting: false };
 
 function _renderRitualSpecimen(targetEl, seed, stateOverride) {
   targetEl.innerHTML = '<div class="scene"><div class="composition"></div></div>';
@@ -6029,8 +6033,12 @@ function _renderRitualSpecimen(targetEl, seed, stateOverride) {
 
 function openBurnRitual(burnSeed, absorbSeed) {
   if (_ritual.active) return;
-  _ritual = { burnSeed, absorbSeed, holdTimer: null, committed: false, active: true };
+  _ritual = { burnSeed, absorbSeed, holdTimer: null, committed: false, active: true, submitting: false };
   burnRitual.classList.remove('visible', 'holding', 'committed');
+  // A prior burn may have hidden these while its tx mined — restore them
+  // so every fresh ritual shows the hold + cancel controls.
+  ritualCancel.style.display = '';
+  ritualHold.style.display = '';
   _renderRitualSpecimen(ritualBurnerRender, burnSeed);
   _renderRitualSpecimen(ritualAbsorberRender, absorbSeed);
   ritualBurnerName.textContent = ritualLabel(burnSeed);
@@ -6052,6 +6060,10 @@ function openBurnRitual(burnSeed, absorbSeed) {
 
 function closeBurnRitual() {
   if (!_ritual.active) return;
+  // While a burn tx is signing/broadcasting/mining, the transaction is
+  // already committed on-chain and CANNOT be cancelled. Block Cancel and
+  // Escape so the UI never implies the burn was called off when it wasn't.
+  if (_ritual.submitting) return;
   if (_ritual.holdTimer) { clearTimeout(_ritual.holdTimer); _ritual.holdTimer = null; }
   burnRitual.classList.remove('visible');
   document.removeEventListener('keydown', _ritualKeyHandler);
@@ -6115,6 +6127,12 @@ async function _ritualCommit() {
         if (stage === 'confirming') setStage('Burning on-chain — this takes ~30s…');
         if (stage === 'persisting') setStage('Almost done — applying mutations…');
       };
+      // The tx is about to be signed + broadcast — past this point it
+      // can't be recalled. Hide the controls that would falsely suggest
+      // the user can still back out, and lock closeBurnRitual (see guard).
+      _ritual.submitting = true;
+      ritualCancel.style.display = 'none';
+      ritualHold.style.display = 'none';
       const result = await Wallet.submitBurn(burnSeed, absorbSeed, onProgress);
       // Pull the recipient's fresh state from worker (it has the
       // canonical absorbed_seeds + new mutations)
@@ -6132,6 +6150,7 @@ async function _ritualCommit() {
       const tier = tierForRank(result.rank);
       ritualResultTier.textContent = (tier ? tier.name : 'Genesis') + ' · Rank ' + result.rank;
       setStage('It is done.');
+      _ritual.submitting = false;
       burnRitual.classList.add('committed');
       burnRitual.classList.remove('holding');
       resetArena();
@@ -6140,6 +6159,9 @@ async function _ritualCommit() {
       // can cancel out without losing data
       setStage('Burn failed: ' + (e?.message || e));
       _ritual.committed = false;
+      _ritual.submitting = false;
+      ritualCancel.style.display = '';
+      ritualHold.style.display = '';
       burnRitual.classList.remove('holding');
       // The donor was NOT burned on-chain (or worker rejected). Don't
       // touch local state. User can press-and-hold again or cancel.

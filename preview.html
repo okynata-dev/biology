@@ -1743,8 +1743,16 @@ function buildScene() {
   root.innerHTML = '';
 
   const rng = mulberry32(state.seed);
+  // Guard against a crafted/invalid forceStain or forceMorph on the
+  // animation_url (anyone can append URL params to an NFT renderer): an
+  // unknown palette key makes resolveColor throw → blank render, and an
+  // unknown morphology yields zero cells. Fall back to the seed-derived
+  // value so a bad param degrades to the canonical Biom instead of breaking.
+  if (!PALETTES[state.palette]) state.palette = pickWeightedPalette(mulberry32(state.seed));
   const palette = PALETTES[state.palette];
 
+  const VALID_MORPHS = ['coccus','bacillus','vibrio','spirillum','filament','cluster','diplo','sarcina','tetrad','streptobacillus','mycelium'];
+  if (!VALID_MORPHS.includes(state.morphology)) state.morphology = pickWeightedMorph(mulberry32(state.seed));
   const cells = generateMorphology(state.morphology, parseInt(state.cellCount));
   cells.forEach((c, i) => { c.cellIndex = i; });
   const organelles = generateOrganelles(state, cells, rng);
@@ -1954,7 +1962,7 @@ function buildScene() {
 function updateUI() { /* no UI in preview */ }
 
 function randomize(forcedSeed) {
-  state.seed = forcedSeed !== undefined ? forcedSeed : Math.floor(Math.random() * 10000);
+  state.seed = forcedSeed !== undefined ? forcedSeed : Math.floor(Math.random() * 3000);
   const rng = mulberry32(state.seed);
 
   state.morphology = pickWeightedMorph(rng);

@@ -89,3 +89,14 @@ CREATE TABLE IF NOT EXISTS waitlist (
 );
 CREATE INDEX IF NOT EXISTS idx_waitlist_ts ON waitlist(ts);
 CREATE INDEX IF NOT EXISTS idx_waitlist_kind ON waitlist(kind);
+
+-- Per-IP burn throttle (fail-open). Append-only; one row per burn attempt,
+-- counted over a 60s window in worker.js _ipRateOk(). The per-signer limit
+-- only sees successful burns, so this is what stops valid-signature spam
+-- from draining the Alchemy quota. Safe to prune rows older than an hour
+-- post-launch (low volume during the drop window).
+CREATE TABLE IF NOT EXISTS rl_hits (
+  ip_hash  TEXT NOT NULL,
+  ts       INTEGER NOT NULL    -- unix seconds
+);
+CREATE INDEX IF NOT EXISTS idx_rl_hits ON rl_hits(ip_hash, ts);

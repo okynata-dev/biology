@@ -7,7 +7,7 @@
      On reveal day: flip to content="true" in every HTML file. -->
 <meta name="bioms-reveal" content="true">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Banners</title>
+<title>Banners — Bioms</title>
 <meta name="description" content="Make banners, wallpapers, and PFPs from any Biom. Twitter header, OpenSea banner, phone wallpaper, 4K desktop — export at any size.">
 <meta name="theme-color" content="#ece9e0">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
@@ -988,11 +988,11 @@ function updateExportStatus() {
     return;
   }
   if (specimenImg) {
-    setRenderStatus('Pre-rendered HQ source ready · pixel-perfect export', 'ok');
+    setRenderStatus('Pre-rendered HQ source ready · high-quality export', 'ok');
   } else if (window.BiomEngine && window.BiomEngine.REVEAL === false) {
     // Pre-reveal — local renderer is the only path; framed as neutral
     // not as an error.
-    setRenderStatus('Live render · pixel-perfect export');
+    setRenderStatus('Live render · high-quality export');
   } else if (specimenImgError) {
     setRenderStatus('Pre-rendered PNG unavailable · will use local fallback', 'warn');
   } else {
