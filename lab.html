@@ -1934,25 +1934,30 @@
   .ritual-result-tier {
     order: 1;
     display: inline-block;
-    padding: 4px 12px;
+    padding: 5px 13px;
     border-radius: var(--r-pill);
-    background: rgba(244, 234, 212, 0.08);
-    border: 1px solid rgba(244, 234, 212, 0.18);
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 11px;
-    letter-spacing: 0.18em;
+    background: rgba(244, 234, 212, 0.07);
+    border: 1px solid rgba(244, 234, 212, 0.16);
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 10.5px;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: rgba(244, 234, 212, 0.82);
-    margin-bottom: 18px;
+    color: rgba(244, 234, 212, 0.8);
+    margin-bottom: 20px;
   }
+  /* The survivor's name is the climax of the whole flow — give it a real
+     display face (SF Pro Display, semibold, tight optical tracking), not the
+     thin wide-tracked monospace it used to wear. */
   .ritual-result-name {
     order: 2;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: clamp(22px, 3.4vw, 30px);
-    letter-spacing: 0.06em;
+    font-family: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+    font-weight: 600;
+    font-size: clamp(30px, 4vw, 42px);
+    letter-spacing: -0.02em;
     color: #f4ead4;
     margin-bottom: 14px;
-    line-height: 1.15;
+    line-height: 1.08;
   }
   .ritual-result-lineage {
     order: 3;
@@ -5988,6 +5993,10 @@ const ritualResultName    = document.getElementById('ritualResultName');
 const ritualResultLineage = document.getElementById('ritualResultLineage');
 const ritualResultTier    = document.getElementById('ritualResultTier');
 const ritualContinue      = document.getElementById('ritualContinue');
+// Display label for the ritual, matching the flow's labelOf(): canonical
+// brand casing "Biom #NNNN" (never all-caps — BiomEngine.label returns
+// "BIOM #N", which is the wrong voice and looked off in the big result).
+const ritualLabel = (seed) => `Biom #${String(seed).padStart(4, '0')}`;
 
 const BURN_HOLD_MS = 3000;
 let _ritual = { burnSeed: null, absorbSeed: null, holdTimer: null, committed: false, active: false };
@@ -6024,8 +6033,8 @@ function openBurnRitual(burnSeed, absorbSeed) {
   burnRitual.classList.remove('visible', 'holding', 'committed');
   _renderRitualSpecimen(ritualBurnerRender, burnSeed);
   _renderRitualSpecimen(ritualAbsorberRender, absorbSeed);
-  ritualBurnerName.textContent = window.BiomEngine.label(burnSeed);
-  ritualAbsorberName.textContent = window.BiomEngine.label(absorbSeed);
+  ritualBurnerName.textContent = ritualLabel(burnSeed);
+  ritualAbsorberName.textContent = ritualLabel(absorbSeed);
   ritualTitle.textContent = 'This cannot be undone.';
   ritualHold.classList.remove('holding');
   burnRitual.hidden = false;
@@ -6112,12 +6121,12 @@ async function _ritualCommit() {
       await refreshTokens([absorbSeed]);
       const newEff = effectiveState(absorbSeed);
       _renderRitualSpecimen(ritualAbsorberRender, absorbSeed, newEff);
-      ritualResultName.textContent = window.BiomEngine.label(absorbSeed);
+      ritualResultName.textContent = ritualLabel(absorbSeed);
       const ancestors = newEff.ancestors || [];
       if (ancestors.length === 0) {
         ritualResultLineage.textContent = '';
       } else {
-        const names = ancestors.map(a => window.BiomEngine.label(a.seed));
+        const names = ancestors.map(a => ritualLabel(a.seed));
         ritualResultLineage.textContent = 'Carries the memory of ' + names.join(', ') + '.';
       }
       const tier = tierForRank(result.rank);
@@ -6144,12 +6153,12 @@ async function _ritualCommit() {
   performBurn(burnSeed, absorbSeed);
   const newEff = effectiveState(absorbSeed);
   _renderRitualSpecimen(ritualAbsorberRender, absorbSeed, newEff);
-  ritualResultName.textContent = window.BiomEngine.label(absorbSeed);
+  ritualResultName.textContent = ritualLabel(absorbSeed);
   const ancestors = newEff.ancestors || [];
   if (ancestors.length === 0) {
     ritualResultLineage.textContent = '';
   } else {
-    const names = ancestors.map(a => window.BiomEngine.label(a.seed));
+    const names = ancestors.map(a => ritualLabel(a.seed));
     ritualResultLineage.textContent = 'Carries the memory of ' + names.join(', ') + '.';
   }
   const tier = tierForRank(newEff.rank);
