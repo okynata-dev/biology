@@ -93,10 +93,11 @@ jobs:
           chunk=${{ matrix.chunk }}
           total=${{ matrix.total }}
           read start end seeds <<< "$(python3 -c "
-          chunk, total, n = $chunk, $total, 3000
+          chunk, total, lo, hi = $chunk, $total, 1, 8001   # tokens 1..8000 (supply raised 2026-06)
+          n = hi - lo
           per = (n + total - 1) // total
-          s = chunk * per
-          e = min(s + per, n)
+          s = lo + chunk * per
+          e = min(s + per, hi)
           print(s, e, ','.join(str(i) for i in range(s, e)))
           ")"
           echo "Chunk $chunk: cutouts for seeds $start..$((end-1)) ($(($end - $start)) seeds)"
