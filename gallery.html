@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="bioms-reveal" content="true">
+<title>Bioms — Gallery</title>
+<meta name="description" content="All Bioms — the full colony of procedural microbes. Search by trait, species, or token.">
+<link rel="icon" href="/favicon.svg?v=3">
+<link rel="stylesheet" href="/design.css">
+<style>
+  :root{
+    --tile:var(--paper, #faf8f3);
+    --gap:14px;
+    --col:200px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg, #f3efe7); color:var(--ink, #1c1a16);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---- Header / search ---- */
+  .gal-head{
+    position:sticky; top:0; z-index:20;
+    background:color-mix(in srgb, var(--bg,#f3efe7) 88%, transparent);
+    backdrop-filter:saturate(1.1) blur(10px);
+    -webkit-backdrop-filter:saturate(1.1) blur(10px);
+    border-bottom:1px solid rgba(28,26,22,.08);
+    padding:14px clamp(14px,3vw,34px);
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  }
+  .gal-title{
+    font-weight:600; font-size:15px; letter-spacing:.01em; white-space:nowrap;
+    text-decoration:none; color:var(--ink,#1c1a16);
+  }
+  .gal-title span{ color:var(--muted,#8a8478); font-weight:400; }
+  .gal-search{
+    flex:1 1 280px; max-width:520px; position:relative;
+  }
+  .gal-search input{
+    width:100%; padding:9px 14px 9px 34px; border-radius:999px;
+    border:1px solid rgba(28,26,22,.16); background:var(--paper,#faf8f3);
+    font-size:14px; color:var(--ink,#1c1a16); outline:none;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .gal-search input:focus{
+    border-color:rgba(28,26,22,.4);
+    box-shadow:0 0 0 3px rgba(28,26,22,.06);
+  }
+  .gal-search svg{
+    position:absolute; left:11px; top:50%; transform:translateY(-50%);
+    width:15px; height:15px; opacity:.4; pointer-events:none;
+  }
+  .gal-count{ font-size:13px; color:var(--muted,#8a8478); white-space:nowrap; font-variant-numeric:tabular-nums; }
+
+  /* ---- Grid ---- */
+  .gal-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(var(--col), 1fr));
+    gap:var(--gap);
+    padding:var(--gap) clamp(14px,3vw,34px) 80px;
+  }
+  .tile{
+    position:relative; aspect-ratio:1/1; border-radius:18px; overflow:hidden;
+    background:var(--tile); cursor:pointer;
+    box-shadow:0 1px 2px rgba(0,0,0,.05), 0 8px 20px rgba(0,0,0,.05);
+    border:1px solid rgba(28,26,22,.05);
+    transition:transform .18s cubic-bezier(.2,.7,.2,1), box-shadow .18s ease;
+    content-visibility:auto; contain-intrinsic-size:200px;
+  }
+  .tile:hover{ transform:translateY(-2px); box-shadow:0 2px 4px rgba(0,0,0,.07), 0 14px 30px rgba(0,0,0,.10); }
+  .tile img, .tile video{
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:contain; display:block;
+  }
+  .tile video{ opacity:0; transition:opacity .25s ease; }
+  .tile video.on{ opacity:1; }
+  .tile .id{
+    position:absolute; left:8px; bottom:7px; font-size:10px;
+    color:var(--muted,#8a8478); font-variant-numeric:tabular-nums;
+    opacity:0; transition:opacity .15s ease; letter-spacing:.02em;
+    background:color-mix(in srgb, var(--paper,#faf8f3) 78%, transparent);
+    padding:1px 6px; border-radius:6px; pointer-events:none;
+  }
+  .tile:hover .id{ opacity:1; }
+
+  .gal-empty{
+    padding:80px 20px; text-align:center; color:var(--muted,#8a8478); font-size:15px;
+  }
+  #sentinel{ height:1px; }
+  .gal-foot{ padding:0 0 60px; text-align:center; color:var(--muted,#8a8478); font-size:12px; }
+</style>
+</head>
+<body>
+  <header class="gal-head">
+    <a class="gal-title" href="/">Bioms <span>/ gallery</span></a>
+    <div class="gal-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="q" type="search" placeholder="Search species, trait, or #id…" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="gal-count" id="count">—</div>
+  </header>
+
+  <main>
+    <div class="gal-grid" id="grid"></div>
+    <div class="gal-empty" id="empty" hidden>No Bioms match that search.</div>
+    <div id="sentinel"></div>
+    <p class="gal-foot" id="foot"></p>
+  </main>
+
+<script>
+(function(){
+  'use strict';
+  const PNG_BASE = 'https://pngs.thebioms.com';
+  const THUMB = id => `${PNG_BASE}/thumb/${String(id).padStart(5,'0')}.webp`;
+  const VIDEO = id => `${PNG_BASE}/video/${String(id).padStart(5,'0')}.mp4`;
+  const BATCH = 80;
+
+  const grid = document.getElementById('grid');
+  const qEl = document.getElementById('q');
+  const countEl = document.getElementById('count');
+  const emptyEl = document.getElementById('empty');
+  const footEl = document.getElementById('foot');
+
+  let ALL = [];
+  let results = [];
+  let shown = 0;
+
+  // Build a flat searchable haystack once per token.
+  function haystack(t){
+    return (t._h ||= [
+      t.n, '#'+t.i, String(t.i), t.p, t.m, t.l, t.r, t.t,
+      ...(t.o||[]), ...(t.a||[])
+    ].join(' ').toLowerCase());
+  }
+
+  function applySearch(raw){
+    const q = (raw||'').trim().toLowerCase();
+    if (!q){ results = ALL; }
+    else {
+      // Support "#1234" / bare id exact-ish, plus substring across traits.
+      const idMatch = q.replace(/^#/,'');
+      const isNum = /^\d+$/.test(idMatch);
+      results = ALL.filter(t => {
+        if (isNum && String(t.i) === idMatch) return true;
+        return haystack(t).includes(q);
+      });
+    }
+    // Reset window
+    grid.replaceChildren();
+    shown = 0;
+    emptyEl.hidden = results.length !== 0;
+    renderMore();
+    updateCount();
+  }
+
+  function updateCount(){
+    const n = results.length;
+    countEl.textContent = n === ALL.length
+      ? `${n.toLocaleString()} Bioms`
+      : `${n.toLocaleString()} of ${ALL.length.toLocaleString()}`;
+  }
+
+  function makeTile(t){
+    const el = document.createElement('a');
+    el.className = 'tile';
+    el.href = `/preview.html?seed=${t.i}`;
+    el.target = '_blank'; el.rel = 'noopener';
+    el.dataset.id = t.i;
+    el.setAttribute('aria-label', `${t.n} — Biom #${t.i}`);
+    const img = document.createElement('img');
+    img.loading = 'lazy'; img.decoding = 'async';
+    img.src = THUMB(t.i);
+    img.alt = '';
+    el.appendChild(img);
+    const id = document.createElement('span');
+    id.className = 'id'; id.textContent = '#'+t.i;
+    el.appendChild(id);
+    vidObserver.observe(el);
+    return el;
+  }
+
+  function renderMore(){
+    if (shown >= results.length) return;
+    const frag = document.createDocumentFragment();
+    const end = Math.min(shown + BATCH, results.length);
+    for (let i = shown; i < end; i++) frag.appendChild(makeTile(results[i]));
+    grid.appendChild(frag);
+    shown = end;
+    footEl.textContent = shown >= results.length && results.length ? `${results.length.toLocaleString()} shown` : '';
+  }
+
+  // Infinite scroll
+  const sentinel = document.getElementById('sentinel');
+  new IntersectionObserver((es)=>{
+    if (es.some(e => e.isIntersecting)) renderMore();
+  }, { rootMargin:'1200px' }).observe(sentinel);
+
+  // MP4-on-view — only tiles currently near the viewport get a <video>.
+  // Off-screen tiles drop theirs to keep memory + decoder count bounded.
+  const vidObserver = new IntersectionObserver((entries)=>{
+    for (const e of entries){
+      const el = e.target;
+      if (e.isIntersecting){
+        if (!el.querySelector('video')){
+          const v = document.createElement('video');
+          v.muted = true; v.loop = true; v.playsInline = true;
+          v.autoplay = true; v.preload = 'none';
+          v.setAttribute('tabindex','-1');
+          // Graceful: if the MP4 isn't on R2 yet, the thumb stays.
+          v.addEventListener('loadeddata', ()=> v.classList.add('on'), { once:true });
+          v.addEventListener('error', ()=> v.remove(), { once:true });
+          v.src = VIDEO(el.dataset.id);
+          el.appendChild(v);
+          const p = v.play(); if (p && p.catch) p.catch(()=>{});
+        }
+      } else {
+        const v = el.querySelector('video');
+        if (v){ v.pause(); v.removeAttribute('src'); v.load && v.load(); v.remove(); }
+      }
+    }
+  }, { rootMargin:'200px' });
+
+  // Debounced search input
+  let to;
+  qEl.addEventListener('input', ()=>{ clearTimeout(to); to = setTimeout(()=> applySearch(qEl.value), 120); });
+
+  // Boot
+  fetch('/gallery-data.json')
+    .then(r => r.json())
+    .then(d => {
+      ALL = d.tokens || [];
+      results = ALL;
+      updateCount();
+      renderMore();
+    })
+    .catch(err => {
+      countEl.textContent = 'failed to load';
+      console.error('[gallery] manifest load failed', err);
+    });
+})();
+</script>
+</body>
+</html>
