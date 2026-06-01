@@ -3749,9 +3749,12 @@ function renderWalletHoldings() {
   el.innerHTML = visible.map(seed => {
     const t = LabState.tokens[seed];
     const isMutated = t && (
+      (t.rank && t.rank > 1) ||
       (t.absorbedSeeds && t.absorbedSeeds.length > 0) ||
       t.receivedPalette || (t.receivedOrganelles && t.receivedOrganelles.length > 0) ||
-      (t.receivedAnomalies && t.receivedAnomalies.length > 0)
+      (t.receivedAnomalies && t.receivedAnomalies.length > 0) ||
+      t.receivedMorphology || t.receivedCellCount ||
+      t.receivedLifecycle || t.receivedReserve
     );
     const padded = String(seed).padStart(5, '0');
     const label = `Biom #${seed}`;
@@ -6663,11 +6666,21 @@ collectionGrid.addEventListener('click', (e) => {
   // Call hydrateThumbs(container) after innerHTML to paint them.
   function isMutated(seed) {
     const t = LabState.tokens[seed];
+    // A token is mutated if it has been through ANY burn. Check the full
+    // received-* set (matching the canonical isBase test below) PLUS
+    // rank>1 — a survivor whose only change was cellCount/morphology (a
+    // common same-palette burn) sets neither receivedPalette nor an
+    // organelle, so the earlier 4-field check wrongly fell back to the
+    // stale genesis R2 thumb. rank>1 catches every survivor regardless of
+    // which trait moved.
     return !!(t && (
+      (t.rank && t.rank > 1) ||
       (t.absorbedSeeds && t.absorbedSeeds.length > 0) ||
       t.receivedPalette ||
       (t.receivedOrganelles && t.receivedOrganelles.length > 0) ||
-      (t.receivedAnomalies && t.receivedAnomalies.length > 0)
+      (t.receivedAnomalies && t.receivedAnomalies.length > 0) ||
+      t.receivedMorphology || t.receivedCellCount ||
+      t.receivedLifecycle || t.receivedReserve
     ));
   }
   function thumbHtml(seed) {
