@@ -122,11 +122,11 @@ function mulberry32(seed) {
 // pickW consumes them in array order via a cumulative-weight pass. Copy
 // verbatim; do not "tidy up". RNG parity is the hard invariant.
 const PALETTE_WEIGHTS = [
-  ['gramPositive', 14], ['gramNegative', 12], ['fluorescent', 10], ['methylene', 9],
+  ['gramPositive', 13], ['gramNegative', 11], ['fluorescent', 10], ['methylene', 9],
   ['darkfield', 6], ['acid_fast', 5], ['giemsa', 4], ['iridescent_aurora', 5],
   ['ghost', 4], ['safranin', 3], ['india_ink', 3], ['gram_variable', 1],
   ['malachite', 4], ['congo_red', 3], ['carbol_fuchsin', 4], ['bismarck_brown', 4],
-  ['nile_blue', 4], ['eosin', 2], ['toluidine', 3],
+  ['nile_blue', 4], ['eosin', 2], ['toluidine', 3], ['ziehl_dual', 1], ['spore_dual', 1],
 ];
 const MORPHOLOGY_WEIGHTS = [
   ['coccus', 13], ['bacillus', 13], ['vibrio', 12], ['spirillum', 12],
@@ -1120,11 +1120,11 @@ function _mulberry32(seed) {
 }
 
 const _PALETTE_WEIGHTS = [
-  ['gramPositive', 14], ['gramNegative', 12], ['fluorescent', 10], ['methylene', 9],
+  ['gramPositive', 13], ['gramNegative', 11], ['fluorescent', 10], ['methylene', 9],
   ['darkfield', 6], ['acid_fast', 5], ['giemsa', 4], ['iridescent_aurora', 5],
   ['ghost', 4], ['safranin', 3], ['india_ink', 3], ['gram_variable', 1],
   ['malachite', 4], ['congo_red', 3], ['carbol_fuchsin', 4], ['bismarck_brown', 4],
-  ['nile_blue', 4], ['eosin', 2], ['toluidine', 3],
+  ['nile_blue', 4], ['eosin', 2], ['toluidine', 3], ['ziehl_dual', 1], ['spore_dual', 1],
 ];
 const _MORPHOLOGY_WEIGHTS = [
   ['coccus', 13], ['bacillus', 13], ['vibrio', 12], ['spirillum', 12],
@@ -1214,6 +1214,8 @@ const _PALETTE_LABEL = {
   nile_blue: 'Nile blue',
   eosin: 'Eosin coral',
   toluidine: 'Toluidine violet',
+  ziehl_dual: 'Ziehl-Neelsen dual',
+  spore_dual: 'Schaeffer-Fulton dual',
 };
 const _MORPH_LABEL = {
   coccus: 'Coccus', bacillus: 'Bacillus', vibrio: 'Vibrio',

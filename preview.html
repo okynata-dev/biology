@@ -706,6 +706,27 @@ const PALETTES = {
     accent:   'rgba(255, 200, 110, 0.65)', accentB:  'rgba(120, 210, 200, 0.60)',
   },
 
+  // === DUAL STAINS (2026-06) — real paired histology/microbiology stains.
+  // Body alternates two dyes per cell (mixCycle), so the duality reads on
+  // multi-cell morphologies. Rollable but rare (weight 1 each). Saturation
+  // boosted vs the on-the-fly burn-blender so they punch as a rare prize.
+  ziehl_dual: {       // Ziehl–Neelsen — carbol fuchsin (magenta) + methylene (blue)
+    capsule:  'rgba(210, 160, 215, 0.30)', cellWall: 'rgba(150, 120, 200, 0.30)',
+    body:     ['rgba(220,  55, 145, 0.62)', 'rgba( 35,  95, 180, 0.64)'],
+    bodyDark: 'rgba(140,  30, 105, 0.72)', bodyDeep: 'rgba( 20,  45, 105, 0.82)',
+    organelle:'rgba(240, 200, 230, 0.62)',
+    accent:   'rgba(255, 210, 110, 0.68)', accentB:  'rgba(120, 205, 230, 0.62)',
+    _bodyMode: 'mixCycle',
+  },
+  spore_dual: {       // Schaeffer–Fulton — malachite (green) + safranin (rose)
+    capsule:  'rgba(175, 220, 195, 0.30)', cellWall: 'rgba(130, 195, 160, 0.30)',
+    body:     ['rgba( 35, 165, 115, 0.62)', 'rgba(232, 120, 140, 0.60)'],
+    bodyDark: 'rgba( 22, 120,  85, 0.72)', bodyDeep: 'rgba(135,  45,  68, 0.80)',
+    organelle:'rgba(210, 240, 215, 0.62)',
+    accent:   'rgba(255, 185, 130, 0.68)', accentB:  'rgba(120, 210, 170, 0.62)',
+    _bodyMode: 'mixCycle',
+  },
+
   // === BURN-UNLOCK PALETTES === (mirror of specimen-engine.js)
   // Not in PALETTE_WEIGHTS — cannot be rolled at mint, only awarded by burn.
   radioactive: {
@@ -746,16 +767,17 @@ const PALETTES = {
 const PALETTE_KEYS = ['gramPositive', 'gramNegative', 'fluorescent', 'methylene', 'darkfield', 'acid_fast', 'giemsa', 'safranin'];
 const RARE_VARIANTS = ['iridescent_aurora', 'ghost', 'india_ink', 'gram_variable'];
 
-// Weighted palette distribution — 19 stains. Sum = 100.
+// Weighted palette distribution — 21 stains. Sum = 100.
 // MUST stay byte-identical (pairs + order) with worker.js PALETTE_WEIGHTS /
 // _PALETTE_WEIGHTS and specimen-engine.js PALETTE_WEIGHTS — RNG parity is the
 // hard invariant (one rng() call picks the palette per seed across all three).
-// Core Gram identity (76%): the original 12.
-// New stains (24%): malachite, congo_red, carbol_fuchsin, bismarck_brown,
-//                   nile_blue, eosin, toluidine — 2026-06 diversity expansion.
+// Core Gram identity (74%): the original 12.
+// New single stains (24%): malachite, congo_red, carbol_fuchsin,
+//                   bismarck_brown, nile_blue, eosin, toluidine.
+// Dual stains (2%): ziehl_dual, spore_dual — rare paired-stain prize.
 const PALETTE_WEIGHTS = [
-  ['gramPositive',      14],
-  ['gramNegative',      12],
+  ['gramPositive',      13],
+  ['gramNegative',      11],
   ['fluorescent',       10],
   ['methylene',          9],
   ['darkfield',          6],
@@ -773,6 +795,8 @@ const PALETTE_WEIGHTS = [
   ['nile_blue',          4],
   ['eosin',              2],
   ['toluidine',          3],
+  ['ziehl_dual',         1],
+  ['spore_dual',         1],
 ];
 
 function pickWeightedPalette(rng) {

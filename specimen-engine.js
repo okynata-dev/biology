@@ -148,6 +148,25 @@
       accent:   'rgba(255, 200, 110, 0.65)', accentB:  'rgba(120, 210, 200, 0.60)',
     },
 
+    // === DUAL STAINS (2026-06) — mirror of preview.html. Two dyes alternate
+    // per cell (mixCycle); rollable but rare (weight 1 each).
+    ziehl_dual: {       // Ziehl–Neelsen — carbol fuchsin + methylene
+      capsule:  'rgba(210, 160, 215, 0.30)', cellWall: 'rgba(150, 120, 200, 0.30)',
+      body:     ['rgba(220,  55, 145, 0.62)', 'rgba( 35,  95, 180, 0.64)'],
+      bodyDark: 'rgba(140,  30, 105, 0.72)', bodyDeep: 'rgba( 20,  45, 105, 0.82)',
+      organelle:'rgba(240, 200, 230, 0.62)',
+      accent:   'rgba(255, 210, 110, 0.68)', accentB:  'rgba(120, 205, 230, 0.62)',
+      _bodyMode: 'mixCycle',
+    },
+    spore_dual: {       // Schaeffer–Fulton — malachite + safranin
+      capsule:  'rgba(175, 220, 195, 0.30)', cellWall: 'rgba(130, 195, 160, 0.30)',
+      body:     ['rgba( 35, 165, 115, 0.62)', 'rgba(232, 120, 140, 0.60)'],
+      bodyDark: 'rgba( 22, 120,  85, 0.72)', bodyDeep: 'rgba(135,  45,  68, 0.80)',
+      organelle:'rgba(210, 240, 215, 0.62)',
+      accent:   'rgba(255, 185, 130, 0.68)', accentB:  'rgba(120, 210, 170, 0.62)',
+      _bodyMode: 'mixCycle',
+    },
+
     // === BURN-UNLOCK PALETTES ===
     // Not in PALETTE_WEIGHTS — cannot be rolled at mint. Only awarded
     // when a burn pushes generation across a tier threshold. The point
@@ -209,11 +228,11 @@
   // TRAIT WEIGHTS
   // ============================================================
   const PALETTE_WEIGHTS = [
-    ['gramPositive', 14], ['gramNegative', 12], ['fluorescent', 10], ['methylene', 9],
+    ['gramPositive', 13], ['gramNegative', 11], ['fluorescent', 10], ['methylene', 9],
     ['darkfield', 6], ['acid_fast', 5], ['giemsa', 4], ['iridescent_aurora', 5],
     ['ghost', 4], ['safranin', 3], ['india_ink', 3], ['gram_variable', 1],
     ['malachite', 4], ['congo_red', 3], ['carbol_fuchsin', 4], ['bismarck_brown', 4],
-    ['nile_blue', 4], ['eosin', 2], ['toluidine', 3],
+    ['nile_blue', 4], ['eosin', 2], ['toluidine', 3], ['ziehl_dual', 1], ['spore_dual', 1],
   ];
   const MORPHOLOGY_WEIGHTS = [
     ['coccus', 13], ['bacillus', 13], ['vibrio', 12], ['spirillum', 12],
