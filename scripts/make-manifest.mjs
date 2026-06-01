@@ -9,10 +9,27 @@
 // Usage: node scripts/make-manifest.mjs [count] [outfile]
 //        node scripts/make-manifest.mjs 8000 gallery-data.json
 
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 
 const COUNT = parseInt(process.argv[2] || '8000', 10);
 const OUT = process.argv[3] || 'gallery-data.json';
+const PREMINT_FILE = process.argv[4] || 'premint.json';
+
+// Optional pre-mint overlay — elevates ~550 tokens to Hybrid/Chimera/Phoenix.
+let PREMINT = null;
+if (existsSync(PREMINT_FILE)) {
+  try { PREMINT = JSON.parse(readFileSync(PREMINT_FILE, 'utf8')).tokens; } catch (_) { PREMINT = null; }
+}
+// Display labels for the elevated (unlock / mix) palettes.
+const ELEVATED_PAL_LABEL = {
+  gold: 'Gold', plasma: 'Plasma', aurora_storm: 'Aurora storm',
+  radioactive: 'Radioactive', void: 'Void',
+};
+function elevatedPaletteLabel(stain) {
+  if (ELEVATED_PAL_LABEL[stain]) return ELEVATED_PAL_LABEL[stain];
+  if (stain && stain.includes('+')) return stain.split('+').length >= 3 ? 'Chimera mix' : 'Hybrid stain';
+  return stain;
+}
 
 // ---- RNG (verbatim worker.js _mulberry32) ----
 function mulberry32(seed) {
@@ -138,7 +155,7 @@ for (let id = 1; id <= COUNT; id++) {
   if (s.phageAttached) anom.push('Phage attached');
   if (s.endosymbiont) anom.push('Endosymbiont');
   if (s.biofilmHalo) anom.push('Biofilm halo');
-  tokens.push({
+  const tok = {
     i: id,
     n: pickName(id),
     p: PALETTE_LABEL[s.palette] || s.palette,
@@ -148,8 +165,24 @@ for (let id = 1; id <= COUNT; id++) {
     r: RESERVE_LABEL[s.reserveGranule] || s.reserveGranule,
     o: org,
     a: anom,
-    t: 'Genesis', // base tier; pre-mint elevation overlaid later
-  });
+    t: 'Genesis', // base tier; pre-mint elevation overlaid below
+  };
+  // Pre-mint overlay — elevated tokens carry their synthesized state so
+  // gallery search finds "Phoenix", "Gold", etc. and the trait chips match
+  // the re-rendered master.
+  const pm = PREMINT && PREMINT[id];
+  if (pm) {
+    tok.t = pm.tier;
+    tok.p = elevatedPaletteLabel(pm.stain);
+    tok.c = pm.cells;
+    tok.o = (pm.organelles || []).filter(o => o !== 'capsule').map(o => ORG_LABEL[o] || o);
+    const a2 = [];
+    if (pm.phage) a2.push('Phage attached');
+    if (pm.endo) a2.push('Endosymbiont');
+    if (pm.biofilm) a2.push('Biofilm halo');
+    tok.a = a2;
+  }
+  tokens.push(tok);
 }
 
 // Distribution summary (sanity)
