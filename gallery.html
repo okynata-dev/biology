@@ -13,6 +13,7 @@
     --tile:var(--paper, #faf8f3);
     --gap:14px;
     --col:200px;
+    --muted:var(--ink-3, #686356);
   }
   *{box-sizing:border-box}
   body{
@@ -24,10 +25,8 @@
   /* ---- Header / search ---- */
   .gal-head{
     position:sticky; top:0; z-index:20;
-    background:color-mix(in srgb, var(--bg,#f3efe7) 88%, transparent);
-    backdrop-filter:saturate(1.1) blur(10px);
-    -webkit-backdrop-filter:saturate(1.1) blur(10px);
-    border-bottom:1px solid rgba(28,26,22,.08);
+    background:var(--bg, #f3efe7);
+    border-bottom:1px solid var(--rule, rgba(28,26,22,.12));
     padding:14px clamp(14px,3vw,34px);
     display:flex; align-items:center; gap:16px; flex-wrap:wrap;
   }
@@ -90,7 +89,25 @@
     padding:80px 20px; text-align:center; color:var(--muted,#8a8478); font-size:15px;
   }
   #sentinel{ height:1px; }
-  .gal-foot{ padding:0 0 60px; text-align:center; color:var(--muted,#8a8478); font-size:12px; }
+  .gal-foot{ padding:0 0 40px; text-align:center; color:var(--muted,#8a8478); font-size:12px; }
+
+  /* Site footer — matches the canonical footer on other pages. */
+  .site-footer{
+    padding:28px clamp(14px,3vw,34px); display:flex; justify-content:space-between;
+    align-items:center; flex-wrap:wrap; gap:12px;
+    font-size:13px; color:var(--muted,#686356); border-top:1px solid var(--rule, rgba(28,26,22,.12));
+  }
+  .site-footer a{ color:inherit; text-decoration:none; transition:color .15s; }
+  .site-footer a:hover{ color:var(--ink,#1c1a16); }
+  .site-footer .row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .site-footer .sep{ opacity:.4; }
+
+  @media (max-width: 560px){
+    :root{ --col:150px; --gap:10px; }
+    .gal-head{ padding:11px 14px; gap:10px; }
+    .gal-search{ flex-basis:160px; }
+    .site-footer{ flex-direction:column; text-align:center; }
+  }
 </style>
 </head>
 <body>
@@ -109,6 +126,27 @@
     <div id="sentinel"></div>
     <p class="gal-foot" id="foot"></p>
   </main>
+
+  <footer class="site-footer">
+    <div class="row">
+      <span>© 2026 Bioms</span>
+      <span class="sep">·</span>
+      <a href="/lab">Lab</a>
+      <span class="sep">·</span>
+      <a href="/explore">Traits</a>
+      <span class="sep">·</span>
+      <a href="/make">Banners</a>
+      <span class="sep">·</span>
+      <a href="/reserve">Mint</a>
+      <span class="sep">·</span>
+      <a href="/manifesto">Manifesto</a>
+    </div>
+    <div class="row">
+      <a href="https://opensea.io/collection/bioms/overview" target="_blank" rel="noopener">OpenSea</a>
+      <span class="sep">·</span>
+      <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
+    </div>
+  </footer>
 
 <script>
 (function(){
@@ -151,6 +189,7 @@
     // Reset window
     grid.replaceChildren();
     shown = 0;
+    footEl.textContent = '';
     emptyEl.hidden = results.length !== 0;
     renderMore();
     updateCount();
@@ -159,8 +198,8 @@
   function updateCount(){
     const n = results.length;
     countEl.textContent = n === ALL.length
-      ? `${n.toLocaleString()} Bioms`
-      : `${n.toLocaleString()} of ${ALL.length.toLocaleString()}`;
+      ? `${n.toLocaleString('en-US')} Bioms`
+      : `${n.toLocaleString('en-US')} of ${ALL.length.toLocaleString('en-US')}`;
   }
 
   function makeTile(t){

@@ -3096,6 +3096,8 @@
     <span class="sep">·</span>
     <a href="/explore">Traits</a>
     <span class="sep">·</span>
+    <a href="/gallery">Gallery</a>
+    <span class="sep">·</span>
     <a href="/make">Banners</a>
     <span class="sep">·</span>
     <a href="/reserve">Mint</a>
@@ -3907,11 +3909,13 @@ function effectiveState(seed) {
     phageAttached, endosymbiont, biofilmHalo,
     depletedNow,
     // Burn lineage — surfaces in collection card badge + metadata.
-    // `rank` is the canonical rarity number (1 = Genesis, doubles via
-    // equal-rank burns). `generation` is kept as a legacy alias derived
-    // from rank for any old code path that still references it.
-    rank: t.rank || ((t.generation || 0) + 1),
-    generation: t.generation || (t.rank ? t.rank - 1 : 0),
+    // `rank` is the canonical rarity number (1 = Genesis, +1 per burn,
+    // linear). Pre-minted elevated tokens carry an intrinsic base.rank
+    // (from applyPremint) that is the floor before any burn — fall back to
+    // it so a premint Phoenix shows Phoenix, not Genesis, in the Lab.
+    // `generation` is a legacy alias derived from rank.
+    rank: t.rank || base.rank || ((t.generation || 0) + 1),
+    generation: t.generation || ((t.rank || base.rank) ? (t.rank || base.rank) - 1 : 0),
     burnsAbsorbed: t.burnsAbsorbed || 0,
     paletteAncestry: t.paletteAncestry || [base.palette],
     // Names of ancestors absorbed into this Biom, oldest first. Drives

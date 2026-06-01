@@ -210,11 +210,11 @@
     },
 
     // G7+ unlock — the prize. Metallic gold with bronze depth.
-    gold: {
-      capsule:  'rgba(255, 230, 150, 0.32)', cellWall: 'rgba(220, 180,  80, 0.32)',
-      body:     'rgba(245, 200,  90, 0.80)', bodyDark: 'rgba(190, 130,  40, 0.82)',
-      bodyDeep: 'rgba(110,  70,  10, 0.88)', organelle:'rgba(255, 240, 180, 0.80)',
-      accent:   'rgba(255, 250, 220, 0.85)', accentB:  'rgba(220, 160,  60, 0.75)',
+    gold: {        // metallic amber-gold (richer than the old pale honey) — the apex prize
+      capsule:  'rgba(245, 210, 120, 0.34)', cellWall: 'rgba(208, 158,  58, 0.36)',
+      body:     'rgba(228, 168,  52, 0.90)', bodyDark: 'rgba(168, 108,  28, 0.88)',
+      bodyDeep: 'rgba( 92,  56,  12, 0.92)', organelle:'rgba(255, 234, 158, 0.82)',
+      accent:   'rgba(255, 244, 198, 0.92)', accentB:  'rgba(198, 138,  44, 0.80)',
     },
   };
 

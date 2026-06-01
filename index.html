@@ -613,7 +613,8 @@
     margin: 48px 0 0;
     display: flex;
     align-items: baseline;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     text-transform: uppercase;
     letter-spacing: 0.14em;
@@ -623,9 +624,11 @@
     transition: color 0.15s;
   }
   .lab-ladder .step.s1 { font-size: 10px; opacity: 0.42; }
-  .lab-ladder .step.s2 { font-size: 11px; opacity: 0.55; }
-  .lab-ladder .step.s3 { font-size: 12px; opacity: 0.72; font-weight: 500; }
-  .lab-ladder .step.s4 { font-size: 14px; opacity: 1.0;  font-weight: 500; }
+  .lab-ladder .step.s2 { font-size: 11px; opacity: 0.52; }
+  .lab-ladder .step.s3 { font-size: 12px; opacity: 0.64; font-weight: 500; }
+  .lab-ladder .step.s4 { font-size: 13px; opacity: 0.80; font-weight: 500; }
+  .lab-ladder .step.s5 { font-size: 14px; opacity: 0.92; font-weight: 600; color: var(--burn); }
+  .lab-ladder .step.s6 { font-size: 16px; opacity: 1.0;  font-weight: 700; color: #b9822a; }
   .lab-ladder .sep {
     color: var(--ink-3);
     opacity: 0.5;
@@ -886,7 +889,7 @@
       <div class="lab-copy">
         <h2 class="lab-headline">Evolve.</h2>
         <p>Burn one Biom to feed another. The survivor inherits everything — palette, organelles, the body itself. The donor is gone, forever.</p>
-        <p>Each burn raises the survivor a rank — Genesis, Hybrid, Chimera, Phoenix. Reaching Phoenix means feeding seven Bioms into one. Most collectors will never get there. The ones who do make a small, irreversible decision over and over.</p>
+        <p>Each burn raises the survivor a rank — Genesis, Hybrid, Chimera, Phoenix, and beyond. Reaching Phoenix means feeding seven Bioms into one; a rare few push further still, into Superorganism and Biome. Almost no one gets there. The ones who do make a small, irreversible decision over and over.</p>
         <div class="lab-ladder" aria-label="Rarity ladder">
           <span class="step s1">Genesis</span>
           <span class="sep">→</span>
@@ -895,6 +898,10 @@
           <span class="step s3">Chimera</span>
           <span class="sep">→</span>
           <span class="step s4">Phoenix</span>
+          <span class="sep">→</span>
+          <span class="step s5">Superorganism</span>
+          <span class="sep">→</span>
+          <span class="step s6">Biome</span>
         </div>
         <div class="lab-cta">
           <a href="/lab" class="btn">Open the Lab</a>
@@ -961,6 +968,8 @@
     <a href="/lab">Lab</a>
     <span class="sep">·</span>
     <a href="/explore">Traits</a>
+    <span class="sep">·</span>
+    <a href="/gallery">Gallery</a>
     <span class="sep">·</span>
     <a href="/make">Banners</a>
     <span class="sep">·</span>
@@ -1077,7 +1086,7 @@ function _storeSeed(n) {
 }
 let currentSeed = _readUrlSeed();
 if (currentSeed === null) currentSeed = _readStoredSeed();
-if (currentSeed === null) currentSeed = Math.floor(Math.random() * 3000);
+if (currentSeed === null) currentSeed = Math.floor(Math.random() * 8000);
 _storeSeed(currentSeed);
 mountHero(heroEl, currentSeed);
 // Pre-reveal: hide just the "BIOM #N" chip + separator (no number, no
@@ -1092,7 +1101,7 @@ mountHero(heroEl, currentSeed);
 // via Tab + Enter — no separate caption-text button needed anymore.
 function rollHero() {
   let next;
-  do { next = Math.floor(Math.random() * 3000); } while (next === currentSeed);
+  do { next = Math.floor(Math.random() * 8000); } while (next === currentSeed);
   currentSeed = next;
   _storeSeed(currentSeed);
   mountHero(heroEl, currentSeed);
@@ -1223,7 +1232,7 @@ function _catalogSeedsPreReveal() {
       }
     }
   } catch (_) {}
-  const fresh = Array.from({ length: 12 }, () => Math.floor(Math.random() * 3000));
+  const fresh = Array.from({ length: 12 }, () => Math.floor(Math.random() * 8000));
   try { sessionStorage.setItem('bioms-catalog-seeds', JSON.stringify(fresh)); } catch (_) {}
   return fresh;
 }

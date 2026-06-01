@@ -1062,6 +1062,10 @@ async function handleBurn(req, env, ctx, origin) {
     ctx.waitUntil(renderTokenMaster(env, recipientId).catch(() => {}));
   }
 
+  // Rank = pre-mint base rank (intrinsic floor for elevated tokens) + burns.
+  // Mirrors buildMetadata so the Lab's post-burn rank matches OpenSea.
+  const _pmRecip = PREMINT[recipientId] || PREMINT[String(recipientId)];
+  const _recipBaseRank = _pmRecip ? _pmRecip.rank : 1;
   return json({
     ok: true,
     burnedTokenId: donorId,
@@ -1069,7 +1073,7 @@ async function handleBurn(req, env, ctx, origin) {
     txHash,
     blockNumber: verdict.blockNumber ? String(verdict.blockNumber) : null,
     absorbedSeeds,
-    rank: absorbedSeeds.length + 1,
+    rank: _recipBaseRank + absorbedSeeds.length,
   }, {}, origin);
 }
 
