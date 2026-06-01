@@ -15,7 +15,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 
-const SEEDS = [0, 1, 42, 247, 999, 1000, 1500, 1999, 2000, 2500, 2998, 2999];
+const SEEDS = [0, 1, 42, 247, 999, 1000, 1500, 1999, 2000, 2500, 2998, 2999,
+               3000, 3001, 4000, 5500, 7000, 7999, 8000];
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, '..');

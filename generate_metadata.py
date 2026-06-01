@@ -86,18 +86,27 @@ def pick_weighted_morph(rng):
 
 # 12 stains with weighted distribution. Sum = 100.
 PALETTE_WEIGHTS = [
-    ('gramPositive',      20),
-    ('gramNegative',      16),
-    ('fluorescent',       14),
-    ('methylene',         12),
-    ('darkfield',          8),
-    ('acid_fast',          6),
-    ('giemsa',             5),
-    ('iridescent_aurora',  7),
-    ('ghost',              5),
+    ('gramPositive',      13),
+    ('gramNegative',      11),
+    ('fluorescent',       10),
+    ('methylene',          9),
+    ('darkfield',          6),
+    ('acid_fast',          5),
+    ('giemsa',             4),
+    ('iridescent_aurora',  5),
+    ('ghost',              4),
     ('safranin',           3),
     ('india_ink',          3),
     ('gram_variable',      1),
+    ('malachite',          4),
+    ('congo_red',          3),
+    ('carbol_fuchsin',     4),
+    ('bismarck_brown',     4),
+    ('nile_blue',          4),
+    ('eosin',              2),
+    ('toluidine',          3),
+    ('ziehl_dual',         1),
+    ('spore_dual',         1),
 ]
 
 
@@ -165,6 +174,9 @@ STAIN_LABEL = {
     'iridescent_aurora': 'Aurora', 'ghost': 'Ghost', 'gram_variable': 'Gram-variable',
     'acid_fast': 'Acid-fast', 'giemsa': 'Giemsa',
     'safranin': 'Safranin', 'india_ink': 'India Ink',
+    'malachite': 'Malachite', 'congo_red': 'Congo Red', 'carbol_fuchsin': 'Carbol Fuchsin',
+    'bismarck_brown': 'Bismarck Brown', 'nile_blue': 'Nile Blue', 'eosin': 'Eosin',
+    'toluidine': 'Toluidine', 'ziehl_dual': 'Ziehl–Neelsen', 'spore_dual': 'Schaeffer–Fulton',
 }
 ORGANELLE_LABEL = {
     'capsule': 'Capsule', 'nucleoid': 'Nucleoid', 'ribosomes': 'Ribosomes',

@@ -21,8 +21,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from generate_metadata import generate_traits  # noqa: E402
 
-# Canary seeds — spread across the 0..2999 space, plus boundaries.
-SEEDS = [0, 1, 42, 247, 999, 1000, 1500, 1999, 2000, 2500, 2998, 2999]
+# Canary seeds — spread across the full 0..8000 space, plus boundaries.
+# (Supply raised 3000->8000 in 2026-06; high seeds guard the expanded range.)
+SEEDS = [0, 1, 42, 247, 999, 1000, 1500, 1999, 2000, 2500, 2998, 2999,
+         3000, 3001, 4000, 5500, 7000, 7999, 8000]
 
 
 def canonical(seed):
