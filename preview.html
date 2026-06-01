@@ -2414,6 +2414,12 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom');
   if (!row || !cta) return;
   const inIframe = (() => { try { return window.self !== window.top; } catch (_) { return true; } })();
   if (inIframe) return;
+  // Static / non-interactive / deterministic-render modes are used for
+  // masters, thumbnails and video frames — the download CTAs must never
+  // bake into those captures. (Live token render has none of these params,
+  // so collectors still get the buttons on OpenSea.)
+  const _q = new URLSearchParams(window.location.search);
+  if (_q.get('static') === '1' || _q.get('nointeract') === '1' || _q.get('render') === '1') return;
   const params = new URLSearchParams(window.location.search);
   const seedRaw = params.get('seed');
   const seed = (seedRaw !== null && Number.isFinite(parseInt(seedRaw, 10)))

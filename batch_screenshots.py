@@ -27,7 +27,9 @@ import socketserver
 import threading
 import time
 import platform
+from io import BytesIO
 from pathlib import Path
+from PIL import Image
 from playwright.sync_api import sync_playwright
 
 
@@ -96,7 +98,12 @@ def main():
                         help="Asset format. 'preview' renders the bare token; others use asset-template.html.")
     parser.add_argument("--workers", type=int, default=1,
                         help="Parallel browser instances. On M-series Macs 4-6 works well. Linux container: keep at 1.")
+    parser.add_argument("--webp", action="store_true",
+                        help="Save WEBP (via PIL) instead of PNG. Screenshots to PNG bytes in-memory and re-encodes — no 6 MB PNGs on disk.")
+    parser.add_argument("--webp-quality", type=int, default=90, help="WEBP quality 1-100 (default 90).")
     args = parser.parse_args()
+
+    EXT = "webp" if args.webp else "png"
 
     html_path = Path(args.html_path).resolve()
     if not html_path.exists():
@@ -155,7 +162,7 @@ def main():
             failed = []
 
             for i, seed in enumerate(seeds):
-                out_path = output_dir / f"{seed:05d}.png"
+                out_path = output_dir / f"{seed:05d}.{EXT}"
                 if out_path.exists() and out_path.stat().st_size > 0:
                     skipped_existing += 1
                     continue
@@ -173,10 +180,14 @@ def main():
                         # was hanging once the system got hot.
                         page.goto(url, wait_until="load", timeout=15000)
                         page.wait_for_timeout(int(args.settle * 1000))
-                        page.screenshot(
-                            path=str(out_path),
-                            clip={"x": 0, "y": 0, "width": width, "height": height},
-                        )
+                        clip = {"x": 0, "y": 0, "width": width, "height": height}
+                        if args.webp:
+                            buf = page.screenshot(clip=clip)
+                            Image.open(BytesIO(buf)).save(
+                                str(out_path), "WEBP", quality=args.webp_quality, method=6
+                            )
+                        else:
+                            page.screenshot(path=str(out_path), clip=clip)
                         ok = True
                         break
                     except Exception as e:
@@ -239,8 +250,8 @@ def main():
                     failed = f.result() or []
                     all_failed.extend(failed)
 
-        existing = sorted(int(p.stem) for p in output_dir.glob("*.png"))
-        print(f"\nDone. {len(existing)} / {args.count} PNGs in {output_dir}/")
+        existing = sorted(int(p.stem) for p in output_dir.glob(f"*.{EXT}"))
+        print(f"\nDone. {len(existing)} / {args.count} {EXT.upper()} files in {output_dir}/")
         if all_failed:
             print(f"! {len(all_failed)} seeds failed after retry: {sorted(all_failed)}")
             print(f"  Rerun the same command — already-rendered PNGs are skipped, only the gaps will be re-attempted.")
