@@ -2762,6 +2762,15 @@
   .thumb-live .composition {
     position: absolute; inset: 0;
   }
+  /* Mutated survivors render through preview.html (the same engine the
+     token's animation_url uses) so they match the crisp R2 thumbs — the
+     lab's DOM renderer washes glow palettes into pale blobs. */
+  .thumb-frame {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    border: 0; display: block;
+    background: transparent;
+  }
   .flow-after-thumb .thumb-live { border-radius: inherit; }
   .flow-pick-name {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
@@ -6685,7 +6694,14 @@ collectionGrid.addEventListener('click', (e) => {
   }
   function thumbHtml(seed) {
     if (isMutated(seed)) {
-      return `<div class="thumb-live" data-seed="${seed}"><div class="composition"></div></div>`;
+      // Mutated survivors have no static R2 thumb at their current state.
+      // The lab's DOM renderer (renderSpecimen) is lower-fidelity than
+      // preview.html and washes glow palettes (fluorescent/darkfield/
+      // radioactive) into pale blobs. Render the mutated state through the
+      // SAME engine the token's animation_url uses — a static, bare
+      // preview.html iframe — so the thumbnail is WYSIWYG with the real NFT.
+      const url = previewUrlFor(seed, effectiveState(seed), { static: true, nointeract: true }) + '&fit=1&lite=2';
+      return `<div class="thumb-live"><iframe class="thumb-frame" src="${url}" loading="lazy" tabindex="-1" aria-hidden="true" scrolling="no" title="Biom #${seed}"></iframe></div>`;
     }
     const padded = String(seed).padStart(5, '0');
     return `<picture>
