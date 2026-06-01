@@ -649,6 +649,25 @@
       0 0 0 2px var(--paper),
       0 1px 2px rgba(0, 0, 0, 0.18);
   }
+  /* Apex tiers — earned only by burning a Phoenix further. Superorganism
+     wears the ember; Biome (the rarest thing in the collection) wears gold. */
+  .biom-card .gen-badge.apex {
+    background: var(--burn);
+    color: var(--paper);
+    border-color: var(--burn);
+    box-shadow:
+      0 0 0 2px var(--paper),
+      0 1px 3px rgba(0, 0, 0, 0.18);
+  }
+  .biom-card .gen-badge.mythic {
+    background: linear-gradient(135deg, #e6b54a, #b9822a);
+    color: #1a1206;
+    border-color: #d9a441;
+    box-shadow:
+      0 0 0 2px var(--paper),
+      0 0 10px rgba(230, 181, 74, 0.5),
+      0 1px 3px rgba(0, 0, 0, 0.18);
+  }
   /* Cooldown chip — was visible as "Axial filament · 44s" but that surfaced
      internal game state (which trait was on cooldown) in jargon no user
      could parse. Hidden in v2 — the cooldown still runs server-side and
@@ -2357,6 +2376,15 @@
   .biom-card .gen-badge.epic {
     background: var(--burn);
     box-shadow: 0 0 0 2px var(--lab-bg-2), 0 0 8px var(--burn-glow, rgba(184,73,44,0.4));
+  }
+  /* Apex tier dots — brighter than Phoenix, with a stronger halo. */
+  .biom-card .gen-badge.apex {
+    background: #e8743f;
+    box-shadow: 0 0 0 2px var(--lab-bg-2), 0 0 10px rgba(232,116,63,0.6);
+  }
+  .biom-card .gen-badge.mythic {
+    background: #e6b54a;
+    box-shadow: 0 0 0 2px var(--lab-bg-2), 0 0 12px rgba(230,181,74,0.7);
   }
 
   /* === Decision row — replaces the "Burn & Absorb" form button.
@@ -4315,23 +4343,26 @@ function fmtRemaining(ms) {
 }
 
 // === RANK MATH ===
-// Burn rule: newRank = burnerRank + absorberRank.
-//   2 × Genesis (1+1) = rank 2 (Hybrid)
-//   2 × rank-2 (2+2)  = rank 4 (Chimera)
-//   2 × rank-4 (4+4)  = rank 8 (Phoenix)
-// So rank = total Bioms absorbed in the lineage (including self at rank 1).
-// Reaching Phoenix requires 8 Bioms consumed. The mapping to tiers is
-// done via power-of-2 thresholds so the visual ladder feels exponential.
-//
-//   1     → Genesis (no badge — pure original)
-//   2-3   → Hybrid  (you've consumed 1-2 ancestors)
-//   4-7   → Chimera (you've consumed 3-6 ancestors)
-//   8+    → Phoenix (you've consumed 7+ ancestors)
+// Burn rule (LINEAR): newRank = absorberRank + 1. Each burn absorbs exactly
+// one donor, so rank = 1 + total Bioms absorbed in the lineage. Mirrors
+// worker.js (_tierForRank) — the worker is authoritative.
+//   Genesis ← Genesis           = rank 2 (Hybrid)
+//   rank-2  ← Genesis (2nd burn) = rank 3 (Hybrid)
+//   ...one donor at a time climbs the ladder.
+// Tier thresholds:
+//   1      → Genesis       (no badge — pure original)
+//   2-3    → Hybrid        (1-2 absorbed)
+//   4-7    → Chimera       (3-6 absorbed)
+//   8-15   → Phoenix       (7-14 absorbed)
+//   16-23  → Superorganism (15-22 absorbed — apex, burn-only)
+//   24+    → Biome         (23+ absorbed — apex, burn-only)
 function tierForRank(rank) {
-  if (rank <= 1) return null;
-  if (rank <= 3) return { name: 'Hybrid',  cls: '' };
-  if (rank <= 7) return { name: 'Chimera', cls: 'high' };
-  return            { name: 'Phoenix', cls: 'epic' };
+  if (rank <= 1)  return null;
+  if (rank <= 3)  return { name: 'Hybrid',        cls: '' };
+  if (rank <= 7)  return { name: 'Chimera',       cls: 'high' };
+  if (rank <= 15) return { name: 'Phoenix',       cls: 'epic' };
+  if (rank <= 23) return { name: 'Superorganism', cls: 'apex' };
+  return             { name: 'Biome',          cls: 'mythic' };
 }
 // Legacy alias — older code still calls this. Generation 0 = rank 1, etc.
 function tierForGeneration(gen) { return tierForRank((gen || 0) + 1); }
@@ -4340,10 +4371,12 @@ function tierForGeneration(gen) { return tierForRank((gen || 0) + 1); }
 // of the specimen render (shimmer / crystal / halo). Genesis (rank 1)
 // gets no decoration — base form is the rarity baseline.
 function thumbTierClassByRank(rank) {
-  if (rank <= 1) return '';
-  if (rank <= 3) return 'tier-hybrid';
-  if (rank <= 7) return 'tier-chimera';
-  return            'tier-phoenix';
+  if (rank <= 1)  return '';
+  if (rank <= 3)  return 'tier-hybrid';
+  if (rank <= 7)  return 'tier-chimera';
+  if (rank <= 15) return 'tier-phoenix';
+  if (rank <= 23) return 'tier-superorganism';
+  return             'tier-biome';
 }
 function thumbTierClass(gen) { return thumbTierClassByRank((gen || 0) + 1); }
 

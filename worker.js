@@ -72,7 +72,7 @@ function error(msg, status = 400, origin = '') {
 // token #0 ever mints), and art seed 0 is simply not part of the minted
 // collection — the collection is engine seeds 1..3000. The static master
 // for seed 3000 was rendered + uploaded to R2 alongside this change.
-const DEFAULT_MAX_TOKEN_ID = 3000;  // contract mints 1..3000 (SeaDrop is 1-indexed)
+const DEFAULT_MAX_TOKEN_ID = 8000;  // contract mints 1..8000 (SeaDrop is 1-indexed; supply raised 3000->8000 for the 2026-06 expansion)
 function maxTokenId(env) {
   const v = parseInt(env && env.MAX_TOKEN_ID, 10);
   return Number.isFinite(v) && v >= 0 ? v : DEFAULT_MAX_TOKEN_ID;
@@ -1240,10 +1240,12 @@ const _ORG_LABEL = {
 };
 
 function _tierForRank(rank) {
-  if (rank <= 1) return 'Genesis';
-  if (rank <= 3) return 'Hybrid';
-  if (rank <= 7) return 'Chimera';
-  return 'Phoenix';
+  if (rank <= 1)  return 'Genesis';        // base mint, 0 absorbed
+  if (rank <= 3)  return 'Hybrid';         // 1-2 absorbed
+  if (rank <= 7)  return 'Chimera';        // 3-6 absorbed
+  if (rank <= 15) return 'Phoenix';        // 7-14 absorbed
+  if (rank <= 23) return 'Superorganism';  // 15-22 absorbed — apex, burn-only
+  return 'Biome';                          // 23+ absorbed — apex, burn-only
 }
 
 // === OpenSea metadata builder ===
