@@ -102,6 +102,52 @@
       accent:   'rgba(180, 180, 200, 0.65)', accentB:  'rgba(140, 140, 160, 0.55)',
     },
 
+    // === NEW STAINS (2026-06 expansion) — mirror of preview.html. Real
+    // microbiology/histology dyes, tuned for strong contrast on the cream
+    // tile (mid-dark saturated bodies). Rollable at mint via PALETTE_WEIGHTS.
+    malachite: {        // Schaeffer–Fulton spore stain — deep emerald
+      capsule:  'rgba(150, 220, 180, 0.30)', cellWall: 'rgba( 90, 180, 140, 0.30)',
+      body:     'rgba( 40, 170, 120, 0.58)', bodyDark: 'rgba( 20, 130,  90, 0.68)',
+      bodyDeep: 'rgba( 10,  80,  60, 0.80)', organelle:'rgba(190, 240, 210, 0.60)',
+      accent:   'rgba(255, 200,  90, 0.65)', accentB:  'rgba(255, 150,  90, 0.60)',
+    },
+    congo_red: {        // Amyloid / capsule stain — brick scarlet
+      capsule:  'rgba(245, 175, 150, 0.30)', cellWall: 'rgba(225, 130, 100, 0.30)',
+      body:     'rgba(225,  90,  55, 0.58)', bodyDark: 'rgba(185,  55,  35, 0.68)',
+      bodyDeep: 'rgba(120,  30,  20, 0.80)', organelle:'rgba(250, 200, 170, 0.60)',
+      accent:   'rgba( 90, 180, 200, 0.65)', accentB:  'rgba(120, 200, 210, 0.60)',
+    },
+    carbol_fuchsin: {   // Ziehl–Neelsen primary — hot magenta
+      capsule:  'rgba(245, 160, 210, 0.30)', cellWall: 'rgba(225, 100, 180, 0.30)',
+      body:     'rgba(225,  60, 150, 0.58)', bodyDark: 'rgba(180,  30, 115, 0.68)',
+      bodyDeep: 'rgba(110,  15,  75, 0.80)', organelle:'rgba(250, 190, 225, 0.60)',
+      accent:   'rgba(120, 210, 160, 0.65)', accentB:  'rgba(255, 210, 110, 0.60)',
+    },
+    bismarck_brown: {   // Gram counterstain — warm coffee sepia
+      capsule:  'rgba(212, 170, 128, 0.32)', cellWall: 'rgba(176, 126,  84, 0.32)',
+      body:     'rgba(148,  96,  54, 0.62)', bodyDark: 'rgba(104,  64,  34, 0.72)',
+      bodyDeep: 'rgba( 58,  36,  19, 0.82)', organelle:'rgba(232, 205, 170, 0.62)',
+      accent:   'rgba(110, 180, 200, 0.65)', accentB:  'rgba(210, 165, 110, 0.60)',
+    },
+    nile_blue: {        // Lipid stain — deep petrol teal-blue
+      capsule:  'rgba(140, 195, 212, 0.32)', cellWall: 'rgba( 75, 150, 178, 0.32)',
+      body:     'rgba( 30, 118, 158, 0.60)', bodyDark: 'rgba( 18,  85, 122, 0.70)',
+      bodyDeep: 'rgba(  8,  48,  78, 0.82)', organelle:'rgba(185, 222, 234, 0.62)',
+      accent:   'rgba(255, 178, 105, 0.65)', accentB:  'rgba(255, 145, 125, 0.60)',
+    },
+    eosin: {            // H&E counterstain — coral
+      capsule:  'rgba(250, 195, 180, 0.30)', cellWall: 'rgba(240, 155, 140, 0.30)',
+      body:     'rgba(245, 125, 110, 0.56)', bodyDark: 'rgba(210,  85,  80, 0.66)',
+      bodyDeep: 'rgba(150,  45,  50, 0.78)', organelle:'rgba(252, 205, 195, 0.60)',
+      accent:   'rgba(110, 190, 180, 0.65)', accentB:  'rgba(130, 200, 200, 0.60)',
+    },
+    toluidine: {        // Metachromatic stain — indigo violet
+      capsule:  'rgba(180, 175, 225, 0.30)', cellWall: 'rgba(140, 130, 205, 0.30)',
+      body:     'rgba(105,  90, 195, 0.58)', bodyDark: 'rgba( 75,  55, 155, 0.68)',
+      bodyDeep: 'rgba( 45,  30, 100, 0.80)', organelle:'rgba(210, 200, 240, 0.60)',
+      accent:   'rgba(255, 200, 110, 0.65)', accentB:  'rgba(120, 210, 200, 0.60)',
+    },
+
     // === BURN-UNLOCK PALETTES ===
     // Not in PALETTE_WEIGHTS — cannot be rolled at mint. Only awarded
     // when a burn pushes generation across a tier threshold. The point
@@ -163,9 +209,11 @@
   // TRAIT WEIGHTS
   // ============================================================
   const PALETTE_WEIGHTS = [
-    ['gramPositive', 20], ['gramNegative', 16], ['fluorescent', 14], ['methylene', 12],
-    ['darkfield', 8], ['acid_fast', 6], ['giemsa', 5], ['iridescent_aurora', 7],
-    ['ghost', 5], ['safranin', 3], ['india_ink', 3], ['gram_variable', 1],
+    ['gramPositive', 14], ['gramNegative', 12], ['fluorescent', 10], ['methylene', 9],
+    ['darkfield', 6], ['acid_fast', 5], ['giemsa', 4], ['iridescent_aurora', 5],
+    ['ghost', 4], ['safranin', 3], ['india_ink', 3], ['gram_variable', 1],
+    ['malachite', 4], ['congo_red', 3], ['carbol_fuchsin', 4], ['bismarck_brown', 4],
+    ['nile_blue', 4], ['eosin', 2], ['toluidine', 3],
   ];
   const MORPHOLOGY_WEIGHTS = [
     ['coccus', 13], ['bacillus', 13], ['vibrio', 12], ['spirillum', 12],
