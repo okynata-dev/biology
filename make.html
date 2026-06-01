@@ -751,7 +751,7 @@ const PNG_BASE = 'https://pngs.thebioms.com';
 // R2 layout: bucket root has preview/ and explore/ directories. The local
 // pngs/ folder structure (pngs/preview/, pngs/explore/) is for the source
 // tree only — the `pngs/` segment is dropped when uploaded to R2.
-const PNG_PATH = (seed) => `${PNG_BASE}/preview/${String(seed).padStart(5, '0')}.png`;
+const PNG_PATH = (seed) => `${PNG_BASE}/preview/${String(seed).padStart(5, '0')}.webp`;
 
 // =========================================================================
 // FORMATS

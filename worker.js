@@ -1370,7 +1370,7 @@ async function buildMetadata(env, tokenId) {
   // Image URL with cache-bust version. After renderTokenMaster()
   // overwrites the R2 master, imageVersion is bumped → URL changes →
   // CDN treats as fresh asset → users see new master.
-  const imageUrl = `https://pngs.thebioms.com/preview/${padded}.png?v=${imageVersion}`;
+  const imageUrl = `https://pngs.thebioms.com/preview/${padded}.webp?v=${imageVersion}`;
 
   return {
     // "Biom #N" — no padding, max ID is 3000 so digit count tops out at
@@ -1383,7 +1383,7 @@ async function buildMetadata(env, tokenId) {
     // for the life of the listing, so this name has to be right before
     // first mint.
     name: `Biom #${tokenId}`,
-    description: 'A living microbe from the Bioms collection — 3,000 procedural microbial organisms on Ethereum. They share traits, burn each other, and evolve. The survivors carry everything forward. thebioms.com',
+    description: 'A living microbe from the Bioms collection — procedural microbial organisms on Ethereum. They share traits, burn each other, and evolve. The survivors carry everything forward. thebioms.com',
     // Static image — for mutated tokens this URL gets re-uploaded by
     // renderTokenMaster() after each burn/conjugate (Browser Rendering
     // pipeline). The ?v=N query bumps each regen → CDN cache busts →
@@ -1479,13 +1479,13 @@ async function renderTokenMaster(env, tokenId) {
     // preview.html sets window.__biomReady = true after first paint
     // (see preview.html). Wait up to 10s; engine usually ready in <1s.
     await page.waitForFunction(() => window.__biomReady === true, { timeout: 10000 });
-    const buffer = await page.screenshot({ type: 'png', omitBackground: false });
+    const buffer = await page.screenshot({ type: 'webp', quality: 90, omitBackground: false });
 
     // Upload to R2 — overwrites existing master. cache headers on the
     // R2 object itself are inherited from bucket config; we rely on
     // the ?v=N query in metadata for cache-busting at the CDN edge.
-    await env.PNGS.put(`preview/${padded}.png`, buffer, {
-      httpMetadata: { contentType: 'image/png' },
+    await env.PNGS.put(`preview/${padded}.webp`, buffer, {
+      httpMetadata: { contentType: 'image/webp' },
     });
 
     // Bump image_version so the metadata URL changes on next fetch
@@ -1541,13 +1541,13 @@ async function handleDownload(env, tokenIdStr, origin) {
     return error('bad_token_id', 400, origin);
   }
   const padded = String(tokenId).padStart(5, '0');
-  const r2Url = `https://pngs.thebioms.com/preview/${padded}.png`;
+  const r2Url = `https://pngs.thebioms.com/preview/${padded}.webp`;
   try {
     const r = await fetch(r2Url, { cf: { cacheTtl: 31536000, cacheEverything: true } });
     if (!r.ok) return error('not_found', r.status, origin);
     const headers = new Headers();
-    headers.set('Content-Type', 'image/png');
-    headers.set('Content-Disposition', `attachment; filename="BIOM-${tokenId}.png"`);
+    headers.set('Content-Type', 'image/webp');
+    headers.set('Content-Disposition', `attachment; filename="BIOM-${tokenId}.webp"`);
     headers.set('Cache-Control', 'public, max-age=31536000, immutable');
     headers.set('Access-Control-Allow-Origin', '*');
     const cl = r.headers.get('content-length');

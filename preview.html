@@ -2479,9 +2479,9 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom');
     // Static master path — direct link to Worker download proxy
     const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     cta.href = isLocal
-      ? `https://pngs.thebioms.com/preview/${String(seed).padStart(5, '0')}.png`
+      ? `https://pngs.thebioms.com/preview/${String(seed).padStart(5, '0')}.webp`
       : `https://api.thebioms.com/api/download/${seed}`;
-    cta.setAttribute('download', `BIOM-${seed}.png`);
+    cta.setAttribute('download', `BIOM-${seed}.webp`);
     row.classList.add('show');
     return;
   }
@@ -2581,7 +2581,7 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom');
   // from this very page), so save-as-PNG just downloads it directly.
   const padSeed = (n) => String(n).padStart(5, '0');
   function masterUrl(seed) {
-    return `https://pngs.thebioms.com/preview/${padSeed(seed)}.png`;
+    return `https://pngs.thebioms.com/preview/${padSeed(seed)}.webp`;
   }
   function videoUrl(seed) {
     return `https://pngs.thebioms.com/video/${padSeed(seed)}.mp4`;
