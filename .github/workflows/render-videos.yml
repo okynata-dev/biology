@@ -45,6 +45,10 @@ on:
         description: 'Output FPS. Frames are rendered deterministically (no interpolation); 30 is smooth for the slow ambient motion.'
         default: '30'
         type: string
+      size:
+        description: 'Output square size in px. 1080 standard, 1440 premium, 2160 max (much heavier + slower — use more chunks).'
+        default: '1080'
+        type: string
 
 jobs:
   # Compute the chunk matrix dynamically from the `chunks` input. GitHub
@@ -119,7 +123,8 @@ jobs:
           mkdir -p pngs/video
           python scripts/make-videos.py \
             --only "${{ steps.seeds.outputs.seeds }}" \
-            --workers 4 \
+            --workers 3 \
+            --size ${{ github.event.inputs.size }} \
             --loop ${{ github.event.inputs.loop }} \
             --fps ${{ github.event.inputs.fps }}
           ls -lh pngs/video/ | head -5
