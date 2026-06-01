@@ -99,12 +99,12 @@ jobs:
         run: |
           chunk=${{ matrix.chunk }}
           total=${{ matrix.total }}
-          # Tokens are 1..3000 (SeaDrop 1-indexed; seed == tokenId). Even
+          # Tokens are 1..8000 (SeaDrop 1-indexed; seed == tokenId). Even
           # split with the last chunk taking any remainder. Comma-joined
           # list passed to make-videos.py --only.
           read start end seeds <<< "$(python3 -c "
           chunk, total = $chunk, $total
-          lo, hi = 1, 3001        # tokens 1..3000 inclusive
+          lo, hi = 1, 8001        # tokens 1..8000 inclusive (supply raised 2026-06)
           n = hi - lo
           per = (n + total - 1) // total
           s = lo + chunk * per

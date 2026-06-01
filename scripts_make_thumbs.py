@@ -52,7 +52,7 @@ def main():
     if args.only:
         seeds = [int(s) for s in args.only.split(',')]
     else:
-        seeds = list(range(3000))
+        seeds = list(range(1, 8001))
 
     done = 0
     skipped = 0
@@ -60,7 +60,11 @@ def main():
     total = len(seeds)
 
     for seed in seeds:
-        src = SRC / f'{seed:05d}.png'
+        # Masters are WEBP as of the 2026-06 8000 regen; fall back to the
+        # legacy PNG master if a webp isn't present.
+        src = SRC / f'{seed:05d}.webp'
+        if not src.exists():
+            src = SRC / f'{seed:05d}.png'
         if not src.exists():
             failed.append(seed)
             continue

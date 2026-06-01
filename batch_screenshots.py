@@ -132,7 +132,7 @@ def main():
     # Restart the browser every N renders so a worker's RAM/CPU footprint
     # stays bounded across thousands of seeds. With 6 workers × 3000-px viewport,
     # a single browser starts thrashing after ~300-400 renders on a 16 GB Mac.
-    RESTART_EVERY = 200
+    RESTART_EVERY = 100
 
     def _launch(p):
         launch_kwargs = {
