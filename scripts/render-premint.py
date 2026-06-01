@@ -56,11 +56,17 @@ def main():
     ap.add_argument('--size', type=int, default=3000)
     ap.add_argument('--webp-quality', type=int, default=90)
     ap.add_argument('--settle', type=float, default=1.5)
+    ap.add_argument('--limit', type=int, default=0, help='Render only the first N (smoke test). 0 = all.')
+    ap.add_argument('--out', default=str(OUT), help='Output dir (default pngs/preview — OVERWRITES base masters).')
     args = ap.parse_args()
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     data = json.loads(PREMINT.read_text())
     items = [(int(tid), t['force']) for tid, t in data['tokens'].items()]
     items.sort()
+    if args.limit:
+        items = items[:args.limit]
     print(f'Re-rendering {len(items)} pre-minted elevated masters at {args.size}px → {OUT}')
 
     chrome = find_chrome()
@@ -82,7 +88,7 @@ def main():
             since = 0
             for i, (tid, force) in enumerate(slice_items):
                 url = f'http://127.0.0.1:{args.port}/preview.html?{force}&static=1'
-                out = OUT / f'{tid:05d}.webp'
+                out = out_dir / f'{tid:05d}.webp'
                 ok = False
                 for attempt in range(2):
                     try:

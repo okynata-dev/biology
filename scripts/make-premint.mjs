@@ -145,7 +145,21 @@ writeFileSync(OUT, JSON.stringify({
   tokens,
 }, null, 0));
 
-console.error(`wrote ${OUT}`);
+// Browser overlay — a synchronous <script> the engine (preview.html /
+// specimen-engine.js) loads so seed->state self-elevates with NO force
+// params: the elevated tiers are just intrinsic traits of those seeds,
+// rendered the same everywhere (live preview, master, gallery, OpenSea,
+// lab). Compact keys: s=stain c=cells o=organelles ph/bf/en=anomalies
+// r=rank t=tier.
+const overlay = {};
+for (const [id, t] of Object.entries(tokens)) {
+  overlay[id] = { s: t.stain, c: t.cells, o: t.organelles,
+                  ph: t.phage ? 1 : 0, bf: t.biofilm ? 1 : 0, en: t.endo ? 1 : 0,
+                  r: t.rank, t: t.tier };
+}
+writeFileSync('premint-overlay.js', 'window.__BIOM_PREMINT=' + JSON.stringify(overlay) + ';\n');
+
+console.error(`wrote ${OUT} + premint-overlay.js`);
 console.error(`Phoenix(${phoenixIds.length}): ${phoenixIds.sort((a,b)=>a-b).join(', ')}`);
 console.error(`Chimera(${chimeraIds.length}): ${chimeraIds.sort((a,b)=>a-b).slice(0,12).join(', ')} …`);
 console.error(`Hybrid: ${hybridIds.length} ids`);

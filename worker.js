@@ -30,6 +30,20 @@ import { normalize } from 'viem/ens';
 // state encoded as force-* URL params, then uploads to R2 overwriting
 // the token's master. See renderTokenMaster() below.
 import puppeteer from '@cloudflare/puppeteer';
+// Pre-mint elevation map — the ~550 intrinsic Hybrid/Chimera/Phoenix tokens
+// (same file the engine overlay + gallery manifest read). Bundled by
+// wrangler. Used in buildMetadata so OpenSea attributes (Tier/Rank/Palette/
+// Cell count/Organelles/Anomalies) match the self-elevated render.
+import PREMINT_DATA from './premint.json';
+const PREMINT = (PREMINT_DATA && PREMINT_DATA.tokens) || {};
+function _paletteLabelFor(p) {
+  if (_PALETTE_LABEL[p]) return _PALETTE_LABEL[p];
+  if (typeof p === 'string' && p.indexOf('+') >= 0) {
+    return p.split('+').filter(Boolean).length >= 3 ? 'Chimera mix' : 'Hybrid stain';
+  }
+  if (typeof p === 'string' && p.indexOf('_mix_') === 0) return 'Hybrid stain';
+  return p;
+}
 
 // ----- CORS / utility -----
 // Canonical URLs all live at apex thebioms.com (no www). www-subdomain
@@ -1216,6 +1230,9 @@ const _PALETTE_LABEL = {
   toluidine: 'Toluidine violet',
   ziehl_dual: 'Ziehl-Neelsen dual',
   spore_dual: 'Schaeffer-Fulton dual',
+  // Burn-unlock / apex prize palettes (pre-minted Chimera/Phoenix carry these).
+  radioactive: 'Radioactive', void: 'Void', plasma: 'Plasma',
+  aurora_storm: 'Aurora storm', gold: 'Gold',
 };
 const _MORPH_LABEL = {
   coccus: 'Coccus', bacillus: 'Bacillus', vibrio: 'Vibrio',
@@ -1278,6 +1295,17 @@ async function buildMetadata(env, tokenId) {
   // only persists those three — morphology/cellCount/lifecycle/reserve
   // shares aren't in token_state, so they always come from the seed.
   const eff = { ...state, organelles: state.organelles.slice() };
+  // Pre-mint elevation — intrinsic elevated traits for the ~550 designated
+  // tokens, matching the self-elevated render. D1 burn mutations layer on top.
+  const pm = PREMINT[tokenId] || PREMINT[String(tokenId)];
+  if (pm) {
+    if (pm.stain) eff.palette = pm.stain;
+    if (typeof pm.cells === 'number') eff.cellCount = pm.cells;
+    if (Array.isArray(pm.organelles)) eff.organelles = pm.organelles.slice();
+    if (pm.phage) eff.phageAttached = true;
+    if (pm.biofilm) eff.biofilmHalo = true;
+    if (pm.endo) eff.endosymbiont = true;
+  }
   if (mutations.palette) eff.palette = mutations.palette;
   if (Array.isArray(mutations.organelles)) {
     for (const o of mutations.organelles) if (!eff.organelles.includes(o)) eff.organelles.push(o);
@@ -1288,8 +1316,11 @@ async function buildMetadata(env, tokenId) {
   // Rank derived from absorbed_seeds length (each burn adds a parent).
   // Genesis = 0 absorbed (rank 1), every absorption shifts the tier.
   const absorbed = absorbedSeeds.length;
-  const rank = 1 + absorbed;  // simplest: linear. Tier ladder unchanged.
+  // Base rank = pre-mint elevation (Genesis = 1). Post-mint burns add on top.
+  const baseRank = pm ? pm.rank : 1;
+  const rank = baseRank + absorbed;
   const tier = _tierForRank(rank);
+  const totalAbsorbed = rank - 1;  // includes the pre-mint synthetic lineage
 
   // Attributes — order matters for OpenSea grouping
   const attributes = [
@@ -1301,7 +1332,7 @@ async function buildMetadata(env, tokenId) {
     { trait_type: 'Tier',         value: tier },
     { trait_type: 'Rank',         value: rank, display_type: 'number' },
     { trait_type: 'Morphology',   value: _MORPH_LABEL[eff.morphology]    || eff.morphology },
-    { trait_type: 'Palette',      value: _PALETTE_LABEL[eff.palette]     || eff.palette },
+    { trait_type: 'Palette',      value: _paletteLabelFor(eff.palette) },
     { trait_type: 'Cell count',   value: eff.cellCount, display_type: 'number' },
     { trait_type: 'Lifecycle',    value: _LIFECYCLE_LABEL[eff.lifecycle] || eff.lifecycle },
     { trait_type: 'Reserve',      value: _RESERVE_LABEL[eff.reserveGranule] || eff.reserveGranule },
@@ -1316,8 +1347,8 @@ async function buildMetadata(env, tokenId) {
   if (eff.phageAttached) attributes.push({ trait_type: 'Anomaly', value: 'Phage attached' });
   if (eff.endosymbiont)  attributes.push({ trait_type: 'Anomaly', value: 'Endosymbiont' });
   if (eff.biofilmHalo)   attributes.push({ trait_type: 'Anomaly', value: 'Biofilm halo' });
-  if (absorbed > 0) {
-    attributes.push({ trait_type: 'Burns absorbed', value: absorbed, display_type: 'number' });
+  if (totalAbsorbed > 0) {
+    attributes.push({ trait_type: 'Burns absorbed', value: totalAbsorbed, display_type: 'number' });
   }
 
   // === Encode mutations in the animation_url ===

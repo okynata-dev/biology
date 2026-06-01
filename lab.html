@@ -3217,6 +3217,7 @@
 </div>
 
 <script src="specimen-engine.js"></script>
+<script src="premint-overlay.js"></script>
 <script>
 // ============================================================
 // THE LAB — trait conjugation between Bioms.
@@ -3861,7 +3862,7 @@ async function refreshTokens(tokenIds) {
 // Compute the effective state for a seed: base traits from the RNG, plus
 // any received mutations, minus any currently-depleted donations.
 function effectiveState(seed) {
-  const base = window.BiomEngine.generateState(seed);
+  const base = window.BiomEngine.applyPremint(window.BiomEngine.generateState(seed));
   const t = LabState.tokens[seed] || {};
   const now = Date.now();
 
@@ -3960,7 +3961,7 @@ function previewUrlFor(seed, eff, opts = {}) {
   // Used for thumbnail cards in the outcomes gallery where N iframes
   // would otherwise melt the user's laptop.
   if (opts.static) params.set('static', '1');
-  const base = window.BiomEngine.generateState(seed);
+  const base = window.BiomEngine.applyPremint(window.BiomEngine.generateState(seed));
   // Visual traits — emit force* override only when effective state differs
   // from the seed's base (smaller URLs, faster diffing).
   if (eff.palette !== base.palette) params.set('forceStain', eff.palette);

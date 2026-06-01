@@ -889,6 +889,26 @@
   // targetEl must be positioned absolutely with full inset, with perspective.
   // Options:
   //   isFitMode (bool, default true) — smaller capsule envelope
+  // Pre-mint overlay — elevate the ~550 designated seeds into their tier
+  // (Hybrid/Chimera/Phoenix) as intrinsic traits. Mirror of preview.html's
+  // _applyPremint; applied AFTER pure generateState so RNG parity is intact.
+  // Reads window.__BIOM_PREMINT (premint-overlay.js).
+  function applyPremint(st) {
+    const pm = (typeof window !== 'undefined' && window.__BIOM_PREMINT)
+      ? window.__BIOM_PREMINT[st.seed] : null;
+    if (!pm) return st;
+    if (pm.s) st.palette = pm.s.indexOf('+') >= 0
+      ? mixPalettes.apply(null, pm.s.split('+').filter(Boolean)) : pm.s;
+    if (typeof pm.c === 'number') st.cellCount = pm.c;
+    if (Array.isArray(pm.o)) st.organelles = new Set(pm.o);
+    st.phageAttached = !!pm.ph;
+    st.biofilmHalo   = !!pm.bf;
+    st.endosymbiont  = !!pm.en;
+    if (typeof pm.r === 'number') st.rank = pm.r;
+    if (pm.t) st.tier = pm.t;
+    return st;
+  }
+
   function renderSpecimen(targetEl, seed, options) {
     const opts = options || {};
     const isFitMode = opts.isFitMode !== false;
@@ -896,7 +916,7 @@
     // mutations applied) to skip URL params + iframe round-trip. The base
     // state still gets generated for any fields the override omits
     // (accentCount in particular).
-    const base = generateState(seed);
+    const base = applyPremint(generateState(seed));
     const state = opts.state ? Object.assign(base, opts.state) : base;
     const cells = generateMorphology(state.morphology, state.cellCount, state);
     cells.forEach((c, i) => c.cellIndex = i);
@@ -980,7 +1000,7 @@
     // Build the specimen data. Caller can pass opts.state to render a
     // mutated state (e.g. the Lab's effectiveState with post-burn
     // palette + organelles) instead of the seed's base traits.
-    const base = generateState(seed);
+    const base = applyPremint(generateState(seed));
     const state = opts.state ? Object.assign(base, opts.state) : base;
     const cells = generateMorphology(state.morphology, state.cellCount, state);
     cells.forEach((c, i) => c.cellIndex = i);
@@ -1512,6 +1532,7 @@
     renderSpecimen,
     renderSpecimenToCanvas,
     generateState,
+    applyPremint,
     pickName,
     label,
     species,

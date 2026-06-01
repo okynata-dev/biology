@@ -487,6 +487,11 @@
      engine here is used solely to produce a clean canvas snapshot
      when the user right-clicks the specimen. -->
 <script src="specimen-engine.js"></script>
+<!-- Pre-mint overlay: window.__BIOM_PREMINT maps the ~550 elevated seeds
+     (Hybrid/Chimera/Phoenix) to their intrinsic traits. Loaded BEFORE the
+     render script so seed->state self-elevates with no force params — the
+     elevated tiers are just traits of those seeds, identical everywhere. -->
+<script src="premint-overlay.js"></script>
 
 <script>
 // ============================================================
@@ -2039,8 +2044,29 @@ function buildScene() {
 // ============================================================
 function updateUI() { /* no UI in preview */ }
 
+// Pre-mint overlay — elevate the designated seeds into their tier
+// (Hybrid/Chimera/Phoenix). Applied right after base trait generation so
+// the elevated state IS the token's intrinsic traits — rendered the same
+// everywhere (live preview, master, gallery, OpenSea animation, lab) with
+// no force params. Blended stains reuse mixPalettes, exactly like the
+// forceStain 'A+B' path.
+function _applyPremint(st) {
+  const pm = (typeof window !== 'undefined' && window.__BIOM_PREMINT)
+    ? window.__BIOM_PREMINT[st.seed] : null;
+  if (!pm) return;
+  if (pm.s) st.palette = pm.s.includes('+')
+    ? mixPalettes(...pm.s.split('+').filter(Boolean)) : pm.s;
+  if (typeof pm.c === 'number') st.cellCount = pm.c;
+  if (Array.isArray(pm.o)) st.organelles = new Set(pm.o);
+  st.phageAttached = !!pm.ph;
+  st.biofilmHalo   = !!pm.bf;
+  st.endosymbiont  = !!pm.en;
+  if (typeof pm.r === 'number') st.rank = pm.r;
+  if (pm.t) st.tier = pm.t;
+}
+
 function randomize(forcedSeed) {
-  state.seed = forcedSeed !== undefined ? forcedSeed : Math.floor(Math.random() * 3000);
+  state.seed = forcedSeed !== undefined ? forcedSeed : Math.floor(Math.random() * 8000) + 1;
   const rng = mulberry32(state.seed);
 
   state.morphology = pickWeightedMorph(rng);
@@ -2072,6 +2098,8 @@ function randomize(forcedSeed) {
   state.phageAttached = rng() < 0.015;
   state.endosymbiont = rng() < 0.01;
   state.biofilmHalo  = rng() < 0.02;
+
+  _applyPremint(state);   // elevate pre-minted tiers — intrinsic, not a bolt-on
 
   buildScene();
 
