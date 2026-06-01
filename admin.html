@@ -459,8 +459,8 @@ function renderRows(rows) {
       try {
         const r = await fetch(`${WORKER_URL}/api/admin/waitlist/delete`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ token, value: v }),
+          headers: { 'content-type': 'application/json', 'x-admin-token': token },
+          body: JSON.stringify({ value: v }),
         });
         if (r.status === 403 || r.status === 401) {
           clearToken();

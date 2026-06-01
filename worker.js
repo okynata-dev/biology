@@ -1821,11 +1821,14 @@ async function handleWaitlistCheck(req, env, origin) {
 // 0x form in our DB, so input is normalized).
 async function handleAdminDelete(req, env, origin) {
   if (!env.ADMIN_TOKEN) return error('admin_token_not_set', 503, origin);
+  // Token from the x-admin-token HEADER (not the body) — consistent with
+  // every other admin route, keeps it out of any body-logging path.
+  const token = req.headers.get('x-admin-token') || '';
+  if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('forbidden', 403, origin);
   let body;
   try { body = await req.json(); }
   catch { return error('invalid_json', 400, origin); }
-  const { token, value } = body || {};
-  if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('forbidden', 403, origin);
+  const { value } = body || {};
   if (typeof value !== 'string' || !value.trim()) return error('bad_value', 400, origin);
   if (value.length > 256) return error('value_too_long', 400, origin);
   const v = value.trim().toLowerCase();

@@ -50,9 +50,21 @@ def build_manifest():
         ('gramPositive', 0), ('gramNegative', 2), ('fluorescent', 11),
         ('methylene', 8), ('darkfield', 5), ('acid_fast', 64),
         ('giemsa', 38), ('safranin', 109), ('india_ink', 156),
+        # 2026-06 expansion — 7 new single microbiology stains.
+        ('malachite', 7), ('carbol_fuchsin', 21), ('bismarck_brown', 33),
+        ('nile_blue', 44), ('congo_red', 13), ('toluidine', 70), ('eosin', 52),
     ]
     for tid, seed in stains_standard:
         items.append(('stain', tid, f"preview.html?seed={seed}&{COMMON}&forceStain={tid}"))
+
+    # Dual stains — two dyes alternate per cell, so force a multi-cell
+    # morphology + extra cells to make the duality read on the card.
+    stains_dual = [
+        ('ziehl_dual', 88),
+        ('spore_dual', 91),
+    ]
+    for tid, seed in stains_dual:
+        items.append(('stain', tid, f"preview.html?seed={seed}&{COMMON}&forceStain={tid}&forceMorph=sarcina&forceCells=6"))
 
     # Rare stains — preview.html?forceStain= works for these too (the engine
     # supports all 12 palettes natively). No need for the legacy rare-*.html
