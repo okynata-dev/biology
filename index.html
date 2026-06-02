@@ -605,35 +605,32 @@
   }
   .lab-copy p:last-of-type { margin-bottom: 0; }
 
-  /* Tier ladder — text scale. Genesis quiet (small + low opacity),
-     Phoenix loud (larger + full ink + weight). Reads as a literal
-     ascending bar, not four equal chips. Tracking matches the global
-     eyebrow recipe (0.14em) for typographic consistency. */
+  /* Tier ladder — a quiet crescendo. Rarity reads through tone + scale
+     alone, no colour shouting and no connectors: each rank one step more
+     present than the last, the apex full ink. Order + the ascending
+     weight carry the progression. SF Pro, title case — the same voice as
+     the prose above it. */
   .lab-ladder {
     margin: 48px 0 0;
     display: flex;
     align-items: baseline;
     flex-wrap: wrap;
-    gap: 8px 12px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
+    column-gap: 22px;
+    row-gap: 12px;
+    font-family: inherit;
+    letter-spacing: 0.005em;
   }
   .lab-ladder .step {
     color: var(--ink);
-    transition: color 0.15s;
+    font-weight: 400;
+    line-height: 1;
   }
-  .lab-ladder .step.s1 { font-size: 10px; opacity: 0.42; }
-  .lab-ladder .step.s2 { font-size: 11px; opacity: 0.52; }
-  .lab-ladder .step.s3 { font-size: 12px; opacity: 0.64; font-weight: 500; }
-  .lab-ladder .step.s4 { font-size: 13px; opacity: 0.80; font-weight: 500; }
-  .lab-ladder .step.s5 { font-size: 14px; opacity: 0.92; font-weight: 600; color: var(--burn); }
-  .lab-ladder .step.s6 { font-size: 16px; opacity: 1.0;  font-weight: 700; color: #b9822a; }
-  .lab-ladder .sep {
-    color: var(--ink-3);
-    opacity: 0.5;
-    font-size: 11px;
-  }
+  .lab-ladder .step.s1 { font-size: 13px; opacity: 0.36; }
+  .lab-ladder .step.s2 { font-size: 14px; opacity: 0.48; }
+  .lab-ladder .step.s3 { font-size: 15px; opacity: 0.62; }
+  .lab-ladder .step.s4 { font-size: 17px; opacity: 0.78; }
+  .lab-ladder .step.s5 { font-size: 19px; opacity: 0.92; }
+  .lab-ladder .step.s6 { font-size: 22px; opacity: 1.0; font-weight: 500; letter-spacing: -0.012em; }
 
   /* CTA — one solid button, one text aside. Hierarchy: action vs note. */
   .lab-cta {
@@ -651,8 +648,7 @@
   @media (max-width: 820px) {
     .lab { padding: 64px 18px 80px; }
     .lab-copy h2.lab-headline { font-size: clamp(48px, 14vw, 72px); }
-    .lab-ladder { margin-top: 36px; }
-    .lab-cta { margin-top: 40px; }
+    .lab-ladder { margin-top: 36px; column-gap: 18px; }
   }
 
   /* === DROP — closing block, the largest dish on the counter.
@@ -892,15 +888,10 @@
         <p>Each burn raises the survivor a rank — Genesis, Hybrid, Chimera, Phoenix, and beyond. Reaching Phoenix means feeding seven Bioms into one; a rare few push further still, into Superorganism and Biome. Almost no one gets there. The ones who do make a small, irreversible decision over and over.</p>
         <div class="lab-ladder" aria-label="Rarity ladder">
           <span class="step s1">Genesis</span>
-          <span class="sep">→</span>
           <span class="step s2">Hybrid</span>
-          <span class="sep">→</span>
           <span class="step s3">Chimera</span>
-          <span class="sep">→</span>
           <span class="step s4">Phoenix</span>
-          <span class="sep">→</span>
           <span class="step s5">Superorganism</span>
-          <span class="sep">→</span>
           <span class="step s6">Biome</span>
         </div>
         <div class="lab-cta">
