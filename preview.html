@@ -2451,7 +2451,10 @@ if (_pfp) _pfp.setAttribute('aria-label', 'Generative Biom');
   // bake into those captures. (Live token render has none of these params,
   // so collectors still get the buttons on OpenSea.)
   const _q = new URLSearchParams(window.location.search);
-  if (_q.get('static') === '1' || _q.get('nointeract') === '1' || _q.get('render') === '1') return;
+  // nodl=1 — keep the live render (cream card + breathing + cursor tilt)
+  // but hide the download CTAs. Used by the /view page, which wants the
+  // bare OpenSea look with no chrome.
+  if (_q.get('static') === '1' || _q.get('nointeract') === '1' || _q.get('render') === '1' || _q.get('nodl') === '1') return;
   const params = new URLSearchParams(window.location.search);
   const seedRaw = params.get('seed');
   const seed = (seedRaw !== null && Number.isFinite(parseInt(seedRaw, 10)))

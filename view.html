@@ -4,21 +4,34 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>View a Biom — Bioms</title>
-<meta name="description" content="Turn a living Biom in your hand. Move your cursor to tilt it; draw another at random.">
+<meta name="description" content="A Biom, exactly as it appears on-chain. Draw another at random.">
 <link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml">
 <link rel="stylesheet" href="/design.css?v=4">
 <style>
-  /* A single Biom, centred, alive. The preview.html iframe carries the
-     render + cursor-tilt (amplified via ?tilt). This page is just the
-     stage + a "draw another" control — no chrome competing with the
-     organism. */
+  /* One Biom, shown exactly as the NFT renders on OpenSea (its own cream
+     card), floated on black so the artwork sits in a clean frame. The
+     preview.html iframe carries the real render + cursor tilt. The only
+     control is "Another Biom". */
   html, body { height: 100%; }
   body {
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    background: #000;          /* black AROUND the Biom card */
+    color: #f4f1e8;
   }
+
+  /* Nav recoloured for the black canvas. */
+  nav {
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-bottom: 1px solid rgba(244, 241, 232, 0.12);
+  }
+  nav .brand span { color: #f4f1e8; }
+  nav .nav-links a { color: rgba(244, 241, 232, 0.72); }
+  nav .nav-links a:hover { color: #f4f1e8; }
 
   .viewer {
     flex: 1 1 auto;
@@ -26,68 +39,53 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 18px;
-    padding: 12px 18px 40px;
-    min-height: 0;            /* let the stage shrink inside the flex column */
+    gap: 26px;
+    padding: 16px 18px 44px;
+    min-height: 0;
   }
 
-  /* The stage holds the iframe. Square, capped to the smaller viewport
-     axis so the whole organism is always in frame. */
+  /* The card is the NFT itself (cream, as on OpenSea). Square, capped to
+     the smaller viewport axis; black page shows all around it. */
   .stage {
     position: relative;
-    width: min(76vh, 92vw, 720px);
+    width: min(74vh, 92vw, 680px);
     aspect-ratio: 1 / 1;
-    /* Dark viewing chamber — the Biom renders on cream in the NFT, but a
-       pale specimen on cream loses its edges. On near-black the silhouette
-       and membrane read clearly. Same warm-ink as the Lab's dark room. */
-    background: #0e0c08;
-    border-radius: 24px;
+    border-radius: 22px;
     overflow: hidden;
-    transition: opacity 0.4s var(--ease, ease);
+    transition: opacity 0.4s ease;
   }
-  .stage.loading { opacity: 0.18; }
+  .stage.loading { opacity: 0.2; }
   .stage iframe {
     width: 100%;
     height: 100%;
     border: 0;
     display: block;
-    background: transparent;
-    /* pointer events MUST reach the iframe — that's what feeds the
-       cursor tilt. No overlay here (unlike the homepage hero). */
+    /* pointer events MUST reach the iframe — that feeds the cursor tilt. */
   }
 
-  .meta {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-    text-align: center;
-  }
-  .biom-no {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 12px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--ink-3);
-  }
-  .hint {
-    font-size: 12px;
-    color: var(--ink-3);
-    opacity: 0.7;
+  /* Sole control. Light pill so it reads on black. */
+  #anotherBtn {
+    appearance: none;
+    background: transparent;
+    color: #f4f1e8;
+    border: 1px solid rgba(244, 241, 232, 0.34);
+    border-radius: 999px;
+    padding: 11px 24px;
+    font-family: inherit;
+    font-size: 14px;
     letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
   }
-  /* Touch devices steer by dragging, not hovering — say so. */
-  @media (hover: none) {
-    .hint::after { content: "Drag the Biom to turn it."; }
-    .hint .desk { display: none; }
-  }
+  #anotherBtn:hover { background: rgba(244, 241, 232, 0.10); border-color: rgba(244, 241, 232, 0.6); }
+  #anotherBtn:active { transform: scale(0.985); }
 </style>
 </head>
 <body>
 
 <nav>
   <a class="brand" href="/" aria-label="Bioms — home">
-    <img class="brand-mark" src="/favicon.svg?v=3" alt="" width="18" height="18" decoding="async">
+    <img class="brand-mark" src="/favicon-dark.svg" alt="" width="18" height="18" decoding="async">
     <span>Bioms</span>
   </a>
   <div class="nav-links">
@@ -102,20 +100,15 @@
 
 <main class="viewer">
   <div class="stage" id="stage">
-    <iframe id="biomFrame" title="A living Biom — move your cursor to turn it" scrolling="no" loading="eager"></iframe>
+    <iframe id="biomFrame" title="A Biom" scrolling="no" loading="eager"></iframe>
   </div>
-  <div class="meta">
-    <span class="biom-no">Biom #<span id="biomNo">—</span></span>
-    <button type="button" class="btn ghost" id="anotherBtn">Another Biom</button>
-    <span class="hint"><span class="desk">Move your cursor to turn it.</span></span>
-  </div>
+  <button type="button" id="anotherBtn">Another Biom</button>
 </main>
 
 <script>
-  const stage   = document.getElementById('stage');
-  const frame   = document.getElementById('biomFrame');
-  const noEl     = document.getElementById('biomNo');
-  const btn     = document.getElementById('anotherBtn');
+  const stage = document.getElementById('stage');
+  const frame = document.getElementById('biomFrame');
+  const btn   = document.getElementById('anotherBtn');
 
   // Tokens are 1..8000.
   function randSeed() { return 1 + Math.floor(Math.random() * 8000); }
@@ -123,17 +116,15 @@
   function load(seed) {
     stage.classList.add('loading');
     frame.onload = () => stage.classList.remove('loading');
-    // The Biom render is the EXACT NFT render — same engine, same default
-    // framing (no fit reframe). cutout=1 only drops the cream card +
-    // download CTA so the organism floats on the dark stage and its edges
-    // read. tilt=5 amplifies the cursor parallax — "turn it in your hand".
-    frame.src = `/preview.html?seed=${seed}&cutout=1&tilt=5`;
-    noEl.textContent = seed;
+    // The exact NFT render (cream card, default framing). tilt=5 keeps the
+    // cursor parallax; nodl=1 hides the download chrome. No cutout — we
+    // want the real OpenSea look, with the black coming from the page.
+    frame.src = `/preview.html?seed=${seed}&tilt=5&nodl=1`;
   }
 
   btn.addEventListener('click', () => load(randSeed()));
 
-  // First Biom is random on every visit — no two arrivals see the same one.
+  // Random Biom on every visit.
   load(randSeed());
 </script>
 

@@ -918,7 +918,7 @@
            and hides #dropPre when the timestamp passes. -->
       <div id="dropPre">
         <h2>The drop.</h2>
-        <p>WL mint opens <strong>June 5, 7&nbsp;PM GMT+7</strong> · price and supply&nbsp;TBA · on OpenSea.</p>
+        <p>WL mint opens <strong>June 8, 7&nbsp;PM GMT+7</strong> · price and supply&nbsp;TBA · on OpenSea.</p>
         <!-- aria-live removed: ticking countdown announced every second
              rendered screen readers unusable (~5,000 announcements per
              pre-mint browse session). Sighted users see the count; SR
@@ -1104,7 +1104,7 @@ heroEl.addEventListener('click', rollHero);
 // =========================================================================
 // MINT COUNTDOWN — drop block tick
 // =========================================================================
-// WL window starts June 5 2026 at 7:00 PM GMT+7. JS ticks every second
+// WL window starts June 8 2026 at 7:00 PM GMT+7. JS ticks every second
 // while the countdown is on screen; at T-0 it swaps the #dropPre block
 // for #dropLive without a page reload. tabular-nums keeps the digits
 // from wiggling between ticks.
@@ -1114,7 +1114,7 @@ heroEl.addEventListener('click', rollHero);
 // — saves a wakeup per second when the user is scrolling elsewhere on
 // a long landing page.
 (function mintCountdown() {
-  const MINT_AT = new Date('2026-06-05T19:00:00+07:00').getTime();
+  const MINT_AT = new Date('2026-06-08T19:00:00+07:00').getTime();
   const elDays = document.getElementById('cdDays');
   const elHrs  = document.getElementById('cdHrs');
   const elMins = document.getElementById('cdMins');
