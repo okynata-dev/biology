@@ -5939,7 +5939,7 @@ window.__bioms_lab = {
     LabState.tokens = {};
     const used = new Set();
     while (LabState.ownedSeeds.length < count) {
-      const seed = Math.floor(Math.random() * 8000);
+      const seed = 1 + Math.floor(Math.random() * 8000);  // tokens are 1..8000 (seed 0 has no asset)
       if (used.has(seed)) continue;
       used.add(seed);
       addSeed(seed);
@@ -6822,6 +6822,49 @@ collectionGrid.addEventListener('click', (e) => {
     pollForWallet();
   });
 
+  // The demo draws six bioms through the engine. If the user clicks before
+  // specimen-engine.js has finished loading (slow network / impatient tap),
+  // window.BiomEngine is still undefined and loadDemo() throws deep in
+  // renderCollection → effectiveState. That throw used to pre-empt the
+  // transition timer and strand the intro on "Drawing six random Bioms"
+  // forever. So: wait for the engine, then draw + advance, and never let a
+  // failure leave the user stuck.
+  function engineReady() {
+    return !!(window.BiomEngine
+      && typeof window.BiomEngine.generateState === 'function'
+      && typeof window.BiomEngine.applyPremint === 'function');
+  }
+  function beginDemo(statusEl) {
+    statusEl.textContent = 'Drawing six random Bioms';
+    statusEl.className = 'flow-status working';
+    let waited = 0;
+    (function tick() {
+      if (engineReady()) {
+        try {
+          lab.loadDemo(6);
+        } catch (e) {
+          console.error('[lab] demo load failed', e);
+          statusEl.textContent = 'Something went wrong — reload the page and try again.';
+          statusEl.className = 'flow-status error';
+          return;
+        }
+        setTimeout(() => {
+          statusEl.textContent = '';
+          statusEl.className = 'flow-status';
+          goToPick();
+        }, 250);
+        return;
+      }
+      if (waited >= 8000) {
+        statusEl.textContent = 'Still loading — check your connection and try again.';
+        statusEl.className = 'flow-status error';
+        return;
+      }
+      waited += 60;
+      setTimeout(tick, 60);
+    })();
+  }
+
   document.getElementById('flowIntroDemo').addEventListener('click', () => {
     // If the user already clicked "Yes, I'm ready", a wallet poll is
     // running. Cancel it — otherwise it stays alive in the background
@@ -6830,15 +6873,7 @@ collectionGrid.addEventListener('click', (e) => {
       clearInterval(walletPollTimer);
       walletPollTimer = null;
     }
-    const statusEl = document.getElementById('flowIntroStatus');
-    statusEl.textContent = 'Drawing six random Bioms';
-    statusEl.className = 'flow-status working';
-    lab.loadDemo(6);
-    setTimeout(() => {
-      statusEl.textContent = '';
-      statusEl.className = 'flow-status';
-      goToPick();
-    }, 350);
+    beginDemo(document.getElementById('flowIntroStatus'));
   });
 
   function pollForWallet() {
@@ -6875,14 +6910,7 @@ collectionGrid.addEventListener('click', (e) => {
           demoBtn.textContent = 'Try the demo';
           demoBtn.addEventListener('click', () => {
             statusEl.innerHTML = '';
-            statusEl.className = 'flow-status working';
-            statusEl.textContent = 'Drawing six random Bioms';
-            lab.loadDemo(6);
-            setTimeout(() => {
-              statusEl.textContent = '';
-              statusEl.className = 'flow-status';
-              goToPick();
-            }, 350);
+            beginDemo(statusEl);
           });
           ctaRow.appendChild(demoBtn);
           // OpenSea link only after the mint opens — pre-mint the
