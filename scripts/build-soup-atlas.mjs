@@ -2,13 +2,17 @@
 /**
  * scripts/build-soup-atlas.mjs
  *
- * Build the texture atlas consumed by /soup. Downloads all 3000 biom
+ * Build the texture atlas consumed by /soup. Downloads all 8000 biom
  * thumbnails from R2, composites them into a single grid image, encodes
  * to WebP, writes to ./atlas-out/.
  *
- * Layout: 64 cols × 48 rows = 3072 slots, each 64×64 px → final atlas
- * 4096×3072 px. WebP at quality 85 ends up ~3-6 MB — one HTTP request
- * worth on prod.
+ * Layout: 90 cols × 90 rows = 8100 slots, each 45×45 px → final atlas
+ * 4050×4050 px. 45px tiles keep the whole sheet inside the safe 4096²
+ * GPU texture limit (8000 tiles won't fit at 64px). WebP quality 85
+ * lands ~2-4 MB — one HTTP request worth on prod.
+ *
+ * Thumbs are 1-indexed on R2 (00001.webp … 08000.webp). Atlas slot `i`
+ * (0-based, as the soup shader's a_tokenId) holds thumb #(i + FIRST_TOKEN).
  *
  * Usage:
  *   npm install sharp
@@ -39,39 +43,41 @@ try {
 }
 
 // === Tunables ===
-const TOTAL_BIOMS = 3000;
-const COLS = 64;
-const ROWS = 48;             // 64 × 48 = 3072 slots, leaves 72 spare
-const TILE = 64;             // px per slot in the atlas
-const ATLAS_W = COLS * TILE; // 4096
-const ATLAS_H = ROWS * TILE; // 3072
+const TOTAL_BIOMS = 8000;
+const FIRST_TOKEN = 1;       // thumbs are 1-indexed (00001.webp); slot i → thumb i+1
+const COLS = 90;
+const ROWS = 90;             // 90 × 90 = 8100 slots, leaves 100 spare
+const TILE = 45;             // px per slot — 90×45 = 4050 ≤ 4096 GPU texture limit
+const ATLAS_W = COLS * TILE; // 4050
+const ATLAS_H = ROWS * TILE; // 4050
 const SRC_URL_BASE = 'https://pngs.thebioms.com/thumb';
 const SRC_EXT = 'webp';      // R2 has both .webp and .png — webp is smaller, atlas re-encodes anyway
 const CONCURRENCY = 24;      // parallel downloads (R2 handles this fine)
 const QUALITY = 85;          // WebP encode quality — 85 is sweet spot for thumbs
-const ATLAS_VERSION = 'v1';
+const ATLAS_VERSION = 'v2';  // bumped from v1: dims + tile count changed
 const OUT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'atlas-out');
 
 await fs.mkdir(OUT_DIR, { recursive: true });
 
 console.log(`Building atlas: ${COLS}×${ROWS} grid × ${TILE}px = ${ATLAS_W}×${ATLAS_H}`);
-console.log(`Source: ${SRC_URL_BASE}/{00000..${String(TOTAL_BIOMS - 1).padStart(5, '0')}}.${SRC_EXT}`);
+console.log(`Source: ${SRC_URL_BASE}/{${String(FIRST_TOKEN).padStart(5, '0')}..${String(TOTAL_BIOMS - 1 + FIRST_TOKEN).padStart(5, '0')}}.${SRC_EXT}`);
 console.log('');
 
 // === Download all thumbs (with bounded concurrency) ===
 const buffers = new Array(TOTAL_BIOMS).fill(null);
 const failed = [];
 
-async function downloadOne(tokenId) {
-  const padded = String(tokenId).padStart(5, '0');
+async function downloadOne(slot) {
+  const fileId = slot + FIRST_TOKEN;
+  const padded = String(fileId).padStart(5, '0');
   const url = `${SRC_URL_BASE}/${padded}.${SRC_EXT}`;
   try {
     const r = await fetch(url);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const buf = Buffer.from(await r.arrayBuffer());
-    buffers[tokenId] = buf;
+    buffers[slot] = buf;
   } catch (e) {
-    failed.push({ tokenId, reason: e.message });
+    failed.push({ tokenId: fileId, reason: e.message });
   }
 }
 
@@ -140,8 +146,8 @@ console.log(`Resize done in ${((Date.now() - t1) / 1000).toFixed(1)}s`);
 console.log(`\nCompositing ${TOTAL_BIOMS} tiles into ${ATLAS_W}×${ATLAS_H} atlas…`);
 const t2 = Date.now();
 
-// Start with a transparent canvas. Areas with no biom (the last 72 slots
-// since 3000 < 3072) stay transparent — fragment shader can ignore them.
+// Start with a transparent canvas. Areas with no biom (the last 100 slots
+// since 8000 < 8100) stay transparent — fragment shader can ignore them.
 const blank = await sharp({
   create: {
     width: ATLAS_W,
