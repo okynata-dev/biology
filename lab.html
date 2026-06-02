@@ -3016,7 +3016,7 @@
     <div class="collection-head">
       <h2>Your Bioms</h2>
       <div class="collection-actions" id="demoActions">
-        <input type="number" class="seed-input-inline" id="seedInputAdd" min="0" max="2999" placeholder="seed" aria-label="Add Biom by seed">
+        <input type="number" class="seed-input-inline" id="seedInputAdd" min="0" max="8000" placeholder="seed" aria-label="Add Biom by seed">
         <button class="btn btn-ghost" id="addSeedBtn" type="button">Add</button>
         <button class="btn btn-ghost" id="addRandomBtn" type="button">+ 4 random</button>
       </div>
@@ -3035,7 +3035,7 @@
 
     <div class="collection-grid" id="collectionGrid"></div>
     <div class="collection-empty" id="collectionEmpty">
-      Your collection is empty. Add a Biom by seed (0–2999) or pull four random ones to start.
+      Your collection is empty. Add a Biom by seed (1–8000) or pull four random ones to start.
     </div>
 
     <div style="margin-top: 64px;"></div>
@@ -4273,7 +4273,7 @@ function addSeed(seed) {
     return false;
   }
   seed = parseInt(seed, 10);
-  if (!Number.isFinite(seed) || seed < 0 || seed > 2999) return false;
+  if (!Number.isFinite(seed) || seed < 0 || seed > 8000) return false;
   if (LabState.ownedSeeds.includes(seed)) return false;
   if (LabState.ownedSeeds.length >= MAX_COLLECTION) {
     setStatus(`Demo collection is capped at ${MAX_COLLECTION} Bioms.`, 'fail');
@@ -4295,7 +4295,7 @@ function addRandom(n) {
   let added = 0, tries = 0;
   while (added < n && tries < 200) {
     tries++;
-    const s = Math.floor(Math.random() * 3000);
+    const s = Math.floor(Math.random() * 8000);
     if (addSeed(s)) added++;
   }
 }
@@ -5838,7 +5838,7 @@ walletDisconnectBtn.addEventListener('click', () => Wallet.disconnect());
 document.getElementById('addSeedBtn').addEventListener('click', () => {
   const input = document.getElementById('seedInputAdd');
   const v = input.value.trim();
-  if (!v) { setStatus('Enter a seed between 0 and 2999.', 'fail'); return; }
+  if (!v) { setStatus('Enter a seed between 1 and 8000.', 'fail'); return; }
   const ok = addSeed(v);
   if (ok) { input.value = ''; setStatus(`Added ${window.BiomEngine.label(parseInt(v, 10))}.`, 'ok'); }
   else setStatus(`Already in collection or out of range.`, 'fail');
@@ -5939,7 +5939,7 @@ window.__bioms_lab = {
     LabState.tokens = {};
     const used = new Set();
     while (LabState.ownedSeeds.length < count) {
-      const seed = Math.floor(Math.random() * 3000);
+      const seed = Math.floor(Math.random() * 8000);
       if (used.has(seed)) continue;
       used.add(seed);
       addSeed(seed);

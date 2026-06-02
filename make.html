@@ -276,15 +276,6 @@
     pointer-events: none;
   }
 
-  .canvas-hint {
-    position: absolute;
-    bottom: 8px; right: 12px;
-    font-size: 10px; letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--ink-3);
-    pointer-events: none; opacity: 0.6;
-  }
-
   .canvas-meta {
     display: flex; justify-content: space-between; align-items: center;
     width: 100%; margin-top: 14px;
@@ -588,7 +579,6 @@
                cross at the snap point. Procreate-style. -->
           <div class="snap-guide snap-guide-v" id="snapGuideV" aria-hidden="true"></div>
           <div class="snap-guide snap-guide-h" id="snapGuideH" aria-hidden="true"></div>
-          <div class="canvas-hint">Drag · scroll to zoom</div>
           <div class="collage-loader" id="collageLoader" aria-hidden="true">
             <div class="spin"></div>
             <div class="txt" id="collageLoaderTxt">Loading…</div>
@@ -618,7 +608,7 @@
         <div class="ctrl-group" data-mode-only="single">
           <div class="ctrl-label">Biom</div>
           <div class="seed-row">
-            <input id="seedInput" class="seed-input" type="number" min="0" max="2999" aria-label="Biom seed" />
+            <input id="seedInput" class="seed-input" type="number" min="1" max="8000" aria-label="Biom seed" />
             <button type="button" class="btn secondary small" id="randomBtn" aria-label="Random seed" title="Random seed">⤴</button>
           </div>
         </div>
@@ -787,7 +777,7 @@ const FORMATS = [
 // gets set during init below.
 const state = {
   mode: 'single',                 // 'single' | 'collage'
-  seed: Math.floor(Math.random() * 3000),
+  seed: (1 + Math.floor(Math.random() * 8000)),
   // Collage params. collageSeeds is regenerated on dimension change and
   // on shuffle. Default 4×4 matches the first preset chip.
   gridCols: 4,
@@ -1011,7 +1001,7 @@ function updateExportStatus() {
 // user might have shuffled into a layout they liked and just want to add
 // a row, no reason to reroll everything they already saw) and on explicit
 // shuffle.
-function _randSeed() { return Math.floor(Math.random() * 3000); }
+function _randSeed() { return (1 + Math.floor(Math.random() * 8000)); }
 
 function _resizeCollageSeeds() {
   const N = state.gridCols * state.gridRows;
@@ -1704,10 +1694,10 @@ resetBtn.addEventListener('click', () => {
 function deselectTemplates() { /* no-op — no template buttons */ }
 
 seedInput.addEventListener('change', () => {
-  const s = Math.max(0, Math.min(2999, parseInt(seedInput.value, 10) || 0));
+  const s = Math.max(1, Math.min(8000, parseInt(seedInput.value, 10) || 1));
   setSeed(s);
 });
-randomBtn.addEventListener('click', () => setSeed(Math.floor(Math.random() * 3000)));
+randomBtn.addEventListener('click', () => setSeed((1 + Math.floor(Math.random() * 8000))));
 
 // =========================================================================
 // MODE / COLLAGE CONTROLS

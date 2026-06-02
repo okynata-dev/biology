@@ -1073,12 +1073,12 @@ const seedChipSep = null;
 function _readUrlSeed() {
   const u = new URLSearchParams(location.search).get('seed');
   const n = parseInt(u || '', 10);
-  return Number.isFinite(n) && n >= 0 && n <= 2999 ? n : null;
+  return Number.isFinite(n) && n >= 0 && n <= 8000 ? n : null;
 }
 function _readStoredSeed() {
   try {
     const n = parseInt(sessionStorage.getItem('bioms-hero-seed') || '', 10);
-    return Number.isFinite(n) && n >= 0 && n <= 2999 ? n : null;
+    return Number.isFinite(n) && n >= 0 && n <= 8000 ? n : null;
   } catch (_) { return null; }
 }
 function _storeSeed(n) {

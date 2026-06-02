@@ -411,8 +411,8 @@
   // 2026-05 when the project switched to instant reveal — seed numbers
   // are visible from day one, so no surprise here.
   // Canonical token label. After the 2026-05 rename, every surface uses
-  // "BIOM #N" as the primary identifier (no padding — max ID is 2999 so
-  // longest form is "BIOM #2999", 10 chars). The genus name (pickName)
+  // "BIOM #N" as the primary identifier (no padding — max ID is 8000 so
+  // longest form is "BIOM #8000", 10 chars). The genus name (pickName)
   // still exists and is exposed for places that want the per-token
   // nickname; metadata surfaces it as the Species trait.
   function label(seed) {
