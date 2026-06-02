@@ -644,13 +644,13 @@
             <input id="rowsInput" class="num-input" type="number" min="1" max="100" value="4" aria-label="Rows" placeholder="Rows" />
           </div>
           <button type="button" class="btn secondary" id="shuffleBtn" style="margin-bottom: 8px;">⤴ Shuffle seeds</button>
-          <div class="ctrl-label" style="margin-bottom: 6px;"><span>Spacing</span><span class="val" id="gapVal">2%</span></div>
-          <input type="range" class="slider" id="gapSlider" min="-75" max="20" value="2" step="1" aria-label="Spacing between cells, percent of cell size. Negative values overlap." />
+          <div class="ctrl-label" style="margin-bottom: 6px;"><span>Spacing</span><span class="val" id="gapVal">-75%</span></div>
+          <input type="range" class="slider" id="gapSlider" min="-75" max="20" value="-75" step="1" aria-label="Spacing between cells, percent of cell size. Negative values overlap." />
         </div>
 
         <div class="ctrl-group">
-          <div class="ctrl-label"><span>Scale</span><span class="val" id="scaleVal">100%</span></div>
-          <input type="range" class="slider" id="scaleSlider" min="10" max="400" value="100" step="1" />
+          <div class="ctrl-label"><span>Scale</span><span class="val" id="scaleVal">200%</span></div>
+          <input type="range" class="slider" id="scaleSlider" min="10" max="400" value="200" step="1" />
         </div>
 
         <div class="ctrl-group">
@@ -782,12 +782,12 @@ const state = {
   // on shuffle. Default 4×4 matches the first preset chip.
   gridCols: 4,
   gridRows: 4,
-  cellGapPct: 2,                  // spacing as % of cell size; negative = overlap (-75..20)
+  cellGapPct: -75,                // spacing as % of cell size; negative = overlap (-75..20)
   collageSeeds: [],               // populated by initCollageSeeds() / shuffleCollageSeeds()
   format: FORMATS.find(f => f.id === 'desktop_4k') || FORMATS[0],
   customW: 1500,
   customH: 500,
-  tx: 0,  ty: 0,  scale: 1,  rotation: 0,  flipX: 1,  flipY: 1,
+  tx: 0,  ty: 0,  scale: 2,  rotation: 0,  flipX: 1,  flipY: 1,
 };
 
 // =========================================================================
@@ -1682,10 +1682,14 @@ flipHBtn.addEventListener('click', () => { state.flipX *= -1; applyTransform(); 
 flipVBtn.addEventListener('click', () => { state.flipY *= -1; applyTransform(); deselectTemplates(); });
 
 resetBtn.addEventListener('click', () => {
-  state.tx = 0; state.ty = 0; state.scale = 1; state.rotation = 0;
+  // Reset returns to the default composition (scale 200%, spacing -75%),
+  // not a bare identity transform — that's the look the maker boots with.
+  state.tx = 0; state.ty = 0; state.scale = 2; state.rotation = 0;
   state.flipX = 1; state.flipY = 1;
-  scaleSlider.value = 100; scaleVal.textContent = '100%';
+  state.cellGapPct = -75;
+  scaleSlider.value = 200; scaleVal.textContent = '200%';
   rotSlider.value = 0; rotVal.textContent = '0°';
+  gapSlider.value = -75; gapVal.textContent = '-75%';
   applyTransform();
 });
 
