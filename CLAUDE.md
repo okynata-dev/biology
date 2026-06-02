@@ -91,7 +91,9 @@ Worker name: **`bioms-api`** (custom domain `api.thebioms.com`).
 | `POST /api/waitlist` | Reserve form submit (email, eth addr, twitter). |
 | `GET /api/waitlist/count` | Live signup counter. |
 | `GET /api/metadata/<tokenId>` | **OpenSea metadata endpoint**, returns ERC-721 JSON. Used as token URI baseURI. |
-| `GET /api/preview/<tokenId>` | Pre-rendered preview image (animated WebP for mutated tokens). |
+| `GET /api/download/<tokenId>` | Master image (WebP) with `Content-Disposition: attachment` — unambiguous save URL. Mutated tokens get an animated WebP. |
+| `GET /api/video/<tokenId>` | Pre-rendered MP4 loop of the biom's breathing animation. |
+<!-- Note: the metadata `image` is served DIRECTLY from R2 (pngs.thebioms.com/preview/<id>.webp), not via an /api route. There is no `/api/preview/` route. -->
 <!-- /api/webhook/transfer was specced but never implemented. Cache-
      invalidation on transfer would only help post-launch when secondary
      sales happen; mint day has zero transfers (everything's an initial
