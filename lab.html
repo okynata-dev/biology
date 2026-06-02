@@ -3442,9 +3442,16 @@ const Wallet = {
     this.address = null;
     this.chainId = null;
     LabState.walletAddress = null;
-    LabState.ownedSeeds = [];
-    LabState.tokens = {};
-    Storage.save(LabState);
+    // Only wipe the collection if we're actually IN wallet mode. MetaMask
+    // emits accountsChanged([]) on lock / account-switch / sometimes
+    // spuriously — if that fires mid-demo, clearing ownedSeeds here would
+    // strand the demo's "Burn again" on an empty, wallet-flavoured pick
+    // screen (the donor/survivor practice seeds aren't wallet state).
+    if (LabState.mode === 'wallet') {
+      LabState.ownedSeeds = [];
+      LabState.tokens = {};
+      Storage.save(LabState);
+    }
     // Clear the nav-wallet shared key so the pill in the header reverts
     // to "Connect" on this page and any open tab.
     try { localStorage.removeItem('bioms-wallet-addr'); } catch (_) {}
@@ -6520,10 +6527,16 @@ collectionGrid.addEventListener('click', (e) => {
       Wallet.address = null;
       Wallet.chainId = null;
       LabState.walletAddress = null;
-      LabState.ownedSeeds = [];
-      LabState.tokens = {};
-      try { Storage.save(LabState); } catch (_) {}
-      renderCollection();
+      // Only wipe the collection in wallet mode. A wallet disconnect (incl.
+      // MetaMask emitting accountsChanged([]) on lock / switch / spuriously)
+      // must NOT erase demo practice seeds — doing so stranded the demo's
+      // "Burn again" on an empty, wallet-flavoured pick screen.
+      if (LabState.mode === 'wallet') {
+        LabState.ownedSeeds = [];
+        LabState.tokens = {};
+        try { Storage.save(LabState); } catch (_) {}
+        renderCollection();
+      }
       renderWalletUI();
       renderWalletHoldings();
       return;
@@ -7079,6 +7092,12 @@ collectionGrid.addEventListener('click', (e) => {
 
   document.getElementById('flowAfterAgain').addEventListener('click', () => {
     lab.reset();
+    // Demo never dead-ends: if the batch is down to fewer than a burnable
+    // pair (burned through it, or state got cleared), draw a fresh six so
+    // "Burn again" always lands on a usable pick screen.
+    if (lab.mode === 'demo' && lab.ownedSeeds.length < 2) {
+      lab.loadDemo(6);
+    }
     goToPick();
   });
 
