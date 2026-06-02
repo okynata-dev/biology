@@ -1624,6 +1624,10 @@ let _cachedComp = null; // .composition element, cached for the cursor rotate
 let _cursorTX = 0, _cursorTY = 0;   // target (from mouse/touch)
 let _cursorPX = 0, _cursorPY = 0;   // current (lerped)
 let _compWrittenX = NaN, _compWrittenY = NaN;  // last composition transform written
+// Parallax tilt gain. Default 1 keeps the subtle hero/preview tilt; the
+// /view "turn it in your hand" page passes ?tilt=N to amplify the
+// cursor-driven rotation into something you can clearly steer. Clamp 1..10.
+const _TILT_GAIN = Math.max(1, Math.min(10, parseFloat(new URLSearchParams(window.location.search).get('tilt')) || 1));
 
 // Default: visible. Parent observer flips this to false when we
 // scroll out of view, true again when we return.
@@ -1711,7 +1715,7 @@ function liveLoop(now) {
   // When idle the cursor settles to 0 and we stop touching the composition.
   if (_cachedComp
       && !(Math.abs(_cursorPX - _compWrittenX) < 0.0008 && Math.abs(_cursorPY - _compWrittenY) < 0.0008)) {
-    _cachedComp.style.transform = `rotateY(${_cursorPX * 2.2}deg) rotateX(${-_cursorPY * 1.8}deg)`;
+    _cachedComp.style.transform = `rotateY(${_cursorPX * 2.2 * _TILT_GAIN}deg) rotateX(${-_cursorPY * 1.8 * _TILT_GAIN}deg)`;
     _compWrittenX = _cursorPX; _compWrittenY = _cursorPY;
   }
 

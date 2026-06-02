@@ -197,6 +197,8 @@
   Cache-Control: public, max-age=60, must-revalidate
 /make
   Cache-Control: public, max-age=60, must-revalidate
+/view
+  Cache-Control: public, max-age=60, must-revalidate
 # /preview Cache-Control moved into the consolidated /preview block
 # above (security overrides + Cache-Control together) — having it here
 # was creating a second matching rule that REPLACED the security block.
