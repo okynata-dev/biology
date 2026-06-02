@@ -626,7 +626,7 @@
         <div class="ctrl-group" data-mode-only="collage">
           <div class="ctrl-label"><span>Grid</span><span class="val" id="gridVal">4 × 4</span></div>
           <!-- Six presets cover the natural sizes: small mosaic, pack,
-               wall, mural, full collection (50×60 = exactly 3000), and
+               wall, mural, full grid (50×60 = 3000 cells), and
                Custom for anything off the path. -->
           <div class="preset-grid" role="radiogroup" aria-label="Collage grid size">
             <button type="button" class="preset-btn" data-cols="4"  data-rows="4"  role="radio">
@@ -742,7 +742,7 @@
 // the live DOM render because the master PNG was itself screenshotted from
 // preview.html during the mint pipeline (batch_screenshots.py).
 //
-// Set to '' for same-origin (/pngs/preview/N.png served from this Pages
+// Set to '' for same-origin (/pngs/preview/N.webp served from this Pages
 // project), or 'https://pngs.thebioms.com' for an R2 custom-domain bucket.
 // If a PNG is missing or fails to load, the local 2D-canvas renderer takes
 // over automatically — no crash, just slightly less faithful glass effect.

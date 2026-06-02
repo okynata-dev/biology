@@ -78,14 +78,14 @@ function error(msg, status = 400, origin = '') {
 // MAX_TOKEN_ID — single source of truth for the supply bound. If Series II
 // ever ships, override via env.MAX_TOKEN_ID (string) instead of code edits.
 //
-// IMPORTANT (2026-05-29): the OpenSea SeaDrop contract mints token IDs
-// 1..3000, NOT 0..2999 (ERC721SeaDrop._startTokenId() == 1, confirmed by
-// a test-contract mint). The worker maps tokenId -> art seed by identity
-// (token N renders engine seed N), so the valid range must include 3000.
-// Bound is therefore 3000, not 2999. Token 0 stays valid-but-unused (no
-// token #0 ever mints), and art seed 0 is simply not part of the minted
-// collection — the collection is engine seeds 1..3000. The static master
-// for seed 3000 was rendered + uploaded to R2 alongside this change.
+// IMPORTANT: the OpenSea SeaDrop contract mints token IDs 1..8000, NOT
+// 0..7999 (ERC721SeaDrop._startTokenId() == 1, confirmed by a test-contract
+// mint). The worker maps tokenId -> art seed by identity (token N renders
+// engine seed N), so the valid range must include 8000. Bound is therefore
+// 8000, not 7999. Token 0 stays valid-but-unused (no token #0 ever mints),
+// and art seed 0 is simply not part of the minted collection — the
+// collection is engine seeds 1..8000. (Supply raised 3000 -> 8000 in the
+// 2026-06 expansion; masters/thumbs/videos/cutouts re-rendered to R2.)
 const DEFAULT_MAX_TOKEN_ID = 8000;  // contract mints 1..8000 (SeaDrop is 1-indexed; supply raised 3000->8000 for the 2026-06 expansion)
 function maxTokenId(env) {
   const v = parseInt(env && env.MAX_TOKEN_ID, 10);
@@ -381,7 +381,7 @@ async function listOwned(env, address, opts = {}) {
     return { tokens: [], contractDeployed: false };
   }
 
-  // ----- Primary path: Alchemy NFT API (indexed, fast, scales to 3000 supply) -----
+  // ----- Primary path: Alchemy NFT API (indexed, fast, scales to 8000 supply) -----
   const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${env.ALCHEMY_KEY}/getNFTsForOwner` +
     `?owner=${address}&contractAddresses[]=${env.CONTRACT_ADDRESS}&withMetadata=false&pageSize=100`;
   let primaryError = null;
@@ -1329,7 +1329,7 @@ async function buildMetadata(env, tokenId) {
   // Attributes — order matters for OpenSea grouping
   const attributes = [
     // Species first — the per-token "nickname" derived from the seed
-    // (PHAGOPHILIA / STREPTONAX / GLIAARIA …). 1/3000 unique per token
+    // (PHAGOPHILIA / STREPTONAX / GLIAARIA …). 1/8000 unique per token
     // so it acts as the human-readable identity inside the BIOM #N
     // wrapper.
     { trait_type: 'Species',      value: name },
@@ -1377,7 +1377,7 @@ async function buildMetadata(env, tokenId) {
   const imageUrl = `https://pngs.thebioms.com/preview/${padded}.webp?v=${imageVersion}`;
 
   return {
-    // "Biom #N" — no padding, max ID is 3000 so digit count tops out at
+    // "Biom #N" — no padding, max ID is 8000 so digit count tops out at
     // 4 chars and reads cleaner than "Biom #00001". Genus name (the old
     // "PHAGOPHILIA" style identifier) is preserved as a Species trait so
     // the character isn't lost — it just doesn't crowd the title.

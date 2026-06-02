@@ -2,13 +2,13 @@
 # https://developers.cloudflare.com/pages/configuration/headers/
 #
 # Frame-embedding policy:
-#   preview.html + rare-*.html ARE the NFT animation_url targets —
-#     OpenSea and other marketplaces must iframe them from any origin,
-#     so frame-ancestors stays open there.
-#   Everything else (lab.html, index.html, make.html, explore.html)
-#     hosts wallet flows + user input → frame-ancestors 'none' so
-#     attacker sites can't overlay an invisible "Connect → Sign"
-#     clickjack sequence on top of our buttons.
+#   preview.html IS the NFT animation_url target — OpenSea and other
+#     marketplaces must iframe it from any origin, so frame-ancestors
+#     stays open there.
+#   Everything else (lab.html, index.html, make.html, explore.html,
+#     gallery.html) hosts wallet flows + user input → frame-ancestors
+#     'none' so attacker sites can't overlay an invisible "Connect →
+#     Sign" clickjack sequence on top of our buttons.
 
 /*
   X-Content-Type-Options: nosniff
@@ -26,8 +26,9 @@
   # the wildcard, leaving /lab, /reserve, /, /make, /explore framable
   # by any origin. Clickjacking-the-connect-wallet was the worst case.
   #
-  # Default deny here + per-path override on preview.html / rare-* paths
-  # (which MUST stay iframable so OpenSea can embed them as animation_url).
+  # Default deny here + a per-path override on the preview.html / preview
+  # paths (which MUST stay iframable so OpenSea can embed them as the
+  # token animation_url).
   # Those overrides live further down — search for "frame-ancestors *".
   #
   # 'unsafe-inline' on script-src / style-src is unavoidable until we
