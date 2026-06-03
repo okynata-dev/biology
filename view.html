@@ -39,18 +39,24 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 26px;
-    padding: 16px 18px 44px;
+    gap: 22px;
+    padding: 14px 18px 28px;
     min-height: 0;
   }
 
-  /* The card is the NFT itself (cream, as on OpenSea). Square, capped to
-     the smaller viewport axis; black page shows all around it. */
+  /* The card is the NFT itself (cream, as on OpenSea). Square, sized to the
+     smaller viewport axis so it fills the screen instead of floating small.
+     No fixed px cap — a hard 680px ceiling pinned it tiny on large displays,
+     which read as "a small thing in a dumb frame". It now scales with the
+     viewport; black page shows all around it. */
   .stage {
     position: relative;
-    width: min(74vh, 92vw, 680px);
+    /* Fill the viewport minus the nav + actions chrome (~168px), so the card
+       is as large as it can be while the button row stays visible. Scales up
+       on big displays instead of stalling at a small fixed size. */
+    width: min(calc(100dvh - 168px), 94vw);
     aspect-ratio: 1 / 1;
-    border-radius: 22px;
+    border-radius: 20px;
     overflow: hidden;
     transition: opacity 0.4s ease;
   }
@@ -63,8 +69,17 @@
     /* pointer events MUST reach the iframe — that feeds the cursor tilt. */
   }
 
-  /* Sole control. Light pill so it reads on black. */
-  #anotherBtn {
+  /* Controls row — "Another Biom" + "Save as MP4", side by side. */
+  .view-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  /* Light pills so they read on black. Shared by the button and the
+     download link so they sit identically in the row. */
+  .view-pill {
     appearance: none;
     background: transparent;
     color: #f4f1e8;
@@ -73,12 +88,17 @@
     padding: 11px 24px;
     font-family: inherit;
     font-size: 14px;
+    line-height: 1;
     letter-spacing: 0.01em;
     cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
   }
-  #anotherBtn:hover { background: rgba(244, 241, 232, 0.10); border-color: rgba(244, 241, 232, 0.6); }
-  #anotherBtn:active { transform: scale(0.985); }
+  .view-pill:hover { background: rgba(244, 241, 232, 0.10); border-color: rgba(244, 241, 232, 0.6); }
+  .view-pill:active { transform: scale(0.985); }
 </style>
 </head>
 <body>
@@ -102,13 +122,17 @@
   <div class="stage" id="stage">
     <iframe id="biomFrame" title="A Biom" scrolling="no" loading="eager"></iframe>
   </div>
-  <button type="button" id="anotherBtn">Another Biom</button>
+  <div class="view-actions">
+    <button type="button" id="anotherBtn" class="view-pill">Another Biom</button>
+    <a id="saveMp4Btn" class="view-pill" download>Save as MP4</a>
+  </div>
 </main>
 
 <script>
-  const stage = document.getElementById('stage');
-  const frame = document.getElementById('biomFrame');
-  const btn   = document.getElementById('anotherBtn');
+  const stage   = document.getElementById('stage');
+  const frame   = document.getElementById('biomFrame');
+  const btn     = document.getElementById('anotherBtn');
+  const saveMp4 = document.getElementById('saveMp4Btn');
 
   // Tokens are 1..8000.
   function randSeed() { return 1 + Math.floor(Math.random() * 8000); }
@@ -120,6 +144,11 @@
     // cursor parallax; nodl=1 hides the download chrome. No cutout — we
     // want the real OpenSea look, with the black coming from the page.
     frame.src = `/preview.html?seed=${seed}&tilt=5&nodl=1`;
+    // Point the explicit Save button at this Biom's pre-rendered MP4. The
+    // worker sends Content-Disposition: attachment, so the click saves the
+    // file (no inline playback, no new tab needed). Kept in sync per seed.
+    saveMp4.href = `https://api.thebioms.com/api/video/${seed}`;
+    saveMp4.setAttribute('download', `BIOM-${seed}.mp4`);
   }
 
   btn.addEventListener('click', () => load(randSeed()));
