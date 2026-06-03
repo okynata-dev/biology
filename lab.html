@@ -2798,6 +2798,12 @@
     width: 100%; height: 100%;
     border: 0; display: block;
     background: transparent;
+    /* Decorative thumbnail (aria-hidden, tabindex -1). It MUST NOT swallow
+       clicks — an iframe captures pointer events into its own document, so
+       without this a mutated Biom's tile (which renders as an iframe, unlike
+       static-thumb tiles) became unselectable. That broke repeated burns:
+       every survivor is mutated, so each burn left another dead tile. */
+    pointer-events: none;
   }
   .flow-after-thumb .thumb-live { border-radius: inherit; }
   .flow-pick-name {
@@ -3259,7 +3265,7 @@ const WALLET_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;  // 30 days for real
 const DEMO_STORAGE_KEY   = 'bioms-lab-v1-demo';
 const WALLET_STORAGE_KEY = 'bioms-lab-v1-wallet';
 const LEGACY_STORAGE_KEY = 'bioms-lab-v1';     // migrate-from key
-const MAX_COLLECTION = 24;
+const MAX_COLLECTION = 40;
 
 // Worker URL — same-origin emulator in dev, prod API otherwise.
 const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
@@ -5944,15 +5950,26 @@ window.__bioms_lab = {
   // /api/owned, not user input).
   loadDemo(count = 4) {
     LabState.mode = 'demo';
-    LabState.ownedSeeds = [];
     LabState.tokens = {};
+    // Build the set in one shot, then render ONCE. Going through addSeed()
+    // re-rendered the whole collection on every push (O(n²), janks the main
+    // thread) AND, if count exceeded MAX_COLLECTION, looped forever (addSeed
+    // refuses past the cap, so ownedSeeds.length never reaches count). Cap
+    // the target and guard the loop so neither can happen again.
+    const want = Math.min(count, MAX_COLLECTION);
     const used = new Set();
-    while (LabState.ownedSeeds.length < count) {
+    const seeds = [];
+    let guard = 0;
+    while (seeds.length < want && guard < want * 60) {
+      guard++;
       const seed = 1 + Math.floor(Math.random() * 8000);  // tokens are 1..8000 (seed 0 has no asset)
       if (used.has(seed)) continue;
       used.add(seed);
-      addSeed(seed);
+      seeds.push(seed);
     }
+    LabState.ownedSeeds = seeds;
+    Storage.save(LabState);
+    renderCollection();
   },
   // Subscriptions to wallet + ownership state. The flow uses these to
   // know when "Yes, I'm ready" can transition from "connecting…" to the
@@ -6850,13 +6867,13 @@ collectionGrid.addEventListener('click', (e) => {
       && typeof window.BiomEngine.applyPremint === 'function');
   }
   function beginDemo(statusEl) {
-    statusEl.textContent = 'Drawing six random Bioms';
+    statusEl.textContent = 'Drawing your Bioms';
     statusEl.className = 'flow-status working';
     let waited = 0;
     (function tick() {
       if (engineReady()) {
         try {
-          lab.loadDemo(6);
+          lab.loadDemo(32);
         } catch (e) {
           console.error('[lab] demo load failed', e);
           statusEl.textContent = 'Something went wrong — reload the page and try again.';
@@ -7096,7 +7113,7 @@ collectionGrid.addEventListener('click', (e) => {
     // pair (burned through it, or state got cleared), draw a fresh six so
     // "Burn again" always lands on a usable pick screen.
     if (lab.mode === 'demo' && lab.ownedSeeds.length < 2) {
-      lab.loadDemo(6);
+      lab.loadDemo(32);
     }
     goToPick();
   });
