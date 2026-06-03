@@ -12,9 +12,15 @@
      card), floated on black so the artwork sits in a clean frame. The
      preview.html iframe carries the real render + cursor tilt. The only
      control is "Another Biom". */
-  html, body { height: 100%; }
+  html, body { height: 100%; margin: 0; }
+  /* design.css sets a cream page background brand-wide. This page is the
+     one with a BLACK body, so the default 8px body margin let that cream
+     peek through as a thin frame around every edge. Zero the margin and
+     paint html black too, so nothing cream shows at the viewport edges. */
+  html { background: #000; }
   body {
     min-height: 100dvh;
+    margin: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
