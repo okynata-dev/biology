@@ -2816,6 +2816,26 @@
     transition: color 200ms ease;
   }
   .flow-pick-tile[data-pick] .flow-pick-name { color: var(--lab-ink); }
+  /* Tier chip — only shown on Bioms that have already absorbed (rank>1),
+     so the player can spot the survivor they're climbing and keep feeding
+     it. Sits over the thumb, top-left, opposite the pick badge. */
+  .flow-pick-rank {
+    position: absolute;
+    top: 8px; left: 8px;
+    padding: 3px 8px;
+    background: rgba(20, 16, 12, 0.74);
+    color: #f2ead8;
+    border-radius: 999px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    z-index: 3;
+    pointer-events: none;
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+  .flow-pick-rank.is-apex { background: rgba(192, 85, 45, 0.86); color: #fff; }
   .flow-pick-tile[data-pick] .flow-pick-thumb {
     box-shadow:
       inset 0 0 0 1.5px var(--lab-ink),
@@ -2866,12 +2886,14 @@
     background: transparent;
     border: 1px solid var(--lab-rule-2);
     border-radius: var(--r-md, 14px);
-    padding: 36px 18px;
+    padding: 32px 18px;
     font: inherit;
     cursor: pointer;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 7px;
     color: var(--lab-ink);
     transition: border-color 220ms ease, background 220ms ease, transform 220ms ease;
     -webkit-tap-highlight-color: transparent;
@@ -2888,6 +2910,17 @@
     color: var(--lab-ink);
     font-weight: 500;
   }
+  /* Each candidate's current standing, so naming the survivor is an
+     informed choice — the donor's rank is discarded on burn, so keeping
+     the more-evolved Biom is how a lineage climbs toward Phoenix/Biome. */
+  .flow-name-tier {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--lab-ink-3);
+  }
+  .flow-name-tier.is-elevated { color: var(--burn, #c0552d); }
 
   /* === Ritual modal — keep Bioms on canonical cream tiles ===
      The ritual modal already has the dark room around it; the bioms
@@ -3206,9 +3239,11 @@
     <div class="flow-name-pair">
       <button type="button" class="flow-name-btn" id="flowNameA">
         <span class="flow-name-label" id="flowNameALabel">Biom #—</span>
+        <span class="flow-name-tier" id="flowNameATier"></span>
       </button>
       <button type="button" class="flow-name-btn" id="flowNameB">
         <span class="flow-name-label" id="flowNameBLabel">Biom #—</span>
+        <span class="flow-name-tier" id="flowNameBTier"></span>
       </button>
     </div>
   </div>
@@ -4219,12 +4254,15 @@ function burnOutcome(burnSeed, absorbSeed) {
   // Legacy: keep generation in sync for any old code still reading it.
   const newGeneration = newRank - 1;
 
-  // Ancestor list — survivor inherits everyone its parents inherited,
-  // PLUS the burned token itself. Used for the lineage display + the
-  // burn ritual's "carries the memory of…" line.
+  // Ancestor list — append ONLY the donor token, mirroring the worker
+  // (`absorbed_seeds.push(donorId)`). The donor's OWN lineage does NOT
+  // transfer, exactly like rank: burning a Phoenix into a Genesis yields
+  // rank 2 with one absorbed seed, not the Phoenix's whole ancestry. This
+  // keeps the lineage length == rank-1 always; the previous spread of
+  // `...burnEff.ancestors` over-counted and produced "carries the memory
+  // of 7" next to "Rank 2", which read as broken.
   const ancestors = [
     ...absEff.ancestors,
-    ...burnEff.ancestors,
     { seed: burnSeed, rank: burnRank, ts: Date.now() },
   ];
 
@@ -6690,6 +6728,7 @@ collectionGrid.addEventListener('click', (e) => {
   let pickedA = null, pickedB = null;
   let pendingSurvivor = null;   // captured at commitChoice, used by Act 5
   let pendingDonor    = null;
+  let lastSurvivor    = null;   // the biom that just survived — carried into the next Pick so a lineage can climb
   let walletPollTimer = null;
   let currentAct      = null;
 
@@ -6817,6 +6856,36 @@ collectionGrid.addEventListener('click', (e) => {
 
   function labelOf(seed) {
     return `Biom #${String(seed).padStart(4, '0')}`;
+  }
+
+  // Current standing of a seed: its rank + tier name. Drives the pick-grid
+  // chip and the name-screen sub-label so the player can see which Biom is
+  // the one they're climbing. Genesis (rank 1) returns rank 1 / no tier.
+  function rankInfoOf(seed) {
+    let rank = 1;
+    try { const eff = effectiveState(seed); if (eff && eff.rank) rank = eff.rank; } catch (_) {}
+    const tier = tierForRank(rank);                 // null for Genesis
+    return { rank, tierName: tier ? tier.name : 'Genesis', apex: !!(tier && (tier.cls === 'epic' || tier.cls === 'apex' || tier.cls === 'mythic')) };
+  }
+  // Short label used by aria + the name-screen line. Always present.
+  function rankChipText(seed) {
+    const { rank, tierName } = rankInfoOf(seed);
+    return rank > 1 ? `${tierName} · Rank ${rank}` : '';
+  }
+  // The chip is shown ONLY for elevated tokens (rank>1); Genesis tiles stay
+  // clean. Apex tiers (Phoenix+) glow ember.
+  function rankChipHtml(seed) {
+    const info = rankInfoOf(seed);
+    if (info.rank <= 1) return '';
+    return `<span class="flow-pick-rank${info.apex ? ' is-apex' : ''}" aria-hidden="true">${info.tierName} · R${info.rank}</span>`;
+  }
+  // Fill a name-screen tier line for a candidate.
+  function setNameTier(elId, seed) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const info = rankInfoOf(seed);
+    el.textContent = info.rank > 1 ? `${info.tierName} · Rank ${info.rank}` : 'Genesis';
+    el.classList.toggle('is-elevated', info.rank > 1);
   }
 
   // =====================================================
@@ -6977,10 +7046,17 @@ collectionGrid.addEventListener('click', (e) => {
   // =====================================================
   // Act 2 — Pick two
   // =====================================================
-  function goToPick() {
+  function goToPick(preselect) {
     pickedA = null;
     pickedB = null;
     renderPickGrid();
+    // Carry the just-survived Biom in as the first pick so the player keeps
+    // feeding the SAME lineage — the only way rank climbs toward Phoenix /
+    // Biome. Non-destructive: tapping it again deselects.
+    if (preselect != null && lab.ownedSeeds.includes(preselect)) {
+      pickedA = preselect;
+      updatePickUI();
+    }
     show('pick');
   }
 
@@ -6996,9 +7072,10 @@ collectionGrid.addEventListener('click', (e) => {
     }
     empty.hidden = true;
     grid.innerHTML = seeds.map(seed => `
-      <button type="button" class="flow-pick-tile" data-seed="${seed}" role="option" aria-label="${labelOf(seed)}">
+      <button type="button" class="flow-pick-tile" data-seed="${seed}" role="option" aria-label="${labelOf(seed)}${rankChipText(seed) ? ', ' + rankChipText(seed) : ''}">
         <span class="flow-pick-thumb">
           ${thumbHtml(seed)}
+          ${rankChipHtml(seed)}
           <span class="flow-pick-badge" aria-hidden="true"></span>
         </span>
         <span class="flow-pick-name">${labelOf(seed)}</span>
@@ -7046,6 +7123,8 @@ collectionGrid.addEventListener('click', (e) => {
   function goToName(a, b) {
     document.getElementById('flowNameALabel').textContent = labelOf(a);
     document.getElementById('flowNameBLabel').textContent = labelOf(b);
+    setNameTier('flowNameATier', a);
+    setNameTier('flowNameBTier', b);
 
     document.getElementById('flowNameA').onclick = () => commitChoice(a, b);
     document.getElementById('flowNameB').onclick = () => commitChoice(b, a);
@@ -7096,26 +7175,33 @@ collectionGrid.addEventListener('click', (e) => {
   }
 
   function goToAfter(survivor, donor) {
+    lastSurvivor = survivor;
     const afterThumb = document.getElementById('flowAfterThumb');
     afterThumb.innerHTML = thumbHtml(survivor);
     hydrateThumbs(afterThumb);
+    const info = rankInfoOf(survivor);
     document.getElementById('flowAfterTitle').textContent = `${labelOf(survivor)} carries it now.`;
+    // Surface the new standing so progress is legible — the rank climb is
+    // the whole point of repeating the burn.
+    const standing = info.rank > 1 ? ` It is now ${info.tierName}, Rank ${info.rank}.` : '';
     document.getElementById('flowAfterLineage').textContent =
-      donor != null
+      (donor != null
         ? `${labelOf(donor)} dissolved into it. The organelles, the palette, the anomalies — all moved across.`
-        : 'The donor dissolved into it. Everything moved across.';
+        : 'The donor dissolved into it. Everything moved across.') + standing;
     show('after');
   }
 
   document.getElementById('flowAfterAgain').addEventListener('click', () => {
     lab.reset();
     // Demo never dead-ends: if the batch is down to fewer than a burnable
-    // pair (burned through it, or state got cleared), draw a fresh six so
+    // pair (burned through it, or state got cleared), draw a fresh batch so
     // "Burn again" always lands on a usable pick screen.
     if (lab.mode === 'demo' && lab.ownedSeeds.length < 2) {
       lab.loadDemo(32);
+      lastSurvivor = null;   // fresh batch — nothing to carry forward
     }
-    goToPick();
+    // Pre-select the survivor so the next burn continues the SAME lineage.
+    goToPick(lastSurvivor);
   });
 
   // =====================================================
