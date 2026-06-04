@@ -2758,11 +2758,6 @@
     -webkit-tap-highlight-color: transparent;
   }
   .flow-pick-tile:hover { transform: translateY(-3px); }
-  /* Binary trade-up: once one Biom is chosen, partners of a different rank
-     can't merge with it — dim them so the eligible ones read clearly. Still
-     clickable (a tap surfaces the "same tier" hint). */
-  .flow-pick-tile[data-ineligible] { opacity: 0.26; }
-  .flow-pick-tile[data-ineligible]:hover { transform: none; }
   .flow-pick-thumb {
     aspect-ratio: 1;
     background: var(--paper, #faf8f3);
@@ -2999,6 +2994,37 @@
     width: 100%; height: 100%;
     border: 0; display: block;
   }
+  /* Mass progress — how full the survivor is toward the next tier. */
+  .flow-mass {
+    width: min(46vh, 78vw, 460px);
+    margin: 0 auto 14px;
+  }
+  .flow-mass-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 7px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+  .flow-mass-count { color: var(--lab-ink-2, #e8dcc2); }
+  .flow-mass-next  { color: var(--lab-ink-3, #9a9081); text-transform: uppercase; letter-spacing: 0.12em; }
+  .flow-mass-bar {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(244, 234, 212, 0.10);
+    overflow: hidden;
+  }
+  .flow-mass-fill {
+    display: block;
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--burn, #c0552d), #e0894f);
+    transition: width 600ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .flow-mass.is-max .flow-mass-fill { background: linear-gradient(90deg, #c0552d, #f0c060); }
 
   /* === Act 5: After — one biom, lineage, two buttons === */
   .flow-after-thumb {
@@ -3262,8 +3288,8 @@
   <button type="button" class="flow-back" id="flowPickBack" aria-label="Back to intro">← Back</button>
   <a class="flow-close" href="/" aria-label="Leave the lab">Leave</a>
   <div class="flow-stage">
-    <h2 class="flow-title" id="flowPickTitle">Choose two of the same tier.</h2>
-    <p class="flow-subtitle">Two equals merge into the next tier. Tap two Bioms of the same rank.</p>
+    <h2 class="flow-title" id="flowPickTitle">Choose two.</h2>
+    <p class="flow-subtitle">One absorbs the other. Its mass carries over — enough mass crosses into the next tier.</p>
     <div class="flow-pick-grid" id="flowPickGrid" role="listbox" aria-label="Your Bioms"></div>
     <div class="flow-pick-empty" id="flowPickEmpty" hidden>
       <strong>No Bioms in this wallet.</strong><br>
@@ -3300,6 +3326,13 @@
     <h2 class="flow-title" id="flowPreviewTitle">This is what you'll get.</h2>
     <div class="flow-preview-stage" id="flowPreviewStage">
       <iframe id="flowPreviewFrame" title="Result preview" scrolling="no" loading="eager"></iframe>
+    </div>
+    <div class="flow-mass" id="flowPreviewMass">
+      <div class="flow-mass-row">
+        <span class="flow-mass-count" id="flowPreviewMassCount">—</span>
+        <span class="flow-mass-next" id="flowPreviewMassNext"></span>
+      </div>
+      <div class="flow-mass-bar"><span class="flow-mass-fill" id="flowPreviewMassFill"></span></div>
     </div>
     <p class="flow-subtitle" id="flowPreviewDeltas">—</p>
     <div class="flow-cta-row">
@@ -4007,6 +4040,17 @@ function effectiveState(seed) {
   const endosymbiont  = effectiveAnomaly('endosymbiont');
   const biofilmHalo   = effectiveAnomaly('biofilmHalo');
 
+  // MASS — how many base (Genesis) Bioms this token embodies. Genesis = 1;
+  // each burn adds the donor's FULL mass; tier is a power-of-two threshold of
+  // mass (2 Hybrid, 4 Chimera, 8 Phoenix, 16 Superorganism, 32 Biome). Pre-mint
+  // elevated tokens have an intrinsic mass = 2^(tierLevel-1). Falls back
+  // gracefully from an older stored binary `rank` so existing demo state in a
+  // visitor's localStorage doesn't read as Genesis.
+  const _premLevel = (base.rank && base.rank > 1) ? base.rank : 1;
+  const mass = Number.isFinite(t.mass) ? t.mass
+             : (Number.isFinite(t.rank) ? (2 ** (t.rank - 1)) : (2 ** (_premLevel - 1)));
+  const _rank = massToRank(mass);
+
   return {
     seed,
     // Body-architecture traits: received-* overrides base if set
@@ -4019,13 +4063,12 @@ function effectiveState(seed) {
     phageAttached, endosymbiont, biofilmHalo,
     depletedNow,
     // Burn lineage — surfaces in collection card badge + metadata.
-    // `rank` is the canonical rarity number (1 = Genesis, +1 per burn,
-    // linear). Pre-minted elevated tokens carry an intrinsic base.rank
-    // (from applyPremint) that is the floor before any burn — fall back to
-    // it so a premint Phoenix shows Phoenix, not Genesis, in the Lab.
-    // `generation` is a legacy alias derived from rank.
-    rank: t.rank || base.rank || ((t.generation || 0) + 1),
-    generation: t.generation || ((t.rank || base.rank) ? (t.rank || base.rank) - 1 : 0),
+    // `mass` is the underlying truth (base Bioms embodied); `rank` (1-6) is the
+    // tier level derived from mass via power-of-two thresholds. `generation`
+    // is a legacy alias = rank-1.
+    mass,
+    rank: _rank,
+    generation: _rank - 1,
     burnsAbsorbed: t.burnsAbsorbed || 0,
     paletteAncestry: t.paletteAncestry || [base.palette],
     // Names of ancestors absorbed into this Biom, oldest first. Drives
@@ -4302,27 +4345,21 @@ function burnOutcome(burnSeed, absorbSeed) {
   const burnEff = effectiveState(burnSeed);
   const absEff  = effectiveState(absorbSeed);
 
-  // Rank — BINARY TRADE-UP, matching the authoritative on-chain model.
-  // A valid merge is two EQUAL ranks → +1 (the UI gates selection to equal
-  // ranks; see canMergePair / the pick grid). The survivor absorbs the
-  // donor's ENTIRE lineage plus the donor itself, so for an equal-rank merge
-  // the lineage doubles+1: (2^(K-1)-1)*2 + 1 = 2^K - 1 absorbed at rank K+1.
-  // That keeps "carries the memory of N" == 2^(rank-1)-1, always consistent
-  // with the rank. Capped at MAX_RANK (Biome is terminal).
+  // MASS — additive. Any two Bioms combine; the survivor takes the donor's
+  // FULL mass (so burning a big one is worth it — its accumulated weight
+  // transfers, nothing is discarded). Tier (rank 1-6) is the power-of-two
+  // threshold of the new mass.
   const burnRank = burnEff.rank;
   const absRank  = absEff.rank;
-  const equalRank = burnRank === absRank;
-  // Only an equal-rank merge advances a tier. A mismatched pair (shouldn't
-  // reach here — UI blocks it) still absorbs traits but doesn't level up, so
-  // no Biom is ever wasted on a bad combine.
-  const newRank  = Math.min(equalRank ? absRank + 1 : Math.max(absRank, burnRank), MAX_RANK);
+  const newMass  = (absEff.mass || 1) + (burnEff.mass || 1);
+  const newRank  = massToRank(newMass);
   // Legacy: keep generation in sync for any old code still reading it.
   const newGeneration = newRank - 1;
 
   // Ancestor list — survivor inherits the FULL lineage of BOTH parents plus
-  // the donor itself (the binary tree: a rank-K Biom carries its 2^(K-1)-1
-  // ancestors; merging two yields 2^K-1). Deduped by seed so a shared base
-  // ancestor isn't double-counted.
+  // the donor itself, so the count tracks the mass (lineage length + 1 ==
+  // mass). Deduped by seed (on-chain each base Biom is unique, so this is a
+  // safety no-op).
   const _ancSeen = new Set();
   const ancestors = [];
   for (const a of [...absEff.ancestors, ...burnEff.ancestors,
@@ -4376,9 +4413,10 @@ function burnOutcome(burnSeed, absorbSeed) {
   // rankBump is the canonical "you got more powerful" signal; keep the
   // old generationBump alias for code that hasn't been migrated yet.
   const rankBump = { from: absRank, to: newRank };
+  const massBump = { from: (absEff.mass || 1), to: newMass };
   const generationBump = { from: absRank - 1, to: newGeneration };
 
-  return { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, generationBump, rankBump, combinedAncestry, unlocked, ancestors };
+  return { next, gainedOrganelles, gainedAnomalies, blendedPalette, cellCountBumped, generationBump, rankBump, massBump, newMass, combinedAncestry, unlocked, ancestors };
 }
 
 // ============================================================
@@ -4467,17 +4505,33 @@ function fmtRemaining(ms) {
 // === RANK MATH ===
 // Burn rule (BINARY TRADE-UP): you may only merge TWO Bioms of the SAME rank;
 // the survivor becomes rank+1. So a rank-N Biom represents 2^(N-1) base
-// Bioms. Rank == merge level == tier, 1:1. Mirrors worker.js (_tierForRank) —
-// the worker is authoritative. Rank 6 (Biome) is terminal.
-//   Genesis(1) ⊕ Genesis(1)            → Hybrid(2)        — 2 base
-//   Hybrid(2)  ⊕ Hybrid(2)             → Chimera(3)       — 4 base
-//   Chimera(3) ⊕ Chimera(3)            → Phoenix(4)       — 8 base
-//   Phoenix(4) ⊕ Phoenix(4)           → Superorganism(5) — 16 base
-//   Superorganism(5) ⊕ Superorganism(5) → Biome(6)        — 32 base
-// Tier map (rank == tier level):
-//   1 → Genesis (no badge)  2 → Hybrid  3 → Chimera
-//   4 → Phoenix  5 → Superorganism  6 → Biome
+// Bioms. MASS is the truth: a token embodies `mass` base Bioms. A burn adds
+// the donor's FULL mass (any two Bioms combine — no equal-rank rule). The tier
+// (rank 1-6) is a power-of-two THRESHOLD of mass:
+//   mass 1 → Genesis · 2-3 Hybrid · 4-7 Chimera · 8-15 Phoenix
+//          · 16-31 Superorganism · 32+ Biome
+// Reaching a tier needs 2^(rank-1) base Bioms (Biome = 32), any path — fast
+// (absorb a big one) or slow (chip up with small ones).
 const MAX_RANK = 6;
+// Mass → tier level (1-6). 1 + floor(log2(mass)), capped at 6.
+function massToRank(mass) {
+  const m = Math.max(1, Math.floor(mass || 1));
+  if (m <= 1)  return 1;
+  if (m <= 3)  return 2;
+  if (m <= 7)  return 3;
+  if (m <= 15) return 4;
+  if (m <= 31) return 5;
+  return 6;
+}
+// Progress toward the next tier, as the user framed it: mass / next-threshold.
+// Returns { mass, rank, nextMass, frac, atMax }. Biome (rank 6) is maxed.
+function massInfo(mass) {
+  const m = Math.max(1, Math.floor(mass || 1));
+  const rank = massToRank(m);
+  if (rank >= MAX_RANK) return { mass: m, rank, nextMass: null, frac: 1, atMax: true };
+  const nextMass = 2 ** rank;                 // 2,4,8,16,32 — the next tier's entry
+  return { mass: m, rank, nextMass, frac: Math.max(0, Math.min(1, m / nextMass)), atMax: false };
+}
 function tierForRank(rank) {
   if (rank <= 1)  return null;
   if (rank === 2) return { name: 'Hybrid',        cls: '' };
@@ -5494,7 +5548,7 @@ function performCrossbreed(seedA, seedB, outcomeId) {
 // stays absorber's own). Burnt Biom marked destroyed and removed from
 // the collection. Never fails (sacrifice is irreversible).
 function performBurn(burnSeed, absorbSeed) {
-  const { next, generationBump, rankBump, combinedAncestry, ancestors } = burnOutcome(burnSeed, absorbSeed);
+  const { next, generationBump, rankBump, massBump, newMass, combinedAncestry, ancestors } = burnOutcome(burnSeed, absorbSeed);
   const ts2 = Date.now();
 
   // Apply the merged state to absorber. We compute the diff vs the
@@ -5515,11 +5569,11 @@ function performBurn(burnSeed, absorbSeed) {
     applyMutation(absorbSeed, { set_cellCount: next.cellCount });
   }
 
-  // Rank + ancestor chain on absorber. Rank is the canonical rarity
-  // metric (1=Genesis, doubles via equal-rank burns); on-chain metadata
-  // will surface it as trait_type 'Rank'. Generation kept as legacy
+  // Mass + rank + ancestor chain on absorber. MASS is the truth (base Bioms
+  // embodied); rank (tier 1-6) derives from it. Generation kept as legacy
   // alias = rank-1.
   const ats = LabState.tokens[absorbSeed] || (LabState.tokens[absorbSeed] = {});
+  ats.mass           = newMass;
   ats.rank           = rankBump.to;
   ats.generation     = generationBump.to;
   ats.burnsAbsorbed  = (ats.burnsAbsorbed || 0) + 1;
@@ -7157,57 +7211,38 @@ collectionGrid.addEventListener('click', (e) => {
     grid.querySelectorAll('.flow-pick-tile').forEach(tile => {
       tile.addEventListener('click', () => {
         const seed = parseInt(tile.dataset.seed, 10);
-        // Deselect — always allowed.
-        if (seed === pickedA) { pickedA = pickedB; pickedB = null; updatePickUI(); return; }
-        if (seed === pickedB) { pickedB = null; updatePickUI(); return; }
-        // First pick — anything goes.
-        if (pickedA === null) { pickedA = seed; updatePickUI(); return; }
-        // Second pick — BINARY TRADE-UP gate: must be the SAME rank as the
-        // first. Mismatch just shows a hint and is ignored (no selection),
-        // so the user learns the rule without a dead-end.
-        if (rankOf(seed) !== rankOf(pickedA)) {
-          const t = tierLabelOf(pickedA);
-          setPickStatus(`Two of the same tier merge. ${labelOf(pickedA)} is ${t} — pick another ${t}.`);
-          return;
-        }
-        pickedB = seed;
-        setPickStatus('');
+        // MASS model — any two Bioms can merge (the survivor absorbs the
+        // other's mass). No equal-rank restriction, so no tile is ever
+        // blocked.
+        if (seed === pickedA) { pickedA = pickedB; pickedB = null; }
+        else if (seed === pickedB) { pickedB = null; }
+        else if (pickedA === null) { pickedA = seed; }
+        else if (pickedB === null) { pickedB = seed; }
+        else { pickedB = seed; }   // both full → replace second
         updatePickUI();
         // Auto-advance once both are picked — no Continue button needed.
-        setTimeout(() => {
-          if (pickedA !== null && pickedB !== null && currentAct === 'pick') {
-            goToName(pickedA, pickedB);
-          }
-        }, 520);
+        if (pickedA !== null && pickedB !== null) {
+          setTimeout(() => {
+            if (pickedA !== null && pickedB !== null && currentAct === 'pick') {
+              goToName(pickedA, pickedB);
+            }
+          }, 520);
+        }
       });
     });
     updatePickUI();
   }
 
-  // Current rank/tier of a seed (binary level 1-6). Reused by the gate.
-  function rankOf(seed)      { return rankInfoOf(seed).rank; }
-  function tierLabelOf(seed) { return rankInfoOf(seed).tierName; }
-  function setPickStatus(msg) {
-    const el = document.getElementById('flowPickStatus');
-    if (el) { el.textContent = msg || ''; el.className = 'flow-status' + (msg ? ' error' : ''); }
-  }
+  // Current rank/tier of a seed (tier level 1-6). Still used by carry-forward.
+  function rankOf(seed) { return rankInfoOf(seed).rank; }
 
   function updatePickUI() {
-    // When one Biom is chosen, dim the tiles that can't merge with it
-    // (different rank) so the eligible partners stand out.
-    const anchorRank = pickedA !== null ? rankOf(pickedA) : null;
     document.querySelectorAll('#flowPickGrid .flow-pick-tile').forEach(tile => {
       const seed  = parseInt(tile.dataset.seed, 10);
       const badge = tile.querySelector('.flow-pick-badge');
       if (seed === pickedA)      { tile.setAttribute('data-pick', '1'); badge.textContent = '1'; }
       else if (seed === pickedB) { tile.setAttribute('data-pick', '2'); badge.textContent = '2'; }
       else                       { tile.removeAttribute('data-pick'); badge.textContent = ''; }
-      // Eligibility dim — only while exactly one is chosen.
-      if (anchorRank !== null && pickedB === null && seed !== pickedA && rankOf(seed) !== anchorRank) {
-        tile.setAttribute('data-ineligible', '1');
-      } else {
-        tile.removeAttribute('data-ineligible');
-      }
     });
   }
 
@@ -7242,6 +7277,7 @@ collectionGrid.addEventListener('click', (e) => {
   function goToResultPreview(survivor, donor) {
     const outcome  = burnOutcome(donor, survivor);
     const newRank  = outcome.rankBump.to;
+    const newMass  = outcome.newMass;
     const tier     = tierForRank(newRank);
     const apex     = !!(tier && (tier.cls === 'epic' || tier.cls === 'apex' || tier.cls === 'mythic'));
 
@@ -7249,7 +7285,7 @@ collectionGrid.addEventListener('click', (e) => {
     // new rank, then render it through the SAME engine the NFT uses
     // (preview.html) — exact, breathing, cursor-tilt. fit=1 centres it,
     // nodl=1 hides the download chrome.
-    const mergedEff = Object.assign({}, effectiveState(survivor), outcome.next, { rank: newRank });
+    const mergedEff = Object.assign({}, effectiveState(survivor), outcome.next, { rank: newRank, mass: newMass });
     const frame = document.getElementById('flowPreviewFrame');
     frame.src = previewUrlFor(survivor, mergedEff, {}) + '&fit=1&nodl=1';
 
@@ -7257,11 +7293,22 @@ collectionGrid.addEventListener('click', (e) => {
     tierEl.textContent = (tier ? tier.name : 'Genesis') + ' · Rank ' + newRank;
     tierEl.className = 'flow-preview-tier' + (apex ? ' is-apex' : '');
 
+    // Mass progress bar — mass / next-tier threshold (the player sees exactly
+    // how close the survivor is to the next form).
+    const mi = massInfo(newMass);
+    const massWrap = document.getElementById('flowPreviewMass');
+    document.getElementById('flowPreviewMassCount').textContent = `Mass ${mi.mass}`;
+    document.getElementById('flowPreviewMassNext').textContent = mi.atMax
+      ? 'Apex — Biome'
+      : `${mi.mass} / ${mi.nextMass} to ${tierForRank(mi.rank + 1).name}`;
+    document.getElementById('flowPreviewMassFill').style.width = Math.round(mi.frac * 100) + '%';
+    massWrap.classList.toggle('is-max', mi.atMax);
+
     // Quiet one-line summary of what the survivor becomes.
     const gains = [...outcome.gainedOrganelles, ...outcome.gainedAnomalies];
     const gainStr = gains.length ? ` It gains ${gains.slice(0, 4).join(', ')}.` : '';
     document.getElementById('flowPreviewDeltas').textContent =
-      `${labelOf(survivor)} absorbs ${labelOf(donor)} and becomes ${tier ? tier.name : 'Genesis'}.${gainStr}`;
+      `${labelOf(survivor)} absorbs ${labelOf(donor)} (mass ${outcome.massBump.from} + ${(effectiveState(donor).mass || 1)} → ${newMass}).${gainStr}`;
 
     // Confirm — commit the pair and open the ritual. Pending refs are set
     // ONLY here, so backing out of the preview never mis-routes the ritual
@@ -7337,17 +7384,9 @@ collectionGrid.addEventListener('click', (e) => {
       lab.loadDemo(32);
       lastSurvivor = null;   // fresh batch — nothing to carry forward
     }
-    // Binary trade-up: only carry the survivor forward if it actually has an
-    // equal-rank partner to merge with. Otherwise the pick screen would open
-    // with the survivor selected and EVERY other tile dimmed (no legal move),
-    // which reads as stuck. In that case start fresh so the player can build
-    // another of that tier first.
-    let preselect;
-    if (lastSurvivor != null && lab.ownedSeeds.includes(lastSurvivor)) {
-      const r = rankOf(lastSurvivor);
-      if (lab.ownedSeeds.some(s => s !== lastSurvivor && rankOf(s) === r)) preselect = lastSurvivor;
-    }
-    goToPick(preselect);
+    // Mass model — any two merge, so just carry the survivor forward; the
+    // player can feed anything into it to keep growing its mass.
+    goToPick(lab.ownedSeeds.includes(lastSurvivor) ? lastSurvivor : undefined);
   });
 
   // =====================================================

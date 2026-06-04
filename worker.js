@@ -209,7 +209,7 @@ async function loadTokenState(env, tokenId) {
   // Mutations row + absorbed lineage + image_version (cache-bust counter,
   // bumped each time renderTokenMaster() re-uploads the master to R2).
   const m = await env.DB.prepare(
-    'SELECT received_palette, received_organelles, received_anomalies, absorbed_seeds, image_version, rank FROM token_state WHERE token_id = ?'
+    'SELECT received_palette, received_organelles, received_anomalies, absorbed_seeds, image_version FROM token_state WHERE token_id = ?'
   ).bind(tokenId).first();
 
   const mutations = {
@@ -218,9 +218,6 @@ async function loadTokenState(env, tokenId) {
     anomalies: m?.received_anomalies ? JSON.parse(m.received_anomalies) : [],
   };
   const imageVersion = m?.image_version || 1;
-  // Stored merge level (binary trade-up). NULL for never-merged tokens →
-  // callers fall back to the pre-mint floor or 1 (Genesis).
-  const storedRank = (m && Number.isFinite(m.rank) && m.rank >= 1) ? m.rank : null;
 
   let absorbedSeeds = [];
   try { if (m?.absorbed_seeds) absorbedSeeds = JSON.parse(m.absorbed_seeds); } catch (_) {}
@@ -251,15 +248,7 @@ async function loadTokenState(env, tokenId) {
     at: burnSelfRow.burned_at,
   } : null;
 
-  return { mutations, depletions, absorbedSeeds, burned: burnedInfo, imageVersion, storedRank };
-}
-
-// A token's current merge level (binary trade-up). Prefers the explicit
-// stored rank; else the pre-mint elevation floor; else 1 (Genesis).
-function effectiveRank(tokenId, storedRank) {
-  if (Number.isFinite(storedRank) && storedRank >= 1) return storedRank;
-  const pm = PREMINT[tokenId] || PREMINT[String(tokenId)];
-  return (pm && Number.isFinite(pm.rank) && pm.rank >= 1) ? pm.rank : 1;
+  return { mutations, depletions, absorbedSeeds, burned: burnedInfo, imageVersion };
 }
 
 // ----- viem client factory -----
@@ -1004,17 +993,6 @@ async function handleBurn(req, env, ctx, origin) {
   try { if (recAbsorbedRaw.absorbed_seeds) absorbedSeeds = JSON.parse(recAbsorbedRaw.absorbed_seeds); } catch (_) {}
   if (!Array.isArray(absorbedSeeds)) absorbedSeeds = [];
 
-  // === BINARY TRADE-UP rank ===
-  // A valid merge is two EQUAL ranks → +1 (the Lab UI gates selection to
-  // equal ranks). The on-chain burn is irreversible by the time we get here,
-  // so a mismatched pair (only a buggy/hostile client) is NOT rejected — it
-  // absorbs traits but does NOT advance a tier, so no Biom is ever wasted.
-  const recRank   = effectiveRank(recipientId, recipientData.storedRank);
-  const donorRank = effectiveRank(donorId, donorData.storedRank);
-  const newRank   = (donorRank === recRank)
-    ? Math.min(recRank + 1, MAX_RANK)
-    : Math.max(recRank, donorRank);
-
   // Recipient's palette becomes donor's (donor's stain "wins" — visual
   // signal that absorption changed the survivor's appearance)
   recM.palette = donorEffectivePalette;
@@ -1025,22 +1003,8 @@ async function handleBurn(req, env, ctx, origin) {
   const recAnoSet = new Set(recM.anomalies || []);
   for (const a of donorEffectiveAnomalies) recAnoSet.add(a);
   recM.anomalies = Array.from(recAnoSet);
-  // Lineage (for the "carries the memory of…" display) — union of the
-  // survivor's lineage, the donor's lineage, both pre-mint synthetic
-  // ancestries, plus the donor itself. The CANONICAL ancestor count is
-  // derived from rank (2^(rank-1)-1) in buildMetadata; this list just names
-  // them. Deduped.
-  {
-    const _pmRec = PREMINT[recipientId] || PREMINT[String(recipientId)];
-    const _pmDon = PREMINT[donorId] || PREMINT[String(donorId)];
-    const _lin = new Set(absorbedSeeds);
-    for (const s of (donorData.absorbedSeeds || [])) _lin.add(s);
-    if (_pmRec && Array.isArray(_pmRec.absorbed)) for (const s of _pmRec.absorbed) _lin.add(s);
-    if (_pmDon && Array.isArray(_pmDon.absorbed)) for (const s of _pmDon.absorbed) _lin.add(s);
-    _lin.add(donorId);
-    _lin.delete(recipientId);   // a token never lists itself
-    absorbedSeeds = [..._lin];
-  }
+  // Append donor seed to lineage — first absorbed seed = rank-2, etc.
+  absorbedSeeds.push(donorId);
 
   const ts = Date.now();
   const tsSec = Math.floor(ts / 1000);
@@ -1058,14 +1022,13 @@ async function handleBurn(req, env, ctx, origin) {
         'INSERT INTO log (ts, donor, recipient, trait, result, signer, roll_hex) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind(ts, donorId, recipientId, '*burn*', 'burn', signerLc, null),
       env.DB.prepare(`
-        INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, absorbed_seeds, rank, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, absorbed_seeds, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(token_id) DO UPDATE SET
           received_palette = excluded.received_palette,
           received_organelles = excluded.received_organelles,
           received_anomalies = excluded.received_anomalies,
           absorbed_seeds = excluded.absorbed_seeds,
-          rank = excluded.rank,
           updated_at = excluded.updated_at
       `).bind(
         recipientId,
@@ -1073,7 +1036,6 @@ async function handleBurn(req, env, ctx, origin) {
         JSON.stringify(recM.organelles),
         JSON.stringify(recM.anomalies),
         JSON.stringify(absorbedSeeds),
-        newRank,
         tsSec
       ),
     ]);
@@ -1100,8 +1062,10 @@ async function handleBurn(req, env, ctx, origin) {
     ctx.waitUntil(renderTokenMaster(env, recipientId).catch(() => {}));
   }
 
-  // Rank is the explicit binary merge level just written. Mirrors
-  // buildMetadata so the Lab's post-burn rank matches OpenSea.
+  // Rank = pre-mint base rank (intrinsic floor for elevated tokens) + burns.
+  // Mirrors buildMetadata so the Lab's post-burn rank matches OpenSea.
+  const _pmRecip = PREMINT[recipientId] || PREMINT[String(recipientId)];
+  const _recipBaseRank = _pmRecip ? _pmRecip.rank : 1;
   return json({
     ok: true,
     burnedTokenId: donorId,
@@ -1109,7 +1073,7 @@ async function handleBurn(req, env, ctx, origin) {
     txHash,
     blockNumber: verdict.blockNumber ? String(verdict.blockNumber) : null,
     absorbedSeeds,
-    rank: newRank,
+    rank: _recipBaseRank + absorbedSeeds.length,
   }, {}, origin);
 }
 
@@ -1296,17 +1260,13 @@ const _ORG_LABEL = {
   axial: 'Axial filament',
 };
 
-// BINARY TRADE-UP: rank == merge level == tier, 1:1. A rank-N Biom is two
-// rank-(N-1) Bioms merged, so it represents 2^(N-1) base Bioms.
-//   1 Genesis · 2 Hybrid · 3 Chimera · 4 Phoenix · 5 Superorganism · 6 Biome
-const MAX_RANK = 6;
 function _tierForRank(rank) {
-  if (rank <= 1)  return 'Genesis';        // base mint (1 base)
-  if (rank === 2) return 'Hybrid';         // 2 base
-  if (rank === 3) return 'Chimera';        // 4 base
-  if (rank === 4) return 'Phoenix';        // 8 base
-  if (rank === 5) return 'Superorganism';  // 16 base — apex, burn-only
-  return 'Biome';                          // 6+ → 32 base — apex, burn-only
+  if (rank <= 1)  return 'Genesis';        // base mint, 0 absorbed
+  if (rank <= 3)  return 'Hybrid';         // 1-2 absorbed
+  if (rank <= 7)  return 'Chimera';        // 3-6 absorbed
+  if (rank <= 15) return 'Phoenix';        // 7-14 absorbed
+  if (rank <= 23) return 'Superorganism';  // 15-22 absorbed — apex, burn-only
+  return 'Biome';                          // 23+ absorbed — apex, burn-only
 }
 
 // === OpenSea metadata builder ===
@@ -1326,13 +1286,11 @@ async function buildMetadata(env, tokenId) {
   let mutations = {};
   let imageVersion = 1;
   let absorbedSeeds = [];
-  let storedRank = null;
   try {
     const loaded = await loadTokenState(env, tokenId);
     mutations = loaded.mutations || {};
     imageVersion = loaded.imageVersion || 1;
     absorbedSeeds = loaded.absorbedSeeds || [];
-    storedRank = loaded.storedRank;
   } catch (_) { /* ignore */ }
 
   // Effective state after mutations.
@@ -1359,13 +1317,14 @@ async function buildMetadata(env, tokenId) {
   if (Array.isArray(mutations.anomalies)) {
     for (const a of mutations.anomalies) eff[a] = true;
   }
-  // Rank = explicit binary merge level (written after each equal-rank merge),
-  // falling back to the pre-mint elevation floor, then 1 (Genesis). Under the
-  // binary trade-up economy rank is NOT absorbed_seeds.length — it's the
-  // doubling level, so a rank-N Biom represents 2^(N-1) base Bioms.
-  const rank = effectiveRank(tokenId, storedRank);
+  // Rank derived from absorbed_seeds length (each burn adds a parent).
+  // Genesis = 0 absorbed (rank 1), every absorption shifts the tier.
+  const absorbed = absorbedSeeds.length;
+  // Base rank = pre-mint elevation (Genesis = 1). Post-mint burns add on top.
+  const baseRank = pm ? pm.rank : 1;
+  const rank = baseRank + absorbed;
   const tier = _tierForRank(rank);
-  const totalAbsorbed = (2 ** (rank - 1)) - 1;  // 1→0 2→1 3→3 4→7 5→15 6→31
+  const totalAbsorbed = rank - 1;  // includes the pre-mint synthetic lineage
 
   // Attributes — order matters for OpenSea grouping
   const attributes = [

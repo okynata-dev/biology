@@ -15,13 +15,9 @@ CREATE TABLE IF NOT EXISTS token_state (
   received_palette      TEXT,
   received_organelles   TEXT,    -- JSON array, e.g. '["plasmid","flagellum"]'
   received_anomalies    TEXT,    -- JSON array
-  absorbed_seeds        TEXT,    -- JSON array of seeds burned into this token (lineage display)
-  rank                  INTEGER, -- binary trade-up merge level 1-6 (NULL → pre-mint floor or 1)
+  absorbed_seeds        TEXT,    -- JSON array of seeds burned into this token (rank ladder)
   updated_at            INTEGER  -- unix seconds
 );
--- Migration for an existing DB that predates the `rank` column (additive,
--- NULL-safe — old rows fall back to the pre-mint floor / Genesis):
---   ALTER TABLE token_state ADD COLUMN rank INTEGER;
 
 -- Permanent record of on-chain burns. Primary key on burned_token_id
 -- enforces "a token can only be burned once" at the schema level —
