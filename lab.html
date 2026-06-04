@@ -1761,10 +1761,12 @@
     overflow: hidden;
   }
   .ritual-pair {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    /* Two Bioms, centred. (No arrow column anymore — the old 1fr/auto/1fr
+       grid left an empty third column that shoved the pair off-centre.) */
+    display: flex;
+    justify-content: center;
     align-items: center;
-    gap: clamp(20px, 4vw, 48px);
+    gap: clamp(28px, 5vw, 64px);
     margin-bottom: clamp(48px, 8vh, 80px);
     transition: margin 600ms ease;
   }
@@ -2028,10 +2030,8 @@
        always fits, and the arrow rotates 90° to keep the visual
        "donor → absorber" flow intact. */
     .ritual-pair {
-      grid-template-columns: 1fr;
-      grid-template-rows: auto auto auto;
+      flex-direction: column;
       gap: 16px;
-      justify-items: center;
       margin-bottom: 32px;
     }
     .ritual-render { width: min(56vw, 220px); }
