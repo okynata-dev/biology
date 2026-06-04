@@ -2724,9 +2724,13 @@
     box-sizing: border-box;
   }
   .tut-title {
-    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
-    font-weight: 500; font-size: clamp(19px, 3.2vw, 32px);
-    letter-spacing: -0.01em; color: #f4ead4; margin: 0; line-height: 1.18;
+    font-family: -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif;
+    font-weight: 400; font-size: clamp(30px, 5vw, 56px);
+    letter-spacing: -0.03em; color: #f4ead4; margin: 0; line-height: 1.04;
+  }
+  .tut-tagline {
+    font-size: clamp(14px, 1.5vw, 16px); line-height: 1.5;
+    color: rgba(244, 234, 212, 0.62); max-width: 30em; margin: 2px auto 0;
   }
   .tut-tier {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
@@ -7196,8 +7200,10 @@ collectionGrid.addEventListener('click', (e) => {
   // =====================================================
   // Act 1 — Intro
   // =====================================================
-  document.getElementById('flowIntroYes').addEventListener('click', () => {
-    const statusEl = document.getElementById('flowIntroStatus');
+  // Wallet entry — connect (or reuse) a wallet and advance to the pick
+  // screen. Reused by the legacy intro's "Yes, I'm ready" (kept for
+  // rollback) and, post-mint, by the tutorial's end CTA.
+  function startWalletFlow(statusEl) {
     statusEl.textContent = '';
     statusEl.className = 'flow-status';
 
@@ -7226,7 +7232,8 @@ collectionGrid.addEventListener('click', (e) => {
     statusEl.className = 'flow-status working';
     lab.openWalletPicker();
     pollForWallet();
-  });
+  }
+  document.getElementById('flowIntroYes').addEventListener('click', () => startWalletFlow(document.getElementById('flowIntroStatus')));
 
   // The demo draws six bioms through the engine. If the user clicks before
   // specimen-engine.js has finished loading (slow network / impatient tap),
@@ -7361,12 +7368,13 @@ collectionGrid.addEventListener('click', (e) => {
     host.innerHTML = SECS.map((s, i) => `
       <div class="tut-sec">
         ${s.title ? '<h2 class="tut-title">From one cell to a Biome.</h2>' : ''}
+        ${s.title ? '<p class="tut-tagline">Deflationary by design: burn two Bioms into one rarer organism. The rarest tiers exist only through the merge — supply only ever falls.</p>' : ''}
         <div class="tut-tier">${s.tier}</div>
         ${stageHtml(s)}
         <p class="tut-hint">${s.hint}</p>
         ${s.kind === 'biome' ? `<a class="tut-apex-link" href="preview.html?${BIOME_FORCE}&nodl=1" target="_blank" rel="noopener">open ↗</a>` : ''}
         ${i === last
-          ? '<button type="button" class="flow-cta burn tut-cta" id="flowTutDemo">Try the demo</button>'
+          ? '<button type="button" class="flow-cta burn tut-cta" id="flowTutDemo">Try the demo</button><div class="flow-status" id="flowTutStatus" aria-live="polite" style="margin-top:6px;"></div>'
           : `<button type="button" class="flow-cta burn tut-cta tut-advance" data-next="${i + 1}">Burn ↓</button>`}
       </div>`).join('');
 
@@ -7504,30 +7512,39 @@ collectionGrid.addEventListener('click', (e) => {
       });
     });
 
-    // The demo button lives in the last section — wire it after build.
-    host.querySelector('#flowTutDemo')?.addEventListener('click', () => {
-      if (walletPollTimer) { clearInterval(walletPollTimer); walletPollTimer = null; }
-      beginDemo(document.getElementById('flowIntroStatus'));
-    });
+    // The lab entry CTA (#flowTutDemo) is wired once below, after MINT_OPEN
+    // is known — pre-mint it runs the demo, post-mint the wallet flow.
   })();
   document.getElementById('flowIntroHow')?.addEventListener('click', () => {
     show('tutorial');
     const sc = document.getElementById('tutScroller');
     if (sc) sc.scrollTop = 0;   // always start at the top (Genesis)
   });
-  document.getElementById('flowTutBack')?.addEventListener('click', () => show('intro'));
+  // The tutorial is now the lab's entry point (presentation → CTA), so its
+  // "← Back" — which pointed at the old "Are you ready?" intro — is redundant.
+  // Only "Leave" remains. The intro stays in the DOM for rollback, unrouted.
+  { const _tb = document.getElementById('flowTutBack'); if (_tb) _tb.style.display = 'none'; }
 
-  // Pre-mint gate: until the mint opens, nobody owns Bioms, so the wallet
-  // path ("Yes, I'm ready") dead-ends at a connect-wallet wall — and that's
-  // the first orange button people instinctively tap. Hide it and promote the
-  // demo to the single primary (ember) CTA. Flip MINT_OPEN → true on drop day
-  // to restore the wallet entry.
+  // === Lab entry CTA — at the end of the tutorial journey. ===
+  // Pre-mint: "Try the demo" → demo (nobody owns Bioms yet, so the wallet
+  // path would dead-end at a connect wall). Post-mint: flip MINT_OPEN and the
+  // same CTA becomes "Enter the Lab" → the wallet flow.
   const MINT_OPEN = false;
-  if (!MINT_OPEN) {
+  {
+    const _td = document.getElementById('flowTutDemo');
+    const _st = document.getElementById('flowTutStatus');
+    if (_td) {
+      _td.textContent = MINT_OPEN ? 'Enter the Lab' : 'Try the demo';
+      _td.addEventListener('click', () => {
+        if (walletPollTimer) { clearInterval(walletPollTimer); walletPollTimer = null; }
+        if (MINT_OPEN) startWalletFlow(_st); else beginDemo(_st);
+      });
+    }
+    // Legacy intro buttons (unrouted now) kept consistent for rollback.
     const _yes = document.getElementById('flowIntroYes');
     const _demo = document.getElementById('flowIntroDemo');
-    if (_yes) _yes.style.display = 'none';
-    if (_demo) { _demo.className = 'flow-cta burn'; _demo.textContent = 'Try the demo'; }
+    if (!MINT_OPEN && _yes) _yes.style.display = 'none';
+    if (!MINT_OPEN && _demo) { _demo.className = 'flow-cta burn'; _demo.textContent = 'Try the demo'; }
   }
 
   function pollForWallet() {
@@ -7684,7 +7701,7 @@ collectionGrid.addEventListener('click', (e) => {
     });
   }
 
-  document.getElementById('flowPickBack').addEventListener('click', () => show('intro'));
+  document.getElementById('flowPickBack').addEventListener('click', () => { show('tutorial'); const sc = document.getElementById('tutScroller'); if (sc) sc.scrollTop = 0; });
 
   // =====================================================
   // Act 3 — Which name survives
@@ -7850,7 +7867,11 @@ collectionGrid.addEventListener('click', (e) => {
   function boot() {
     // Mark body so the CSS hides the underlying scaffolding.
     document.body.classList.add('flow-ready');
-    show('intro');
+    // The tutorial IS the entry now — presentation first, CTA at the end
+    // (Apple-style). The "Are you ready?" intro is preserved but unrouted.
+    show('tutorial');
+    const sc = document.getElementById('tutScroller');
+    if (sc) sc.scrollTop = 0;
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => setTimeout(boot, 60));
