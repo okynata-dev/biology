@@ -90,6 +90,32 @@ CREATE TABLE IF NOT EXISTS waitlist (
 CREATE INDEX IF NOT EXISTS idx_waitlist_ts ON waitlist(ts);
 CREATE INDEX IF NOT EXISTS idx_waitlist_kind ON waitlist(kind);
 
+-- Community whitelist-allocation applications. SEPARATE from `waitlist`
+-- (individual signups). Community leaders apply here for a batch of spots;
+-- the owner reviews each, validates the submitted member wallets on-chain,
+-- and only then merges approved addresses into `waitlist` by hand. Nothing
+-- here auto-enters the snapshot. `status` is 'pending' | 'approved' | 'rejected'.
+-- `member_addrs` is the raw pasted ENS/0x list (newline-separated), stored
+-- verbatim — resolution/validation happens offline, not on submit.
+CREATE TABLE IF NOT EXISTS partners (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  community        TEXT NOT NULL,
+  about            TEXT,
+  twitter          TEXT,
+  audience_size    TEXT,
+  discord          TEXT,
+  links            TEXT,
+  requested_spots  INTEGER,
+  member_addrs     TEXT,
+  contact          TEXT NOT NULL,
+  status           TEXT NOT NULL DEFAULT 'pending',
+  ts               INTEGER NOT NULL,    -- unix milliseconds
+  ip_hash          TEXT                 -- sha256(ip + ':partner:' + salt); soft rate-limit only
+);
+CREATE INDEX IF NOT EXISTS idx_partners_ts     ON partners(ts);
+CREATE INDEX IF NOT EXISTS idx_partners_status ON partners(status);
+CREATE INDEX IF NOT EXISTS idx_partners_iphash ON partners(ip_hash);
+
 -- Per-IP burn throttle (fail-open). Append-only; one row per burn attempt,
 -- counted over a 60s window in worker.js _ipRateOk(). The per-signer limit
 -- only sees successful burns, so this is what stops valid-signature spam

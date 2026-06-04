@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Communities — Bioms</title>
+<meta name="description" content="Bring your community to Bioms. Apply for a whitelist allocation before the June 8 window.">
+<meta name="theme-color" content="#ece9e0">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
+<link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="/favicon.svg?v=3">
+<link rel="stylesheet" href="/design.css?v=4">
+<link rel="canonical" href="https://thebioms.com/partners">
+
+<meta property="og:title" content="Bioms — for communities">
+<meta property="og:description" content="Apply for a community whitelist allocation. Each application reviewed individually before June 8.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://thebioms.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root { --bad: var(--burn); }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    line-height: 1.55;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.014 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
+    z-index: 1;
+  }
+
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px; }
+  a:hover { text-decoration-color: var(--ink); }
+
+  .skip-link {
+    position: absolute; left: -9999px; top: 0;
+    background: var(--ink); color: var(--bg);
+    padding: 12px 18px; border-radius: 0 0 8px 0;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    z-index: 9999;
+  }
+  .skip-link:focus { left: 0; outline: 2px solid var(--bg); outline-offset: -2px; }
+
+  /* === NAV (canonical) === */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    padding: 18px 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(236, 233, 224, 0.94);
+    border-bottom: 1px solid var(--rule);
+  }
+  .brand {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 17px; font-weight: 500; letter-spacing: -0.005em;
+    color: var(--ink); text-decoration: none;
+    transition: opacity 0.15s;
+  }
+  .brand:hover { opacity: 0.65; text-decoration: none; }
+  .brand-mark { width: 18px; height: 18px; display: block; }
+  .nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
+  .nav-links a {
+    color: var(--ink-3); text-decoration: none;
+    transition: color 0.15s;
+    padding: 12px 6px; margin: -12px -6px;
+  }
+  .nav-links a:hover { color: var(--ink); text-decoration: none; }
+  .nav-x { display: inline-flex; align-items: center; color: var(--ink-3); transition: color 0.15s; margin-left: 4px; }
+  .nav-x:hover { color: var(--ink); text-decoration: none; }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px;
+  }
+  .x-icon { width: 15px; height: 15px; display: block; }
+  @media (max-width: 600px) {
+    nav { padding: 14px 18px; }
+    .nav-links { gap: 14px; font-size: 13px; }
+  }
+
+  /* === MAIN === */
+  .wrap {
+    position: relative; z-index: 2;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: clamp(56px, 11vh, 110px) 28px 96px;
+  }
+  .lede { text-align: center; }
+  h1 {
+    font-size: clamp(36px, 5vw, 52px);
+    letter-spacing: -0.025em;
+    font-weight: 500;
+    line-height: 1.05;
+    margin-bottom: 16px;
+  }
+  .h1-sub {
+    font-size: clamp(15px, 1.4vw, 17px);
+    line-height: 1.55;
+    color: var(--ink-2);
+    margin: 0 auto 44px;
+    max-width: 34em;
+  }
+
+  /* === GATE — first question === */
+  .gate { text-align: center; }
+  .gate-q {
+    font-size: 19px; font-weight: 500; letter-spacing: -0.01em;
+    margin-bottom: 22px; color: var(--ink);
+  }
+  .gate-row { display: flex; flex-direction: column; gap: 12px; max-width: 420px; margin: 0 auto; }
+  .gate-row .btn { width: 100%; }
+
+  /* === FORM === */
+  form.partner-form { display: none; flex-direction: column; gap: 22px; }
+  form.partner-form.shown { display: flex; }
+  .field { display: flex; flex-direction: column; gap: 7px; }
+  .field label {
+    font-size: 14px; font-weight: 500; color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .field label .req { color: var(--burn); margin-left: 2px; }
+  .field .hint { font-size: 13px; line-height: 1.45; color: var(--ink-3); margin: -2px 0 2px; }
+  .field input, .field textarea {
+    width: 100%;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-sm);
+    padding: 14px 16px;
+    font-family: inherit;
+    font-size: 16px;
+    color: var(--ink);
+    text-align: left;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    -webkit-appearance: none; appearance: none;
+  }
+  .field textarea { resize: vertical; min-height: 96px; line-height: 1.5; }
+  .field textarea.addrs {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; min-height: 112px; letter-spacing: 0.01em;
+  }
+  .field input::placeholder, .field textarea::placeholder {
+    color: var(--ink-3);
+  }
+  .field input:focus, .field textarea:focus {
+    border-color: var(--ink);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(28,26,22,0.08);
+  }
+  .field input.invalid, .field textarea.invalid { border-color: rgba(184, 73, 44, 0.55); }
+
+  .form-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  form.partner-form .btn { width: 100%; padding: 16px 22px; font-size: 16px; border-radius: var(--r-sm); }
+
+  .form-note { font-size: 13px; color: var(--ink-3); text-align: center; line-height: 1.5; }
+
+  /* === SUCCESS === */
+  .success {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    padding: 30px 24px; text-align: center;
+  }
+  .success-title { font-size: 22px; letter-spacing: -0.015em; font-weight: 500; }
+  .success-sub { color: var(--ink-2); font-size: 14px; margin-top: 10px; line-height: 1.5; max-width: 34em; margin-left: auto; margin-right: auto; }
+  .success-cta { margin-top: 18px; }
+  .success-cta-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px; border: 1px solid var(--ink);
+    background: transparent; color: var(--ink);
+    border-radius: var(--r-pill); text-decoration: none;
+    font-size: 14px; font-weight: 500;
+    transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  }
+  .success-cta-btn:hover { background: var(--ink); color: var(--bg); }
+
+  .form-error {
+    margin-top: 6px;
+    padding: 12px 16px;
+    border-radius: var(--r-sm);
+    background: var(--burn-soft);
+    border: 1px solid var(--burn-glow);
+    color: var(--burn);
+    font-size: 14px; line-height: 1.4;
+  }
+  .form-error:empty { display: none; }
+
+  /* === FOOTER (canonical) === */
+  footer {
+    padding: 32px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px;
+    font-size: 13px; color: var(--ink-3);
+    border-top: 1px solid var(--rule);
+    position: relative; z-index: 2;
+  }
+  footer a { color: inherit; text-decoration: none; transition: color 0.15s; }
+  footer a:hover { color: var(--ink); }
+  .footer-meta { display: flex; align-items: center; gap: 14px; }
+  .footer-meta .sep { opacity: 0.4; }
+  @media (max-width: 600px) {
+    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 12px; }
+    .footer-meta { flex-wrap: wrap; justify-content: center; gap: 8px 14px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+<nav>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <img class="brand-mark" src="/favicon.svg?v=3" alt="" width="18" height="18" decoding="async">
+    <span>Bioms</span>
+  </a>
+  <div class="nav-links">
+    <a href="/lab">Lab</a>
+    <a href="/reserve">Reserve</a>
+    <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
+      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<main class="wrap" id="main">
+  <div class="lede">
+    <h1>For communities.</h1>
+    <p class="h1-sub">
+      Bioms sets aside part of the whitelist for aligned communities. Tell us
+      about yours. Every application is read individually before the
+      <strong>June 8</strong> window.
+    </p>
+  </div>
+
+  <!-- Gate — the first question. Individuals are sent to /reserve. -->
+  <div class="gate" id="gate">
+    <div class="gate-q">Do you lead or represent a community?</div>
+    <div class="gate-row">
+      <button type="button" class="btn" id="gateYes">Yes, I represent a community</button>
+      <a class="btn ghost" href="/reserve" style="text-align:center;text-decoration:none;">No — I'm an individual collector</a>
+    </div>
+  </div>
+
+  <!-- Application form — revealed after the gate. -->
+  <form class="partner-form" id="partnerForm" novalidate aria-label="Community application">
+    <div class="field">
+      <label for="pCommunity">Community name <span class="req" aria-hidden="true">*</span></label>
+      <input type="text" id="pCommunity" name="community" maxlength="120" autocomplete="off" required>
+    </div>
+
+    <div class="field">
+      <label for="pAbout">About your community <span class="req" aria-hidden="true">*</span></label>
+      <div class="hint">What it is, who's in it, and why Bioms fits. A few sentences.</div>
+      <textarea id="pAbout" name="about" maxlength="2000" required placeholder="We're a 4k-member generative-art collective focused on…"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="pTwitter">X / Twitter <span class="req" aria-hidden="true">*</span></label>
+      <div class="hint">Link or @handle of the community account.</div>
+      <input type="text" id="pTwitter" name="twitter" maxlength="200" autocomplete="off" placeholder="@yourcommunity" required>
+    </div>
+
+    <div class="field">
+      <label for="pSize">Audience size <span class="req" aria-hidden="true">*</span></label>
+      <div class="hint">Roughly. e.g. 12k on X, 4k in Discord.</div>
+      <input type="text" id="pSize" name="audience" maxlength="120" autocomplete="off" required>
+    </div>
+
+    <div class="field">
+      <label for="pDiscord">Discord / Telegram</label>
+      <div class="hint">Invite link, if you have one.</div>
+      <input type="text" id="pDiscord" name="discord" maxlength="200" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label for="pLinks">Collection or website</label>
+      <div class="hint">For NFT communities: your contract or site.</div>
+      <input type="text" id="pLinks" name="links" maxlength="400" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label for="pSpots">Spots requested <span class="req" aria-hidden="true">*</span></label>
+      <div class="hint">How many whitelist spots you're asking for.</div>
+      <input type="number" id="pSpots" name="spots" min="1" max="100000" inputmode="numeric" autocomplete="off" required>
+    </div>
+
+    <div class="field">
+      <label for="pAddrs">Member wallets</label>
+      <div class="hint">ENS or 0x, one per line. Optional, but it speeds up review — we verify them on-chain. Up to ~250; for more, share a link above.</div>
+      <textarea id="pAddrs" name="members" class="addrs" maxlength="12000" placeholder="vitalik.eth&#10;0x1234…&#10;yourmember.eth"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="pContact">Contact <span class="req" aria-hidden="true">*</span></label>
+      <div class="hint">Telegram or email so we can reach you.</div>
+      <input type="text" id="pContact" name="contact" maxlength="200" autocomplete="off" placeholder="@you on Telegram, or email" required>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn" id="partnerSubmit" disabled>Submit application</button>
+      <div class="form-error" id="formError" hidden aria-live="polite" role="status"></div>
+      <p class="form-note">Reviewed individually. We only reach out if it's a fit.</p>
+    </div>
+  </form>
+
+  <div id="successPanel" class="success" hidden>
+    <div class="success-title">Application received.</div>
+    <div class="success-sub">We read every one individually. If it's a fit, we'll reach you at the contact you left before the June 8 window.</div>
+    <div class="success-cta">
+      <a class="success-cta-btn" href="https://twitter.com/theBioms" target="_blank" rel="noopener">Follow @theBioms</a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-meta">
+    <span>© 2026 Bioms</span>
+    <span class="sep">·</span>
+    <a href="/lab">Lab</a>
+    <span class="sep">·</span>
+    <a href="/reserve">Reserve</a>
+    <span class="sep">·</span>
+    <a href="/manifesto">Manifesto</a>
+  </div>
+  <div class="footer-meta">
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
+    <span class="sep">·</span>
+    <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">by @timsouw</a>
+  </div>
+</footer>
+
+<script>
+// =============================================================
+// PARTNERS — community whitelist-allocation application
+//
+// Isolated from the individual /reserve waitlist: this posts to
+// /api/partner (D1 table `partners`), never the `waitlist` table.
+// Member wallets are stored as raw text and validated on-chain
+// later during manual triage — no per-submit resolution, so the
+// endpoint stays cheap and can't be used to drain the Alchemy quota.
+// =============================================================
+const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:8787'
+  : 'https://api.thebioms.com';
+
+const gate     = document.getElementById('gate');
+const form     = document.getElementById('partnerForm');
+const submitBtn = document.getElementById('partnerSubmit');
+const successPanel = document.getElementById('successPanel');
+const formError  = document.getElementById('formError');
+
+// Required fields gate the submit button.
+const REQUIRED = ['pCommunity', 'pAbout', 'pTwitter', 'pSize', 'pSpots', 'pContact'];
+
+document.getElementById('gateYes').addEventListener('click', () => {
+  gate.style.display = 'none';
+  form.classList.add('shown');
+  document.getElementById('pCommunity').focus();
+});
+
+function validate() {
+  let ok = true;
+  for (const id of REQUIRED) {
+    const el = document.getElementById(id);
+    if (!el.value.trim()) ok = false;
+  }
+  submitBtn.disabled = !ok;
+}
+form.addEventListener('input', () => { validate(); clearError(); });
+
+function showError(msg) { formError.textContent = msg; formError.hidden = false; }
+function clearError() { formError.textContent = ''; formError.hidden = true; }
+
+const ERROR_COPY = {
+  rate_limited: 'Too many submissions from this network. Wait a few minutes and try again.',
+  origin_required: 'Your browser blocked the request. Refresh the page and try again.',
+  forbidden_origin: 'Your browser blocked the request. Refresh the page and try again.',
+  invalid_json: 'Something got malformed. Refresh and try again.',
+  body_too_large: 'The application is too large. Trim the wallet list and try again.',
+  missing_fields: 'Please fill the required fields (marked *).',
+  value_too_long: 'One of the fields is too long. Trim it and try again.',
+};
+
+async function submitApplication(payload) {
+  const r = await fetch(`${WORKER_URL}/api/partner`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) {
+    const data = await r.json().catch(() => ({}));
+    throw new Error(data.error || 'request_failed');
+  }
+  return r.json();
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearError();
+  validate();
+  if (submitBtn.disabled) return;
+
+  const val = id => document.getElementById(id).value.trim();
+  const payload = {
+    community: val('pCommunity'),
+    about:     val('pAbout'),
+    twitter:   val('pTwitter'),
+    audience:  val('pSize'),
+    discord:   val('pDiscord'),
+    links:     val('pLinks'),
+    spots:     val('pSpots'),
+    members:   val('pAddrs'),
+    contact:   val('pContact'),
+  };
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Submitting…';
+  try {
+    await submitApplication(payload);
+    form.style.display = 'none';
+    successPanel.hidden = false;
+    successPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (err) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Try again';
+    showError(ERROR_COPY[err && err.message] || 'Network blip — try again in a moment. If it persists, refresh the page.');
+  }
+});
+
+validate();
+</script>
+</body>
+</html>

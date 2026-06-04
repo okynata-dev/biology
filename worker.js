@@ -1944,6 +1944,127 @@ async function handleWaitlistCount(env, origin) {
   }, origin);
 }
 
+// ============================================================
+// PARTNERS — community whitelist-allocation applications
+//
+// Fully isolated from the individual waitlist: writes to the
+// `partners` table, NEVER `waitlist`. Member wallet lists are stored
+// as raw text and validated on-chain later during manual triage, so
+// this endpoint makes zero Alchemy calls and can't be abused to drain
+// quota. Owner reads submissions via the admin dump below.
+//   POST /api/partner          — submit an application
+//   GET  /api/admin/partners   — owner-only dump (x-admin-token header)
+// ============================================================
+async function handlePartnerAdd(req, env, origin) {
+  // Same Origin requirement as the waitlist: every legit POST comes from
+  // a browser submitting partners.html, so requiring Origin closes the
+  // curl-from-botnet vector that would otherwise hit D1 freely.
+  const reqOrigin = req.headers.get('Origin') || '';
+  if (!reqOrigin) return error('origin_required', 403, origin);
+
+  let body;
+  try { body = await req.json(); }
+  catch { return error('invalid_json', 400, origin); }
+  if (!body || typeof body !== 'object') return error('invalid_json', 400, origin);
+
+  // Trim + length-cap each field. Returns null when over the cap so we
+  // can bounce it before touching D1.
+  const str = (v, max) => {
+    if (typeof v !== 'string') return '';
+    const t = v.trim();
+    return t.length > max ? null : t;
+  };
+  const community = str(body.community, 120);
+  const about     = str(body.about, 2000);
+  const twitter   = str(body.twitter, 200);
+  const audience  = str(body.audience, 120);
+  const discord   = str(body.discord, 200);
+  const links     = str(body.links, 400);
+  const contact   = str(body.contact, 200);
+  const members   = str(body.members, 12000);
+  for (const v of [community, about, twitter, audience, discord, links, contact, members]) {
+    if (v === null) return error('value_too_long', 400, origin);
+  }
+  if (!community || !about || !twitter || !audience || !contact) {
+    return error('missing_fields', 400, origin);
+  }
+  // Requested spots — digits only, clamped.
+  let spots = parseInt(String(body.spots == null ? '' : body.spots).replace(/[^0-9]/g, ''), 10);
+  if (!Number.isFinite(spots)) spots = 0;
+  spots = Math.max(0, Math.min(1000000, spots));
+
+  // Soft rate-limit: at most 8 applications per IP per hour.
+  const ip = req.headers.get('CF-Connecting-IP') || req.headers.get('X-Forwarded-For') || 'unknown';
+  const salt = env.WAITLIST_IP_SALT || 'bioms-waitlist-v1';
+  const ipHash = await _sha256Hex(ip + ':partner:' + salt);
+  const nowMs = Date.now();
+  const recent = await env.DB.prepare(
+    'SELECT COUNT(*) AS n FROM partners WHERE ip_hash = ? AND ts > ?'
+  ).bind(ipHash, nowMs - 3_600_000).first();
+  if (recent && recent.n >= 8) return error('rate_limited', 429, origin);
+
+  await env.DB.prepare(
+    `INSERT INTO partners
+       (community, about, twitter, audience_size, discord, links, requested_spots, member_addrs, contact, status, ts, ip_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+  ).bind(community, about, twitter, audience, discord || null, links || null,
+         spots, members || null, contact, nowMs, ipHash).run();
+
+  return json({ ok: true }, { headers: { 'cache-control': 'no-store' } }, origin);
+}
+
+// GET /api/admin/partners?token via x-admin-token header, ?format=json|csv
+//
+// Owner-only dump of community applications. Same token gate as
+// /api/admin/waitlist. Bookmark with the header set (e.g. via the admin
+// panel) — never put the token in the query string.
+async function handleAdminPartners(req, env, origin) {
+  if (!env.ADMIN_TOKEN) return error('admin_token_not_set', 503, origin);
+  if (req.method !== 'GET') return error('method_not_allowed', 405, origin);
+  const token = req.headers.get('x-admin-token') || '';
+  if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('forbidden', 403, origin);
+  const url = new URL(req.url);
+  const format = (url.searchParams.get('format') || 'json').toLowerCase();
+  const rawLimit = parseInt(url.searchParams.get('limit') || '2000', 10);
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(10000, rawLimit) : 2000;
+
+  const { results } = await env.DB.prepare(
+    `SELECT id, community, about, twitter, audience_size, discord, links,
+            requested_spots, member_addrs, contact, status, ts
+       FROM partners ORDER BY ts DESC LIMIT ?`
+  ).bind(limit).all();
+  const rows = results || [];
+
+  if (format === 'csv') {
+    const q = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+    const header = 'id,community,twitter,audience_size,discord,links,requested_spots,contact,status,submitted_iso,about,member_addrs\n';
+    const lines = rows.map(r => [
+      r.id, q(r.community), q(r.twitter), q(r.audience_size), q(r.discord), q(r.links),
+      r.requested_spots, q(r.contact), q(r.status), q(new Date(r.ts).toISOString()),
+      q(r.about), q(r.member_addrs),
+    ].join(','));
+    return new Response(header + lines.join('\n'), {
+      headers: {
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': `attachment; filename="bioms-partners-${Date.now()}.csv"`,
+        'cache-control': 'no-store',
+      },
+    });
+  }
+
+  return json({
+    ok: true,
+    total: rows.length,
+    partners: rows.map(r => ({
+      id: r.id, community: r.community, about: r.about, twitter: r.twitter,
+      audienceSize: r.audience_size, discord: r.discord, links: r.links,
+      requestedSpots: r.requested_spots, memberAddrs: r.member_addrs,
+      contact: r.contact, status: r.status,
+      submittedMs: r.ts, submittedIso: new Date(r.ts).toISOString(),
+    })),
+  }, { headers: { 'cache-control': 'no-store' } }, origin);
+}
+
 // ----- Main dispatcher -----
 //
 // CRITICAL: the third parameter is `ctx`. handleConjugate + handleBurn use
@@ -2147,6 +2268,12 @@ export default {
       }
       if (path === '/api/waitlist' && req.method === 'POST') {
         return await handleWaitlistAdd(req, env, origin);
+      }
+      if (path === '/api/partner' && req.method === 'POST') {
+        return await handlePartnerAdd(req, env, origin);
+      }
+      if (path === '/api/admin/partners') {
+        return await handleAdminPartners(req, env, origin);
       }
 
       return error('not_found', 404, origin);
