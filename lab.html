@@ -1826,41 +1826,25 @@
     color: rgba(244, 234, 212, 0.32);
     transition: opacity 400ms ease;
   }
-  .burn-ritual.committed .ritual-arrow { opacity: 0; }
-  .burn-ritual.committed .ritual-specimen.burner { display: none; }
-  .burn-ritual.committed .ritual-pair {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    margin-bottom: 24px;
+  /* Both Bioms dissolve into one — no "becomes" arrow, no #numbers. */
+  .ritual-arrow { display: none; }
+  .ritual-name  { display: none; }
+  .ritual-render iframe {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    border: 0; display: block;
   }
-  /* The survivor is the entire moment — give it real presence.
-     Side-by-side ritual size (~220px) is sized for comparison; after
-     commit there's nothing to compare against, so we scale up. */
-  .burn-ritual.committed .ritual-specimen.absorber .ritual-render {
-    width: clamp(240px, 36vw, 380px);
-  }
+  /* On commit both originals are gone; the new Biom emerges in the result. */
+  .burn-ritual.committed .ritual-pair { display: none; }
 
-  /* During the hold: burner dissolves slowly, name spreads apart. */
-  .burn-ritual.holding .ritual-specimen.burner .ritual-render {
+  /* During the hold: BOTH Bioms dissolve slowly. */
+  .burn-ritual.holding .ritual-specimen .ritual-render {
     animation: ritual-dissolve 3000ms ease-out forwards;
-  }
-  .burn-ritual.holding .ritual-specimen.burner .ritual-name {
-    letter-spacing: 0.6em;
-    opacity: 0;
   }
   @keyframes ritual-dissolve {
     0%   { opacity: 1; filter: blur(0) brightness(1);   transform: scale(1)    translateY(0); }
     50%  { opacity: 0.6; filter: blur(3px) brightness(1.3); transform: scale(0.94) translateY(-6px); }
     100% { opacity: 0; filter: blur(12px) brightness(1.5); transform: scale(0.84) translateY(-22px); }
-  }
-  /* After commit: survivor blooms briefly to mark the new state. */
-  .burn-ritual.committed .ritual-specimen.absorber .ritual-render {
-    animation: ritual-bloom 900ms cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
-  }
-  @keyframes ritual-bloom {
-    0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(200, 130, 106, 0); }
-    50%  { transform: scale(1.04); box-shadow: 0 0 64px 14px var(--burn-glow); }
-    100% { transform: scale(1);    box-shadow: 0 0 24px 4px rgba(200, 130, 106, 0); }
   }
 
   /* Commit pill — long horizontal button with a fill that grows
@@ -1946,6 +1930,37 @@
     opacity: 1;
     transform: translateY(0);
   }
+  /* The new Biom — emerges slowly in the centre once both originals dissolve.
+     Same cream card + NFT framing as the result preview. */
+  .ritual-result-render {
+    order: 0;
+    position: relative;
+    width: clamp(240px, 36vw, 380px);
+    aspect-ratio: 1 / 1;
+    margin: 0 auto 22px;
+    background: var(--paper, #faf8f3);
+    border-radius: var(--r-md, 16px);
+    overflow: hidden;
+    box-shadow:
+      inset 0 0 0 1px rgba(244, 234, 212, 0.10),
+      0 24px 60px rgba(0, 0, 0, 0.46);
+  }
+  .ritual-result-render iframe {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    border: 0; display: block;
+  }
+  .burn-ritual.committed .ritual-result-render {
+    animation: ritual-emerge 1300ms cubic-bezier(0.2, 0.8, 0.3, 1) 250ms both;
+  }
+  @keyframes ritual-emerge {
+    0%   { opacity: 0; transform: scale(0.84); filter: blur(10px); }
+    55%  { opacity: 1; filter: blur(0); }
+    100% { opacity: 1; transform: scale(1); filter: blur(0); }
+  }
+  /* No #numbers / names in the result — just the new Biom + its tier. */
+  .ritual-result-name,
+  .ritual-result-lineage { display: none; }
   /* Visual order: eyebrow tier → big display name → lineage → continue.
      Tier sits ABOVE the name as an achievement label, like a record
      sleeve credit. DOM order is name/lineage/tier/continue for legacy
@@ -3255,6 +3270,7 @@
       <button type="button" class="ritual-cancel" id="ritualCancel">Cancel</button>
     </div>
     <div class="ritual-result">
+      <div class="ritual-result-render" id="ritualResultRender"></div>
       <div class="ritual-result-name" id="ritualResultName"></div>
       <div class="ritual-result-lineage" id="ritualResultLineage"></div>
       <div class="ritual-result-tier" id="ritualResultTier"></div>
@@ -6249,7 +6265,18 @@ const ritualCancel        = document.getElementById('ritualCancel');
 const ritualResultName    = document.getElementById('ritualResultName');
 const ritualResultLineage = document.getElementById('ritualResultLineage');
 const ritualResultTier    = document.getElementById('ritualResultTier');
+const ritualResultRender  = document.getElementById('ritualResultRender');
 const ritualContinue      = document.getElementById('ritualContinue');
+
+// Render a Biom into a ritual slot as the EXACT NFT (preview.html iframe,
+// default bust-crop) — crisp + consistent with the rest of the lab, instead
+// of the lower-fidelity DOM render that washed glow palettes into grey blobs.
+function _ritualFrame(targetEl, seed, stateOverride) {
+  if (!targetEl) return;
+  const eff = stateOverride || effectiveState(seed);
+  const url = previewUrlFor(seed, eff, {}) + '&nodl=1';
+  targetEl.innerHTML = `<iframe src="${url}" title="Biom" scrolling="no" loading="eager" aria-hidden="true" tabindex="-1"></iframe>`;
+}
 // Display label for the ritual, matching the flow's labelOf(): canonical
 // brand casing "Biom #NNNN" (never all-caps — BiomEngine.label returns
 // "BIOM #N", which is the wrong voice and looked off in the big result).
@@ -6292,10 +6319,12 @@ function openBurnRitual(burnSeed, absorbSeed) {
   // so every fresh ritual shows the hold + cancel controls.
   ritualCancel.style.display = '';
   ritualHold.style.display = '';
-  _renderRitualSpecimen(ritualBurnerRender, burnSeed);
-  _renderRitualSpecimen(ritualAbsorberRender, absorbSeed);
-  ritualBurnerName.textContent = ritualLabel(burnSeed);
-  ritualAbsorberName.textContent = ritualLabel(absorbSeed);
+  _ritualFrame(ritualBurnerRender, burnSeed);
+  _ritualFrame(ritualAbsorberRender, absorbSeed);
+  // Names removed — both Bioms simply dissolve into a new one (no #numbers).
+  ritualBurnerName.textContent = '';
+  ritualAbsorberName.textContent = '';
+  if (ritualResultRender) ritualResultRender.innerHTML = '';
   ritualTitle.textContent = 'This cannot be undone.';
   ritualHold.classList.remove('holding');
   burnRitual.hidden = false;
@@ -6391,15 +6420,10 @@ async function _ritualCommit() {
       // canonical absorbed_seeds + new mutations)
       await refreshTokens([absorbSeed]);
       const newEff = effectiveState(absorbSeed);
-      _renderRitualSpecimen(ritualAbsorberRender, absorbSeed, newEff);
-      ritualResultName.textContent = ritualLabel(absorbSeed);
-      const ancestors = newEff.ancestors || [];
-      if (ancestors.length === 0) {
-        ritualResultLineage.textContent = '';
-      } else {
-        const names = ancestors.map(a => ritualLabel(a.seed));
-        ritualResultLineage.textContent = 'Carries the memory of ' + names.join(', ') + '.';
-      }
+      // The new Biom materialises in the centre (both originals have dissolved).
+      _ritualFrame(ritualResultRender, absorbSeed, newEff);
+      ritualResultName.textContent = '';
+      ritualResultLineage.textContent = '';
       const tier = tierForRank(result.rank);
       ritualResultTier.textContent = (tier ? tier.name : 'Genesis') + ' · Rank ' + result.rank;
       setStage('It is done.');
@@ -6427,15 +6451,10 @@ async function _ritualCommit() {
   // performBurn mutates LabState and clears the burner.
   performBurn(burnSeed, absorbSeed);
   const newEff = effectiveState(absorbSeed);
-  _renderRitualSpecimen(ritualAbsorberRender, absorbSeed, newEff);
-  ritualResultName.textContent = ritualLabel(absorbSeed);
-  const ancestors = newEff.ancestors || [];
-  if (ancestors.length === 0) {
-    ritualResultLineage.textContent = '';
-  } else {
-    const names = ancestors.map(a => ritualLabel(a.seed));
-    ritualResultLineage.textContent = 'Carries the memory of ' + names.join(', ') + '.';
-  }
+  // The new Biom materialises in the centre (both originals have dissolved).
+  _ritualFrame(ritualResultRender, absorbSeed, newEff);
+  ritualResultName.textContent = '';
+  ritualResultLineage.textContent = '';
   const tier = tierForRank(newEff.rank);
   ritualResultTier.textContent = (tier ? tier.name : 'Genesis') + ' · Rank ' + newEff.rank;
   burnRitual.classList.add('committed');
