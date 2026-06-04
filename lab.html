@@ -2556,6 +2556,13 @@
   }
   /* Nav stays visible — it's the only frame around the flow. */
   body.flow-ready nav { visibility: visible; }
+  /* The flow modals are fixed full-screen overlays. The scaffolding behind
+     them is only visibility:hidden (kept for JS-fail fallback), so it still
+     occupies layout and would leave a stray PAGE scrollbar behind the
+     overlay. Lock page scroll while the flow is active — each overlay
+     scrolls its own content if it needs to. */
+  body.flow-ready { overflow: hidden; }
+  html:has(body.flow-ready) { overflow: hidden; }
 
   .flow-overlay {
     position: fixed;
@@ -3129,11 +3136,17 @@
   }
   /* The biom renders on its own cream card inside the iframe (preview.html);
      the stage just frames it, square, capped to the viewport. */
+  /* Result-preview must fit ONE viewport — no inner scrollbar. Render sized
+     down + stage tightened so tier + title + render + mass + deltas + CTA all
+     sit within the stage's max-height on a laptop. */
+  #flowPreview .flow-stage { padding-top: 26px; padding-bottom: 24px; }
+  #flowPreview .flow-title { font-size: clamp(22px, 3.2vw, 34px); margin-bottom: 6px; }
+  #flowPreview .flow-subtitle { font-size: 14px; line-height: 1.45; margin-top: 6px; }
   .flow-preview-stage {
     position: relative;
-    width: min(46vh, 78vw, 460px);
+    width: min(40vh, 70vw, 380px);
     aspect-ratio: 1 / 1;
-    margin: 4px auto 22px;
+    margin: 2px auto 12px;
     border-radius: var(--r-md, 16px);
     overflow: hidden;
     box-shadow:
@@ -3147,8 +3160,8 @@
   }
   /* Mass progress — how full the survivor is toward the next tier. */
   .flow-mass {
-    width: min(46vh, 78vw, 460px);
-    margin: 0 auto 14px;
+    width: min(40vh, 70vw, 380px);
+    margin: 0 auto 10px;
   }
   .flow-mass-row {
     display: flex;
@@ -3182,9 +3195,9 @@
     position: relative;
     /* Match the result-preview stage so the survivor reads at the same scale
        and framing (the canonical NFT) as the burn preview. */
-    width: min(46vh, 78vw, 460px);
+    width: min(40vh, 70vw, 380px);
     aspect-ratio: 1 / 1;
-    margin: 0 auto 24px;
+    margin: 0 auto 20px;
     background: var(--paper, #faf8f3);
     border-radius: var(--r-md, 16px);
     overflow: hidden;
