@@ -2800,14 +2800,18 @@
     color: rgba(244, 234, 212, 0.4); text-decoration: none;
   }
   .tut-apex-link:hover { color: var(--lab-ink, #f4f1e8); }
-  .tut-scrollcue {
-    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
-    color: rgba(244, 234, 212, 0.3); animation: tut-bob 1.8s ease-in-out infinite;
-    transition: opacity 300ms ease;
+  /* Big ember "Burn" CTA — advances to the next tier (and the final demo). */
+  .tut-cta {
+    margin-top: 10px; min-width: 0;
+    padding: 18px 54px; font-size: 17px; letter-spacing: 0.05em;
+    box-shadow: 0 14px 40px rgba(184, 73, 44, 0.36);
   }
-  @keyframes tut-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(4px)} }
+  .tut-cta:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 50px rgba(184, 73, 44, 0.52);
+  }
   @media (prefers-reduced-motion: reduce) {
-    .tut-card, .tut-halo, .tut-scrollcue { transition: none !important; animation: none !important; }
+    .tut-card, .tut-halo, .tut-cta { transition: none !important; animation: none !important; }
   }
 
   .flow-back {
@@ -7310,9 +7314,9 @@ collectionGrid.addEventListener('click', (e) => {
     //           organelle + anomaly, wrapped in a gold halo. Visibly a different
     //           organism from the Superorganism, not a recolour.
     // Only 1–3 frames total, lazy-loaded (offscreen until scrolled to) → no lag.
-    const SUPER_A = 'preview.html?seed=4242&forceStain=gold&forceMorph=cluster&forceCells=6&forceOrganelles=capsule,nucleoid,ribosomes,pili,plasmid,inclusion&forceBiofilm=1&fit=1&bare=1&nodl=1';
-    const SUPER_B = 'preview.html?seed=5353&forceStain=gold&forceMorph=sarcina&forceCells=6&forceOrganelles=capsule,nucleoid,ribosomes,pili,plasmid,inclusion&forceBiofilm=1&fit=1&bare=1&nodl=1';
-    const BIOME_FORCE = 'seed=777&forceStain=aurora_storm&forceMorph=filament&forceCells=7&forceOrganelles=capsule,nucleoid,ribosomes,pili,flagellum,plasmid,inclusion,axial&forcePhage=1&forceBiofilm=1&forceEndo=1&fit=1';
+    const SUPER_A = 'preview.html?seed=4242&forceStain=gold&forceMorph=cluster&forceCells=6&forceOrganelles=capsule,nucleoid,ribosomes,pili,plasmid,inclusion&forceBiofilm=1&bare=1&nodl=1';
+    const SUPER_B = 'preview.html?seed=5353&forceStain=gold&forceMorph=sarcina&forceCells=6&forceOrganelles=capsule,nucleoid,ribosomes,pili,plasmid,inclusion&forceBiofilm=1&bare=1&nodl=1';
+    const BIOME_FORCE = 'seed=777&forceStain=aurora_storm&forceMorph=filament&forceCells=7&forceOrganelles=capsule,nucleoid,ribosomes,pili,flagellum,plasmid,inclusion,axial&forcePhage=1&forceBiofilm=1&forceEndo=1';
     const BIOME = `preview.html?${BIOME_FORCE}&bare=1&nodl=1`;
 
     const flowHtml = (seeds) => {
@@ -7361,8 +7365,9 @@ collectionGrid.addEventListener('click', (e) => {
         ${stageHtml(s)}
         <p class="tut-hint">${s.hint}</p>
         ${s.kind === 'biome' ? `<a class="tut-apex-link" href="preview.html?${BIOME_FORCE}&nodl=1" target="_blank" rel="noopener">open ↗</a>` : ''}
-        ${i === last ? '<button type="button" class="flow-cta burn" id="flowTutDemo" style="margin-top:8px;">Try the demo</button>' : ''}
-        ${i === 0 ? '<div class="tut-scrollcue">scroll</div>' : ''}
+        ${i === last
+          ? '<button type="button" class="flow-cta burn tut-cta" id="flowTutDemo">Try the demo</button>'
+          : `<button type="button" class="flow-cta burn tut-cta tut-advance" data-next="${i + 1}">Burn ↓</button>`}
       </div>`).join('');
 
     // === Coverflow behaviour ===
@@ -7372,15 +7377,15 @@ collectionGrid.addEventListener('click', (e) => {
       if (!cards.length) return;
       const focus = +flow.dataset.focus || 0;
       const baseW = cards[0].offsetWidth || 220;
-      const spacing = baseW * 0.62;
+      const R = 0.80;            // each card is 80% the size of the nearer one — keeps shrinking
+      const gap = baseW * 0.46;  // first-step offset; further steps compress (cumulative stack)
       cards.forEach((card, i) => {
         const d = i - focus, ad = Math.abs(d);
-        const scale = d === 0 ? 1 : Math.max(0.4, 1 - ad * 0.15);
-        const x = d * spacing * (1 - Math.min(ad, 6) * 0.04);
-        const op = Math.max(0.1, 1 - ad * 0.24);
-        const blur = Math.min(3.5, ad * 0.9);
+        const scale = Math.pow(R, ad);                                  // continuous shrink, no same-size floor
+        const x = Math.sign(d) * gap * (1 - Math.pow(R, ad)) / (1 - R); // cumulative → recede into depth
+        const blur = Math.min(2, ad * 0.5);                             // gentle depth-of-field (NOT transparency)
         card.style.transform = `translate(-50%, -50%) translateX(${x.toFixed(1)}px) scale(${scale.toFixed(3)})`;
-        card.style.opacity = op.toFixed(2);
+        card.style.opacity = '1';                                       // opaque — receding cards stay solid
         card.style.filter = blur ? `blur(${blur.toFixed(1)}px)` : 'none';
         card.style.zIndex = String(60 - ad);
         card.classList.toggle('is-focus', d === 0);
@@ -7451,16 +7456,23 @@ collectionGrid.addEventListener('click', (e) => {
 
     // Top progress bar — fills with vertical scroll through the journey.
     const fill = document.getElementById('tutProgressFill');
-    const cue = host.querySelector('.tut-scrollcue');
     if (scroller && fill) {
       const onScroll = () => {
         const max = scroller.scrollHeight - scroller.clientHeight;
         fill.style.width = (max > 0 ? (scroller.scrollTop / max) * 100 : 0).toFixed(1) + '%';
-        if (cue) cue.style.opacity = scroller.scrollTop > 40 ? '0' : '';
       };
       scroller.addEventListener('scroll', onScroll, { passive: true });
       onScroll();
     }
+
+    // "Burn ↓" advances to the next tier section (scroll still works too).
+    host.querySelectorAll('.tut-advance').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = +btn.dataset.next;
+        const secs = host.querySelectorAll('.tut-sec');
+        if (secs[idx]) secs[idx].scrollIntoView({ behavior: 'smooth' });
+      });
+    });
 
     // The demo button lives in the last section — wire it after build.
     host.querySelector('#flowTutDemo')?.addEventListener('click', () => {
