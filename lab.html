@@ -2682,6 +2682,46 @@
     border-color: var(--lab-ink-2);
   }
 
+  /* Subtle text link (intro → tutorial). */
+  .flow-textlink {
+    margin-top: 20px;
+    background: none; border: 0; padding: 6px 4px;
+    color: var(--lab-ink-3, #9a9081);
+    font-family: inherit; font-size: 13px; letter-spacing: 0.02em;
+    cursor: pointer;
+    text-decoration: underline; text-underline-offset: 3px;
+    text-decoration-color: rgba(244, 234, 212, 0.25);
+    transition: color 160ms ease;
+  }
+  .flow-textlink:hover { color: var(--lab-ink, #f4f1e8); }
+
+  /* === Tutorial — the evolution pyramid (32 Genesis → 1 Biome) === */
+  .flow-stage-wide { max-width: 780px; }
+  .evo-ladder {
+    display: flex; flex-direction: column;
+    gap: 16px; align-items: center;
+    margin: 30px auto 0;
+  }
+  .evo-row { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .evo-dots {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 5px; max-width: 520px;
+  }
+  .evo-dots span {
+    width: 9px; height: 9px; border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  }
+  .evo-cap {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase;
+    color: var(--lab-ink-3, #9a9081);
+  }
+  .evo-cap b { color: var(--lab-ink-2, #e8dcc2); font-weight: 600; letter-spacing: 0.12em; }
+  @media (max-width: 600px) {
+    .evo-dots { max-width: 88vw; gap: 4px; }
+    .evo-dots span { width: 7px; height: 7px; }
+  }
+
   .flow-back {
     position: absolute;
     top: 18px; left: 18px;
@@ -3301,6 +3341,21 @@
       <button type="button" class="flow-secondary" id="flowIntroDemo">Try a demo first</button>
     </div>
     <div class="flow-status" id="flowIntroStatus" aria-live="polite"></div>
+    <button type="button" class="flow-textlink" id="flowIntroHow">How merging works</button>
+  </div>
+</div>
+
+<!-- Tutorial — the evolution pyramid: 32 Genesis → … → 1 Biome -->
+<div class="flow-overlay" id="flowTutorial" hidden role="dialog" aria-modal="true" aria-labelledby="flowTutTitle">
+  <button type="button" class="flow-back" id="flowTutBack" aria-label="Back to intro">← Back</button>
+  <a class="flow-close" href="/" aria-label="Leave the lab">Leave</a>
+  <div class="flow-stage flow-stage-wide">
+    <h2 class="flow-title" id="flowTutTitle">From one cell to a Biome.</h2>
+    <p class="flow-subtitle">Burn two Bioms of equal weight to forge the next tier. Thirty-two Genesis become a single Biome.</p>
+    <div class="evo-ladder" id="evoLadder"></div>
+    <div class="flow-cta-row" style="margin-top:30px;">
+      <button type="button" class="flow-cta burn" id="flowTutDemo">Try the demo</button>
+    </div>
   </div>
 </div>
 
@@ -6871,11 +6926,12 @@ collectionGrid.addEventListener('click', (e) => {
 
   // === Refs ===
   const overlays = {
-    intro:   document.getElementById('flowIntro'),
-    pick:    document.getElementById('flowPick'),
-    name:    document.getElementById('flowName'),
-    preview: document.getElementById('flowPreview'),
-    after:   document.getElementById('flowAfter'),
+    intro:    document.getElementById('flowIntro'),
+    tutorial: document.getElementById('flowTutorial'),
+    pick:     document.getElementById('flowPick'),
+    name:     document.getElementById('flowName'),
+    preview:  document.getElementById('flowPreview'),
+    after:    document.getElementById('flowAfter'),
   };
   if (!overlays.intro || !overlays.pick || !overlays.name || !overlays.after) return;
 
@@ -7141,6 +7197,33 @@ collectionGrid.addEventListener('click', (e) => {
   document.getElementById('flowPickDemo')?.addEventListener('click', () => {
     if (walletPollTimer) { clearInterval(walletPollTimer); walletPollTimer = null; }
     beginDemo(document.getElementById('flowPickStatus'));
+  });
+
+  // === Tutorial — the evolution pyramid (32 Genesis → 1 Biome) ===
+  (function buildEvoLadder() {
+    const ladder = document.getElementById('evoLadder');
+    if (!ladder) return;
+    // Top → bottom: 1 Biome ← 2 Superorganism ← … ← 32 Genesis. Dot colour
+    // brightens up the pyramid, ember/gold at the apex (matches the tiers).
+    const EVO = [
+      { name: 'Biome',         count: 1,  mass: 32, color: '#f0c060' },
+      { name: 'Superorganism', count: 2,  mass: 16, color: '#c0552d' },
+      { name: 'Phoenix',       count: 4,  mass: 8,  color: '#d8703f' },
+      { name: 'Chimera',       count: 8,  mass: 4,  color: '#b98bd0' },
+      { name: 'Hybrid',        count: 16, mass: 2,  color: 'rgba(244,234,212,0.62)' },
+      { name: 'Genesis',       count: 32, mass: 1,  color: 'rgba(244,234,212,0.34)' },
+    ];
+    ladder.innerHTML = EVO.map(t => `
+      <div class="evo-row">
+        <div class="evo-dots">${`<span style="background:${t.color}"></span>`.repeat(t.count)}</div>
+        <div class="evo-cap"><b>${t.name}</b> · ×${t.count} · mass ${t.mass}</div>
+      </div>`).join('');
+  })();
+  document.getElementById('flowIntroHow')?.addEventListener('click', () => show('tutorial'));
+  document.getElementById('flowTutBack')?.addEventListener('click', () => show('intro'));
+  document.getElementById('flowTutDemo')?.addEventListener('click', () => {
+    if (walletPollTimer) { clearInterval(walletPollTimer); walletPollTimer = null; }
+    beginDemo(document.getElementById('flowIntroStatus'));
   });
 
   // Pre-mint gate: until the mint opens, nobody owns Bioms, so the wallet
