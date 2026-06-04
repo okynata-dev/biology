@@ -1215,31 +1215,28 @@
   // this burn doesn't qualify for a rare unlock (and the regular
   // multi-mix should be used).
   //
-  // Rank-based ladder (rank = total Bioms in lineage):
-  //   rank  4+  (Chimera entry)  → 35% radioactive, 25% void
-  //   rank  8+  (Phoenix entry)  → 40% plasma, 35% aurora_storm
-  //   rank 16+  (Phoenix elite)  → always gold (the prize, 16 Bioms consumed)
+  // Rank-based ladder (binary trade-up: rank = merge level 1–6, where a
+  // level-N token represents 2^(N-1) base Bioms):
+  //   rank 3  (Chimera, 4 base)        → 35% radioactive, 25% void
+  //   rank 4  (Phoenix, 8 base)        → 40% plasma, 35% aurora_storm
+  //   rank 5+ (Superorganism/Biome)    → always gold (the prize, 16+ base)
   //
-  // The `rank` parameter was previously called `newGeneration` —
-  // semantically the function still works on "the new value" but the
-  // thresholds now match the rank system (1+1=2, 2+2=4 progression).
-  // Old generation-N callsites that haven't migrated map roughly to
-  // rank-(N+1), but rare-unlock criteria are tighter now: reaching the
-  // top tier requires sustained doubling, not just 7 linear burns.
+  // Thresholds are tight by design: the rare palettes are earned only by
+  // sustained doubling, not a single cheap burn.
   // ============================================================
   function pickUnlockPalette(burnSeed, absorbSeed, newRank) {
-    if (newRank < 4) return null;
-    if (newRank >= 16) return 'gold';
+    if (newRank < 3) return null;            // Genesis(1)/Hybrid(2): no unlock
+    if (newRank >= 5) return 'gold';         // Superorganism(5)/Biome(6): the prize
     // Deterministic 0–99 from the burn pair. Multiplied prime gives
     // good spread even when seeds are close (e.g. adjacent in collection).
     const h = ((burnSeed * 2654435761) ^ (absorbSeed * 40503)) >>> 0;
     const roll = h % 100;
-    if (newRank >= 8) {
+    if (newRank >= 4) {                      // Phoenix(4)
       if (roll < 40) return 'plasma';
       if (roll < 75) return 'aurora_storm';
       return null;
     }
-    if (newRank >= 4) {
+    if (newRank >= 3) {                      // Chimera(3)
       if (roll < 35) return 'radioactive';
       if (roll < 60) return 'void';
       return null;

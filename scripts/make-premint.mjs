@@ -91,14 +91,18 @@ function buildState(id, tier) {
   let rank, stain, cells, organelles, phage = false, biofilm = false, endo = false;
 
   if (tier === 'Hybrid') {
-    rank = ri(rng, 2, 3);
+    ri(rng, 2, 3);          // consume the legacy rank roll to keep the PRNG
+    rank = 2;               // stream identical → stains/cells/organelles (and
+                            // the rendered masters) unchanged. Binary economy:
+                            // Hybrid = merge level 2 (2 base Bioms).
     const [a, b] = twoDistinct(rng, MIX_STAINS);
     stain = `${a}+${b}`;
     cells = ri(rng, 3, 4);
     organelles = [...new Set(['capsule', 'nucleoid', 'ribosomes', 'pili', 'plasmid',
       ...(rng() < 0.5 ? ['inclusion'] : [])])];
   } else if (tier === 'Chimera') {
-    rank = ri(rng, 4, 7);
+    ri(rng, 4, 7);          // consume legacy roll (stream parity)
+    rank = 3;               // Chimera = merge level 3 (4 base Bioms)
     if (rng() < 0.5) {
       stain = pick(rng, CHIMERA_UNLOCK);
     } else {
@@ -109,14 +113,19 @@ function buildState(id, tier) {
       'plasmid', 'inclusion', 'eyespot', ...(rng() < 0.5 ? ['axial'] : [])])];
     biofilm = rng() < 0.3;
   } else { // Phoenix
-    rank = ri(rng, 8, 15);
+    ri(rng, 8, 15);         // consume legacy roll (stream parity)
+    rank = 4;               // Phoenix = merge level 4 (8 base Bioms)
     stain = pick(rng, PHOENIX_PRIZE);
     cells = ri(rng, 7, 8);
     organelles = ALL_ORG.slice();
     if (rng() < 0.5) phage = true; else biofilm = true;
   }
 
-  const absorbed = lineage(rng, id, rank - 1);
+  // Binary economy: a level-N token represents 2^(N-1) base Bioms, so its
+  // synthetic ancestry is 2^(N-1)-1 absorbed seeds (Hybrid 1, Chimera 3,
+  // Phoenix 7). This is the LAST rng consumer in buildState, so changing the
+  // count leaves stains/cells/organelles (the rendered masters) untouched.
+  const absorbed = lineage(rng, id, (2 ** (rank - 1)) - 1);
 
   // Exact preview.html force-param query (no leading '?').
   const p = new URLSearchParams();
