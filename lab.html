@@ -7360,16 +7360,27 @@ collectionGrid.addEventListener('click', (e) => {
     tierEl.textContent = (tier ? tier.name : 'Genesis') + ' · Rank ' + newRank;
     tierEl.className = 'flow-preview-tier' + (apex ? ' is-apex' : '');
 
-    // Mass progress bar — mass / next-tier threshold (the player sees exactly
-    // how close the survivor is to the next form).
+    // Mass progress bar. A merge that REACHES a new tier fills it completely —
+    // "you completed the jump to {tier}". A merge that only grows mass within
+    // the same tier fills it partway toward the next tier.
+    const oldRank  = massToRank(effectiveState(survivor).mass || 1);
+    const tieredUp = newRank > oldRank;
     const mi = massInfo(newMass);
     const massWrap = document.getElementById('flowPreviewMass');
+    let frac, nextLabel;
+    if (mi.atMax) {
+      frac = 1; nextLabel = 'Apex — Biome';
+    } else if (tieredUp) {
+      frac = 1; nextLabel = `↑ ${tier ? tier.name : 'Genesis'}`;
+    } else {
+      const floor = 2 ** (mi.rank - 1);
+      frac = (mi.mass - floor) / (mi.nextMass - floor);
+      nextLabel = `${tierForRank(mi.rank + 1).name} at mass ${mi.nextMass}`;
+    }
     document.getElementById('flowPreviewMassCount').textContent = `Mass ${mi.mass}`;
-    document.getElementById('flowPreviewMassNext').textContent = mi.atMax
-      ? 'Apex — Biome'
-      : `${mi.mass} / ${mi.nextMass} to ${tierForRank(mi.rank + 1).name}`;
-    document.getElementById('flowPreviewMassFill').style.width = Math.round(mi.frac * 100) + '%';
-    massWrap.classList.toggle('is-max', mi.atMax);
+    document.getElementById('flowPreviewMassNext').textContent = nextLabel;
+    document.getElementById('flowPreviewMassFill').style.width = Math.round(frac * 100) + '%';
+    massWrap.classList.toggle('is-max', mi.atMax || tieredUp);
 
     // Quiet one-line summary of what the survivor becomes.
     const gains = [...outcome.gainedOrganelles, ...outcome.gainedAnomalies];
