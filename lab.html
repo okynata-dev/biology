@@ -2695,59 +2695,120 @@
   }
   .flow-textlink:hover { color: var(--lab-ink, #f4f1e8); }
 
-  /* === Tutorial — Apple-style scroll-snap journey (32 → 1), static Bioms === */
-  .flow-overlay.tut-scroll {
-    display: block;
-    overflow-y: auto; overflow-x: hidden;
-    scroll-snap-type: y mandatory;
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding: 0;
+  /* === Tutorial — coverflow lens journey (32 → 1), mono lab title === */
+  .flow-overlay.tut-scroll { display: block; overflow: hidden; padding: 0; }
+  #flowTutorial .flow-back, #flowTutorial .flow-close { z-index: 7; }
+  .tut-progress {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: rgba(244, 234, 212, 0.08); z-index: 6;
   }
-  .flow-overlay.tut-scroll::-webkit-scrollbar { display: none; }
+  .tut-progress-fill {
+    display: block; height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--lab-ink-2, #e8dcc2), var(--burn, #c0563a));
+    transition: width 90ms linear;
+  }
+  .tut-scroller {
+    position: absolute; inset: 0; z-index: 1;
+    overflow-y: auto; overflow-x: hidden;
+    scroll-snap-type: y mandatory; scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .tut-scroller::-webkit-scrollbar { display: none; }
   .tut-sections { width: 100%; }
   .tut-sec {
     min-height: 100vh; min-height: 100dvh;
     scroll-snap-align: center;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    gap: 22px; padding: 96px 24px 64px; text-align: center;
+    gap: 24px; padding: 80px 16px 72px; text-align: center;
     box-sizing: border-box;
   }
   .tut-title {
-    font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
-    font-weight: 600; font-size: clamp(30px, 5vw, 54px);
-    letter-spacing: -0.02em; color: #f4ead4; margin: 0 0 10px; line-height: 1.05;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+    font-weight: 500; font-size: clamp(19px, 3.2vw, 32px);
+    letter-spacing: -0.01em; color: #f4ead4; margin: 0; line-height: 1.18;
   }
-  .tut-grid {
-    display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 9px; max-width: min(760px, 92vw);
-  }
-  .tut-tok {
-    aspect-ratio: 1 / 1; border-radius: 14px; overflow: hidden;
-    background: var(--paper, #faf8f3); flex: 0 0 auto;
-    box-shadow: inset 0 0 0 1px rgba(244, 234, 212, 0.08), 0 8px 22px rgba(0, 0, 0, 0.42);
-    transition: transform 160ms cubic-bezier(0.2, 0.8, 0.3, 1);
-  }
-  .tut-tok:hover { transform: translateY(-4px) scale(1.05); }
-  .tut-tok img { width: 100%; height: 100%; display: block; object-fit: cover; }
-  .tut-cap {
+  .tut-tier {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--lab-ink-3, #9a9081);
+    font-size: clamp(12px, 1.4vw, 14px); letter-spacing: 0.24em; text-transform: uppercase;
+    color: var(--lab-ink-2, #e8dcc2); font-weight: 600;
   }
-  .tut-cap b { color: var(--lab-ink-2, #e8dcc2); font-weight: 600; }
   .tut-hint {
     font-size: 15px; line-height: 1.55; margin: 0;
     color: rgba(244, 234, 212, 0.6); max-width: 460px;
   }
-  .tut-scrolldown {
+  /* Coverflow lens — focused card large, neighbours recede into depth */
+  .tut-flow {
+    position: relative; width: min(980px, 96vw);
+    height: clamp(220px, 44vh, 380px);
+    --cw: clamp(160px, 26vw, 270px);
+    touch-action: pan-y;
+  }
+  .tut-track { position: absolute; inset: 0; }
+  .tut-card {
+    position: absolute; left: 50%; top: 50%;
+    width: var(--cw); aspect-ratio: 1 / 1;
+    margin: 0; padding: 0; border: 0; cursor: pointer;
+    border-radius: 18px; overflow: hidden; background: var(--paper, #faf8f3);
+    box-shadow: inset 0 0 0 1px rgba(244, 234, 212, 0.1), 0 18px 44px rgba(0, 0, 0, 0.5);
+    transform: translate(-50%, -50%);
+    transition: transform 420ms cubic-bezier(0.2, 0.8, 0.3, 1),
+                opacity 420ms cubic-bezier(0.2, 0.8, 0.3, 1),
+                filter 420ms ease, box-shadow 240ms ease;
+    will-change: transform, opacity;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tut-card img { width: 100%; height: 100%; display: block; object-fit: cover; pointer-events: none; }
+  .tut-card.is-focus { box-shadow: inset 0 0 0 1px rgba(244, 234, 212, 0.2), 0 28px 64px rgba(0, 0, 0, 0.62); }
+  .tut-arrow {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    z-index: 60; width: 42px; height: 42px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(244, 234, 212, 0.06); border: 1px solid rgba(244, 234, 212, 0.14);
+    color: var(--lab-ink-2, #e8dcc2); font-size: 21px; line-height: 1; cursor: pointer;
+    transition: background 160ms ease, opacity 160ms ease; -webkit-tap-highlight-color: transparent;
+  }
+  .tut-arrow:hover { background: rgba(244, 234, 212, 0.12); }
+  .tut-arrow-l { left: 4px; } .tut-arrow-r { right: 4px; }
+  .tut-arrow[disabled] { opacity: 0.22; cursor: default; }
+  /* Apex live renders — Superorganism (×2) + the one-of-one Biome */
+  .tut-apex { position: relative; display: flex; align-items: center; justify-content: center; gap: 20px; }
+  .tut-apex-frame {
+    border: 0; border-radius: 20px; overflow: hidden;
+    background: var(--paper, #faf8f3); display: block;
+    box-shadow: inset 0 0 0 1px rgba(244, 234, 212, 0.12), 0 22px 54px rgba(0, 0, 0, 0.55);
+  }
+  .tut-apex.super .tut-apex-frame { width: clamp(150px, 26vw, 230px); aspect-ratio: 1 / 1; }
+  .tut-apex.biome { padding: 28px; }
+  .tut-apex.biome .tut-apex-frame {
+    width: clamp(250px, 42vw, 410px); aspect-ratio: 1 / 1; position: relative; z-index: 2;
+    box-shadow: inset 0 0 0 1px rgba(255, 220, 140, 0.25), 0 30px 70px rgba(0, 0, 0, 0.6);
+  }
+  .tut-halo {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 178%; height: 178%; border-radius: 50%; z-index: 1; pointer-events: none;
+    background: radial-gradient(circle, rgba(190, 175, 255, 0.55) 0%, rgba(140, 205, 255, 0.30) 34%, rgba(150, 190, 255, 0.08) 56%, rgba(150, 190, 255, 0) 72%);
+    filter: blur(10px); animation: tut-halo-pulse 5.5s ease-in-out infinite;
+  }
+  @keyframes tut-halo-pulse {
+    0%,100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+    50%     { opacity: 1;   transform: translate(-50%, -50%) scale(1.06); }
+  }
+  .tut-apex-link {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(244, 234, 212, 0.4); text-decoration: none;
+  }
+  .tut-apex-link:hover { color: var(--lab-ink, #f4f1e8); }
+  .tut-scrollcue {
     font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
-    color: rgba(244, 234, 212, 0.32); margin-top: 6px;
-    animation: tut-bob 1.8s ease-in-out infinite;
+    color: rgba(244, 234, 212, 0.3); animation: tut-bob 1.8s ease-in-out infinite;
+    transition: opacity 300ms ease;
   }
   @keyframes tut-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(4px)} }
+  @media (prefers-reduced-motion: reduce) {
+    .tut-card, .tut-halo, .tut-scrollcue { transition: none !important; animation: none !important; }
+  }
 
   .flow-back {
     position: absolute;
@@ -3376,8 +3437,11 @@
 <div class="flow-overlay tut-scroll" id="flowTutorial" hidden role="dialog" aria-modal="true" aria-labelledby="flowTutTitle">
   <button type="button" class="flow-back" id="flowTutBack" aria-label="Back to intro">← Back</button>
   <a class="flow-close" href="/" aria-label="Leave the lab">Leave</a>
+  <div class="tut-progress"><span class="tut-progress-fill" id="tutProgressFill"></span></div>
   <h2 id="flowTutTitle" style="position:absolute;left:-9999px;">From one cell to a Biome</h2>
-  <div class="tut-sections" id="tutSections"></div>
+  <div class="tut-scroller" id="tutScroller">
+    <div class="tut-sections" id="tutSections"></div>
+  </div>
 </div>
 
 <div class="flow-overlay" id="flowPick" hidden role="dialog" aria-modal="true" aria-labelledby="flowPickTitle">
@@ -7238,31 +7302,166 @@ collectionGrid.addEventListener('click', (e) => {
     const gen = []; const used = new Set(); let g = 0;
     while (gen.length < 32 && g++ < 6000) { const s = 1 + Math.floor(Math.random() * 8000); if (used.has(s) || premint[s]) continue; used.add(s); gen.push(s); }
     const pad = s => String(s).padStart(5, '0');
-    // Apex tiers (Superorganism/Biome) are burn-only — none minted yet — so a
-    // rare-palette pre-mint Phoenix stands in (still a real token, still static).
-    const phx = pickN(byTier.Phoenix.length ? byTier.Phoenix : gen, 3);
-    const tok = (seed, size) => `<a class="tut-tok" style="width:${size}px" href="preview.html?seed=${seed}&nodl=1" target="_blank" rel="noopener" aria-label="Biom #${seed}"><img src="https://pngs.thebioms.com/thumb/${pad(seed)}.webp" loading="lazy" decoding="async" alt=""></a>`;
+
+    // Apex tiers (Superorganism / Biome) are burn-only — none minted yet, so no
+    // real thumb exists. Render them LIVE via preview.html force-params instead:
+    //   Superorganism — aurora-storm, mid density, no halo (×2).
+    //   Biome — the one-of-one: dense gold colony (mycelium + axial), every
+    //           organelle + anomaly, wrapped in a gold halo. Visibly a different
+    //           organism from the Superorganism, not a recolour.
+    // Only 1–3 frames total, lazy-loaded (offscreen until scrolled to) → no lag.
+    const SUPER_A = 'preview.html?seed=4242&forceStain=gold&forceMorph=cluster&forceCells=6&forceOrganelles=capsule,nucleoid,ribosomes,pili,plasmid,inclusion&forceBiofilm=1&fit=1&bare=1&nodl=1';
+    const SUPER_B = 'preview.html?seed=5353&forceStain=gold&forceMorph=sarcina&forceCells=6&forceOrganelles=capsule,nucleoid,ribosomes,pili,plasmid,inclusion&forceBiofilm=1&fit=1&bare=1&nodl=1';
+    const BIOME_FORCE = 'seed=777&forceStain=aurora_storm&forceMorph=filament&forceCells=7&forceOrganelles=capsule,nucleoid,ribosomes,pili,flagellum,plasmid,inclusion,axial&forcePhage=1&forceBiofilm=1&forceEndo=1&fit=1';
+    const BIOME = `preview.html?${BIOME_FORCE}&bare=1&nodl=1`;
+
+    const flowHtml = (seeds) => {
+      const cards = seeds.map((seed, i) =>
+        `<button type="button" class="tut-card" data-i="${i}" data-seed="${seed}" aria-label="Biom #${seed}, tap to open"><img src="https://pngs.thebioms.com/thumb/${pad(seed)}.webp" loading="lazy" decoding="async" alt=""></button>`
+      ).join('');
+      return `<div class="tut-flow" data-focus="${Math.floor(seeds.length / 2)}">
+        <button type="button" class="tut-arrow tut-arrow-l" aria-label="Previous">‹</button>
+        <div class="tut-track">${cards}</div>
+        <button type="button" class="tut-arrow tut-arrow-r" aria-label="Next">›</button>
+      </div>`;
+    };
+
     const SECS = [
-      { name:'Genesis',       count:32, mass:1,  size:58,  seeds: gen,                       hint:'It begins with thirty-two single cells.' },
-      { name:'Hybrid',        count:16, mass:2,  size:62,  seeds: pickN(byTier.Hybrid,16),   hint:'Two Genesis merge into one Hybrid — sixteen remain.' },
-      { name:'Chimera',       count:8,  mass:4,  size:84,  seeds: pickN(byTier.Chimera,8),   hint:'Two Hybrids become a Chimera.' },
-      { name:'Phoenix',       count:4,  mass:8,  size:110, seeds: pickN(byTier.Phoenix,4),   hint:'Two Chimeras become a Phoenix.' },
-      { name:'Superorganism', count:2,  mass:16, size:150, seeds: [phx[0], phx[1]],          hint:'Two Phoenixes become a Superorganism.' },
-      { name:'Biome',         count:1,  mass:32, size:230, seeds: [phx[2]],                  hint:'Two Superorganisms become a Biome — thirty-two cells, one organism.' },
+      { tier:'Genesis',       title:true, kind:'flow',  seeds: gen,                     hint:'It begins with thirty-two single cells.' },
+      { tier:'Hybrid',        kind:'flow',  seeds: pickN(byTier.Hybrid,16),             hint:'Two Genesis merge into one Hybrid — sixteen remain.' },
+      { tier:'Chimera',       kind:'flow',  seeds: pickN(byTier.Chimera,8),             hint:'Two Hybrids become a Chimera — eight left.' },
+      { tier:'Phoenix',       kind:'flow',  seeds: pickN(byTier.Phoenix,4),             hint:'Two Chimeras become a Phoenix — four remain.' },
+      { tier:'Superorganism', kind:'super',                                             hint:'Two Phoenixes become a Superorganism — only two.' },
+      { tier:'Biome',         kind:'biome',                                             hint:'Two Superorganisms become the Biome. One organism, thirty-two cells fused. One of one.' },
     ];
     const last = SECS.length - 1;
+
+    const stageHtml = (s) => {
+      if (s.kind === 'super') {
+        return `<div class="tut-apex super">
+          <iframe class="tut-apex-frame" src="${SUPER_A}" loading="lazy" title="Superorganism" scrolling="no"></iframe>
+          <iframe class="tut-apex-frame" src="${SUPER_B}" loading="lazy" title="Superorganism" scrolling="no"></iframe>
+        </div>`;
+      }
+      if (s.kind === 'biome') {
+        return `<div class="tut-apex biome">
+          <span class="tut-halo"></span>
+          <iframe class="tut-apex-frame" src="${BIOME}" loading="lazy" title="Biome" scrolling="no"></iframe>
+        </div>`;
+      }
+      return flowHtml(s.seeds);
+    };
+
     // NB: .tut-sec are <div>, NOT <section> — a global rule hides
     // `body.flow-ready section:not(.flow-overlay)`, which would blank these.
     host.innerHTML = SECS.map((s, i) => `
       <div class="tut-sec">
-        ${i === 0 ? '<h2 class="tut-title">From one cell to a Biome.</h2>' : ''}
-        <div class="tut-grid">${s.seeds.map(seed => tok(seed, s.size)).join('')}</div>
-        <div class="tut-cap"><b>${s.name}</b> · ×${s.count} · mass ${s.mass}</div>
+        ${s.title ? '<h2 class="tut-title">From one cell to a Biome.</h2>' : ''}
+        <div class="tut-tier">${s.tier}</div>
+        ${stageHtml(s)}
         <p class="tut-hint">${s.hint}</p>
-        ${i === last
-          ? '<button type="button" class="flow-cta burn" id="flowTutDemo" style="margin-top:10px;">Try the demo</button>'
-          : '<div class="tut-scrolldown">scroll ↓</div>'}
+        ${s.kind === 'biome' ? `<a class="tut-apex-link" href="preview.html?${BIOME_FORCE}&nodl=1" target="_blank" rel="noopener">open ↗</a>` : ''}
+        ${i === last ? '<button type="button" class="flow-cta burn" id="flowTutDemo" style="margin-top:8px;">Try the demo</button>' : ''}
+        ${i === 0 ? '<div class="tut-scrollcue">scroll</div>' : ''}
       </div>`).join('');
+
+    // === Coverflow behaviour ===
+    const flows = [...host.querySelectorAll('.tut-flow')];
+    function layout(flow) {
+      const cards = [...flow.querySelectorAll('.tut-card')];
+      if (!cards.length) return;
+      const focus = +flow.dataset.focus || 0;
+      const baseW = cards[0].offsetWidth || 220;
+      const spacing = baseW * 0.62;
+      cards.forEach((card, i) => {
+        const d = i - focus, ad = Math.abs(d);
+        const scale = d === 0 ? 1 : Math.max(0.4, 1 - ad * 0.15);
+        const x = d * spacing * (1 - Math.min(ad, 6) * 0.04);
+        const op = Math.max(0.1, 1 - ad * 0.24);
+        const blur = Math.min(3.5, ad * 0.9);
+        card.style.transform = `translate(-50%, -50%) translateX(${x.toFixed(1)}px) scale(${scale.toFixed(3)})`;
+        card.style.opacity = op.toFixed(2);
+        card.style.filter = blur ? `blur(${blur.toFixed(1)}px)` : 'none';
+        card.style.zIndex = String(60 - ad);
+        card.classList.toggle('is-focus', d === 0);
+      });
+      const lBtn = flow.querySelector('.tut-arrow-l'), rBtn = flow.querySelector('.tut-arrow-r');
+      if (lBtn) lBtn.disabled = focus <= 0;
+      if (rBtn) rBtn.disabled = focus >= cards.length - 1;
+    }
+    function setFocus(flow, idx) {
+      const n = flow.querySelectorAll('.tut-card').length;
+      const next = Math.max(0, Math.min(n - 1, idx));
+      if (next === (+flow.dataset.focus || 0)) return;
+      flow.dataset.focus = String(next);
+      layout(flow);
+    }
+    flows.forEach(flow => {
+      layout(flow);
+      flow.querySelector('.tut-arrow-l')?.addEventListener('click', () => setFocus(flow, (+flow.dataset.focus || 0) - 1));
+      flow.querySelector('.tut-arrow-r')?.addEventListener('click', () => setFocus(flow, (+flow.dataset.focus || 0) + 1));
+      flow.querySelectorAll('.tut-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const i = +card.dataset.i;
+          if (i === (+flow.dataset.focus || 0)) {
+            window.open(`preview.html?seed=${card.dataset.seed}&nodl=1`, '_blank', 'noopener');
+          } else { setFocus(flow, i); }
+        });
+      });
+      // Horizontal wheel browses; vertical wheel falls through to the scroller.
+      let wlock = false;
+      flow.addEventListener('wheel', (e) => {
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 6) {
+          e.preventDefault();
+          if (wlock) return; wlock = true; setTimeout(() => { wlock = false; }, 220);
+          setFocus(flow, (+flow.dataset.focus || 0) + (e.deltaX > 0 ? 1 : -1));
+        }
+      }, { passive: false });
+      // Drag to browse.
+      let dragX = null, dragF = 0;
+      flow.addEventListener('pointerdown', (e) => { dragX = e.clientX; dragF = +flow.dataset.focus || 0; });
+      flow.addEventListener('pointermove', (e) => {
+        if (dragX === null) return;
+        const baseW = flow.querySelector('.tut-card')?.offsetWidth || 220;
+        const steps = Math.round((dragX - e.clientX) / (baseW * 0.62));
+        if (steps) setFocus(flow, dragF + steps);
+      });
+      const endDrag = () => { dragX = null; };
+      flow.addEventListener('pointerup', endDrag);
+      flow.addEventListener('pointercancel', endDrag);
+      flow.addEventListener('pointerleave', endDrag);
+    });
+    window.addEventListener('resize', () => flows.forEach(layout));
+
+    // Keyboard ←/→ drive whichever tier is currently snapped into view.
+    const scroller = document.getElementById('tutScroller');
+    let activeFlow = flows[0] || null;
+    if ('IntersectionObserver' in window && scroller) {
+      const io = new IntersectionObserver((entries) => {
+        entries.forEach(en => { if (en.isIntersecting) { const f = en.target.querySelector('.tut-flow'); if (f) activeFlow = f; } });
+      }, { root: scroller, threshold: 0.6 });
+      host.querySelectorAll('.tut-sec').forEach(sec => io.observe(sec));
+    }
+    document.addEventListener('keydown', (e) => {
+      const ov = document.getElementById('flowTutorial');
+      if (!ov || !ov.classList.contains('visible') || !activeFlow) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); setFocus(activeFlow, (+activeFlow.dataset.focus || 0) - 1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); setFocus(activeFlow, (+activeFlow.dataset.focus || 0) + 1); }
+    });
+
+    // Top progress bar — fills with vertical scroll through the journey.
+    const fill = document.getElementById('tutProgressFill');
+    const cue = host.querySelector('.tut-scrollcue');
+    if (scroller && fill) {
+      const onScroll = () => {
+        const max = scroller.scrollHeight - scroller.clientHeight;
+        fill.style.width = (max > 0 ? (scroller.scrollTop / max) * 100 : 0).toFixed(1) + '%';
+        if (cue) cue.style.opacity = scroller.scrollTop > 40 ? '0' : '';
+      };
+      scroller.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    }
+
     // The demo button lives in the last section — wire it after build.
     host.querySelector('#flowTutDemo')?.addEventListener('click', () => {
       if (walletPollTimer) { clearInterval(walletPollTimer); walletPollTimer = null; }
@@ -7271,8 +7470,8 @@ collectionGrid.addEventListener('click', (e) => {
   })();
   document.getElementById('flowIntroHow')?.addEventListener('click', () => {
     show('tutorial');
-    const t = document.getElementById('flowTutorial');
-    if (t) t.scrollTop = 0;   // always start at the top (Genesis)
+    const sc = document.getElementById('tutScroller');
+    if (sc) sc.scrollTop = 0;   // always start at the top (Genesis)
   });
   document.getElementById('flowTutBack')?.addEventListener('click', () => show('intro'));
 
