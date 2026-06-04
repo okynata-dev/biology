@@ -3292,8 +3292,11 @@
     <p class="flow-subtitle">One absorbs the other. Its mass carries over — enough mass crosses into the next tier.</p>
     <div class="flow-pick-grid" id="flowPickGrid" role="listbox" aria-label="Your Bioms"></div>
     <div class="flow-pick-empty" id="flowPickEmpty" hidden>
-      <strong>No Bioms in this wallet.</strong><br>
-      Connect a different wallet from the nav, or go back and try the demo.
+      <strong>No Bioms in this wallet yet.</strong><br>
+      The mint has not opened. You can play the demo right here.
+      <div class="flow-cta-row" style="margin-top:18px;">
+        <button type="button" class="flow-cta" id="flowPickDemo">Play the demo</button>
+      </div>
     </div>
     <div class="flow-status" id="flowPickStatus" aria-live="polite"></div>
   </div>
@@ -3858,6 +3861,11 @@ async function onWalletChange() {
 
 // Pull owned tokens + their state from the worker, into LabState.
 async function syncWalletData(opts = {}) {
+  // Never clobber a non-wallet session. The boot reconnect kicks this off
+  // asynchronously; if the user clicked "Try the demo" in the meantime,
+  // LabState.mode is now 'demo' with 32 Bioms loaded — wiping ownedSeeds here
+  // would strand them on an empty "No Bioms in this wallet" pick screen.
+  if (LabState.mode !== 'wallet') return;
   if (!Wallet.address) {
     LabState.ownedSeeds = [];
     LabState.tokens = {};
@@ -3869,11 +3877,13 @@ async function syncWalletData(opts = {}) {
   if (!opts.silent) renderWalletUI();
   try {
     if (!Wallet.config) await Wallet.probeWorker();
+    if (LabState.mode !== 'wallet') return;   // user switched to demo mid-probe
     if (!Wallet.workerOnline) {
       renderWalletUI();
       return;
     }
     const { tokens, contractDeployed } = await Wallet.fetchOwned();
+    if (LabState.mode !== 'wallet') return;   // user switched to demo mid-fetch
     if (!contractDeployed) {
       LabState.ownedSeeds = [];
       LabState.tokens = {};
@@ -3885,6 +3895,7 @@ async function syncWalletData(opts = {}) {
     LabState.walletAddress = Wallet.address;
     LabState.ownedSeeds = tokens;
     const states = tokens.length ? await Wallet.fetchStates(tokens) : {};
+    if (LabState.mode !== 'wallet') return;   // user switched to demo mid-fetch
     LabState.tokens = {};
     for (const [id, data] of Object.entries(states)) {
       LabState.tokens[id] = workerStateToLocal(data);
@@ -7100,6 +7111,12 @@ collectionGrid.addEventListener('click', (e) => {
       walletPollTimer = null;
     }
     beginDemo(document.getElementById('flowIntroStatus'));
+  });
+
+  // Empty-wallet pick screen → let them play the demo without going back.
+  document.getElementById('flowPickDemo')?.addEventListener('click', () => {
+    if (walletPollTimer) { clearInterval(walletPollTimer); walletPollTimer = null; }
+    beginDemo(document.getElementById('flowPickStatus'));
   });
 
   function pollForWallet() {
