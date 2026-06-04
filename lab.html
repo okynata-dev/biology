@@ -7125,6 +7125,19 @@ collectionGrid.addEventListener('click', (e) => {
     beginDemo(document.getElementById('flowPickStatus'));
   });
 
+  // Pre-mint gate: until the mint opens, nobody owns Bioms, so the wallet
+  // path ("Yes, I'm ready") dead-ends at a connect-wallet wall — and that's
+  // the first orange button people instinctively tap. Hide it and promote the
+  // demo to the single primary (ember) CTA. Flip MINT_OPEN → true on drop day
+  // to restore the wallet entry.
+  const MINT_OPEN = false;
+  if (!MINT_OPEN) {
+    const _yes = document.getElementById('flowIntroYes');
+    const _demo = document.getElementById('flowIntroDemo');
+    if (_yes) _yes.style.display = 'none';
+    if (_demo) { _demo.className = 'flow-cta burn'; _demo.textContent = 'Try the demo'; }
+  }
+
   function pollForWallet() {
     if (walletPollTimer) clearInterval(walletPollTimer);
     let attempts = 0;
