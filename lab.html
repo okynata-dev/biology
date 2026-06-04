@@ -3029,21 +3029,25 @@
   /* === Act 5: After — one biom, lineage, two buttons === */
   .flow-after-thumb {
     position: relative;
-    width: 180px; height: 180px;
-    margin: 0 auto 28px;
+    /* Match the result-preview stage so the survivor reads at the same scale
+       and framing (the canonical NFT) as the burn preview. */
+    width: min(46vh, 78vw, 460px);
+    aspect-ratio: 1 / 1;
+    margin: 0 auto 24px;
     background: var(--paper, #faf8f3);
-    border-radius: var(--r-md, 14px);
+    border-radius: var(--r-md, 16px);
     overflow: hidden;
     display: block;
     box-shadow:
       inset 0 0 0 1px rgba(244, 234, 212, 0.10),
-      0 20px 48px rgba(244, 234, 212, 0.10),
-      0 10px 28px rgba(0, 0, 0, 0.40);
+      0 24px 60px rgba(0, 0, 0, 0.46);
   }
   .flow-after-thumb picture,
-  .flow-after-thumb img {
+  .flow-after-thumb img,
+  .flow-after-thumb iframe {
+    position: absolute; inset: 0;
     width: 100%; height: 100%;
-    display: block;
+    display: block; border: 0;
   }
   .flow-after-thumb img { object-fit: cover; }
 </style>
@@ -7382,8 +7386,11 @@ collectionGrid.addEventListener('click', (e) => {
   function goToAfter(survivor, donor) {
     lastSurvivor = survivor;
     const afterThumb = document.getElementById('flowAfterThumb');
-    afterThumb.innerHTML = thumbHtml(survivor);
-    hydrateThumbs(afterThumb);
+    // Render the survivor at the SAME scale + canonical NFT framing as the
+    // result preview (an exact preview.html render), not the small static
+    // thumb. nodl=1 hides the download chrome.
+    const url = previewUrlFor(survivor, effectiveState(survivor), {}) + '&nodl=1';
+    afterThumb.innerHTML = `<iframe src="${url}" title="${labelOf(survivor)}" scrolling="no" loading="eager"></iframe>`;
     const info = rankInfoOf(survivor);
     document.getElementById('flowAfterTitle').textContent = `${labelOf(survivor)} carries it now.`;
     // Surface the new standing so progress is legible — the rank climb is
