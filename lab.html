@@ -3360,7 +3360,6 @@
     <p class="flow-subtitle" id="flowPreviewDeltas">—</p>
     <div class="flow-cta-row">
       <button type="button" class="flow-cta burn" id="flowPreviewConfirm">Burn to merge</button>
-      <button type="button" class="flow-secondary" id="flowPreviewSwap">Swap survivor</button>
     </div>
   </div>
 </div>
@@ -7275,11 +7274,13 @@ collectionGrid.addEventListener('click', (e) => {
         else if (pickedB === null) { pickedB = seed; }
         else { pickedB = seed; }   // both full → replace second
         updatePickUI();
-        // Auto-advance once both are picked — no Continue button needed.
+        // Auto-advance once both are picked — straight to the result preview,
+        // no "which name survives" step (the survivor is auto-chosen).
         if (pickedA !== null && pickedB !== null) {
           setTimeout(() => {
             if (pickedA !== null && pickedB !== null && currentAct === 'pick') {
-              goToName(pickedA, pickedB);
+              const [survivor, donor] = pickSurvivor(pickedA, pickedB);
+              goToResultPreview(survivor, donor);
             }
           }, 520);
         }
@@ -7290,6 +7291,14 @@ collectionGrid.addEventListener('click', (e) => {
 
   // Current rank/tier of a seed (tier level 1-6). Still used by carry-forward.
   function rankOf(seed) { return rankInfoOf(seed).rank; }
+
+  // Auto-pick the survivor: the rarer (higher-mass) Biom absorbs the other, so
+  // the user never has to choose a name. Tie → the first picked.
+  function pickSurvivor(a, b) {
+    const ma = effectiveState(a).mass || 1;
+    const mb = effectiveState(b).mass || 1;
+    return ma >= mb ? [a, b] : [b, a];
+  }
 
   function updatePickUI() {
     document.querySelectorAll('#flowPickGrid .flow-pick-tile').forEach(tile => {
@@ -7378,9 +7387,8 @@ collectionGrid.addEventListener('click', (e) => {
       hideAll();
       setTimeout(() => lab.triggerBurn(), 220);
     };
-    // Swap survivor — re-render for the other Biom carrying the identity.
-    document.getElementById('flowPreviewSwap').onclick = () => goToResultPreview(donor, survivor);
-    document.getElementById('flowPreviewBack').onclick = () => goToName(survivor, donor);
+    // Back → reselect (no name step anymore).
+    document.getElementById('flowPreviewBack').onclick = () => goToPick();
 
     show('preview');
   }
@@ -7407,11 +7415,12 @@ collectionGrid.addEventListener('click', (e) => {
         pendingDonor = null;
         if (survivor != null) setTimeout(() => goToAfter(survivor, donor), 250);
       } else if (!visible && pendingSurvivor != null && !committed) {
-        // Ritual closed without committing (user cancelled) — go back to Act 3.
+        // Ritual closed without committing (user cancelled) — back to the
+        // result preview so they can re-confirm or back out.
         const a = pendingSurvivor, b = pendingDonor;
         pendingSurvivor = null;
         pendingDonor = null;
-        setTimeout(() => goToName(a, b), 250);
+        setTimeout(() => goToResultPreview(a, b), 250);
       }
     }).observe(burnRitual, { attributes: true, attributeFilter: ['class'] });
   }
