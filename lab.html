@@ -2695,46 +2695,59 @@
   }
   .flow-textlink:hover { color: var(--lab-ink, #f4f1e8); }
 
-  /* === Tutorial — the evolution pyramid of REAL Bioms (32 → 1) === */
-  /* Wider stage for the pyramid — override the base .flow-stage width:min(680px)
-     (two-class specificity beats the single-class base rule). */
-  .flow-stage.flow-stage-wide { width: min(1120px, 96vw); max-width: none; }
-  .evo-ladder {
+  /* === Tutorial — Apple-style scroll-snap journey (32 → 1), static Bioms === */
+  .flow-overlay.tut-scroll {
+    display: block;
+    overflow-y: auto; overflow-x: hidden;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0;
+  }
+  .flow-overlay.tut-scroll::-webkit-scrollbar { display: none; }
+  .tut-sections { width: 100%; }
+  .tut-sec {
+    min-height: 100vh; min-height: 100dvh;
+    scroll-snap-align: center;
     display: flex; flex-direction: column;
-    gap: 18px; align-items: center;
-    margin: 30px auto 0;
+    align-items: center; justify-content: center;
+    gap: 22px; padding: 96px 24px 64px; text-align: center;
+    box-sizing: border-box;
   }
-  .evo-row { display: flex; flex-direction: column; align-items: center; gap: 9px; }
-  .evo-toks {
+  .tut-title {
+    font-family: -apple-system, "SF Pro Display", system-ui, sans-serif;
+    font-weight: 600; font-size: clamp(30px, 5vw, 54px);
+    letter-spacing: -0.02em; color: #f4ead4; margin: 0 0 10px; line-height: 1.05;
+  }
+  .tut-grid {
     display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 4px;
-    max-width: min(1040px, 94vw);
+    gap: 9px; max-width: min(760px, 92vw);
   }
-  .evo-tok {
-    width: clamp(14px, 1.9vw, 26px);
-    aspect-ratio: 1 / 1;
-    border-radius: 6px;
-    overflow: hidden;
-    background: var(--paper, #faf8f3);
-    flex: 0 0 auto;
-    box-shadow:
-      inset 0 0 0 1px rgba(244, 234, 212, 0.08),
-      0 2px 6px rgba(0, 0, 0, 0.30);
+  .tut-tok {
+    aspect-ratio: 1 / 1; border-radius: 14px; overflow: hidden;
+    background: var(--paper, #faf8f3); flex: 0 0 auto;
+    box-shadow: inset 0 0 0 1px rgba(244, 234, 212, 0.08), 0 8px 22px rgba(0, 0, 0, 0.42);
+    transition: transform 160ms cubic-bezier(0.2, 0.8, 0.3, 1);
   }
-  .evo-tok img, .evo-tok iframe {
-    width: 100%; height: 100%; display: block; border: 0;
-    object-fit: cover;
-  }
-  .evo-cap {
+  .tut-tok:hover { transform: translateY(-4px) scale(1.05); }
+  .tut-tok img { width: 100%; height: 100%; display: block; object-fit: cover; }
+  .tut-cap {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase;
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--lab-ink-3, #9a9081);
   }
-  .evo-cap b { color: var(--lab-ink-2, #e8dcc2); font-weight: 600; letter-spacing: 0.12em; }
-  @media (max-width: 600px) {
-    .evo-toks { gap: 4px; }
-    .evo-tok { width: clamp(14px, 8vw, 22px); }
+  .tut-cap b { color: var(--lab-ink-2, #e8dcc2); font-weight: 600; }
+  .tut-hint {
+    font-size: 15px; line-height: 1.55; margin: 0;
+    color: rgba(244, 234, 212, 0.6); max-width: 460px;
   }
+  .tut-scrolldown {
+    font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(244, 234, 212, 0.32); margin-top: 6px;
+    animation: tut-bob 1.8s ease-in-out infinite;
+  }
+  @keyframes tut-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(4px)} }
 
   .flow-back {
     position: absolute;
@@ -3359,18 +3372,12 @@
   </div>
 </div>
 
-<!-- Tutorial — the evolution pyramid: 32 Genesis → … → 1 Biome -->
-<div class="flow-overlay" id="flowTutorial" hidden role="dialog" aria-modal="true" aria-labelledby="flowTutTitle">
+<!-- Tutorial — Apple-style scroll-snap journey: 32 Genesis → … → 1 Biome -->
+<div class="flow-overlay tut-scroll" id="flowTutorial" hidden role="dialog" aria-modal="true" aria-labelledby="flowTutTitle">
   <button type="button" class="flow-back" id="flowTutBack" aria-label="Back to intro">← Back</button>
   <a class="flow-close" href="/" aria-label="Leave the lab">Leave</a>
-  <div class="flow-stage flow-stage-wide">
-    <h2 class="flow-title" id="flowTutTitle">From one cell to a Biome.</h2>
-    <p class="flow-subtitle">Burn two Bioms of equal weight to forge the next tier. Thirty-two Genesis become a single Biome.</p>
-    <div class="evo-ladder" id="evoLadder"></div>
-    <div class="flow-cta-row" style="margin-top:30px;">
-      <button type="button" class="flow-cta burn" id="flowTutDemo">Try the demo</button>
-    </div>
-  </div>
+  <h2 id="flowTutTitle" style="position:absolute;left:-9999px;">From one cell to a Biome</h2>
+  <div class="tut-sections" id="tutSections"></div>
 </div>
 
 <div class="flow-overlay" id="flowPick" hidden role="dialog" aria-modal="true" aria-labelledby="flowPickTitle">
@@ -7213,49 +7220,61 @@ collectionGrid.addEventListener('click', (e) => {
     beginDemo(document.getElementById('flowPickStatus'));
   });
 
-  // === Tutorial — the evolution pyramid of REAL Bioms (32 Genesis → 1 Biome) ===
-  (function buildEvoLadder() {
-    const ladder = document.getElementById('evoLadder');
-    if (!ladder) return;
+  // === Tutorial — Apple-style scroll-snap journey (32 Genesis → 1 Biome) ===
+  // All tokens are STATIC images (R2 thumbs) — no live iframes, so no lag.
+  // Each tier is a full-viewport snap section, top (Genesis ×32) → bottom
+  // (Biome ×1). Tokens are tappable (open the token's preview).
+  (function buildTutorial() {
+    const host = document.getElementById('tutSections');
+    if (!host) return;
     const premint = window.__BIOM_PREMINT || {};
-    // Pre-mint elevated seeds grouped by their tier (real Hybrid/Chimera/
-    // Phoenix tokens, with R2 thumbs already rendered at that state).
     const byTier = { Hybrid: [], Chimera: [], Phoenix: [] };
     for (const [id, v] of Object.entries(premint)) { if (byTier[v.t]) byTier[v.t].push(+id); }
     const pickN = (arr, n) => {
       const a = arr.slice(), out = [];
-      while (out.length < n) { if (!a.length) a.push(...arr); out.push(a.splice(Math.floor(Math.random() * a.length), 1)[0]); }
+      while (out.length < n) { if (!a.length) { if (!arr.length) break; a.push(...arr); } out.push(a.splice(Math.floor(Math.random() * a.length), 1)[0]); }
       return out;
     };
-    // 32 random Genesis (non-premint) seeds.
     const gen = []; const used = new Set(); let g = 0;
     while (gen.length < 32 && g++ < 6000) { const s = 1 + Math.floor(Math.random() * 8000); if (used.has(s) || premint[s]) continue; used.add(s); gen.push(s); }
     const pad = s => String(s).padStart(5, '0');
-    const imgTok  = s => `<span class="evo-tok"><img src="https://pngs.thebioms.com/thumb/${pad(s)}.webp" loading="lazy" decoding="async" alt=""></span>`;
-    // Apex tiers (Superorganism / Biome) are burn-only — none minted yet — so
-    // we live-render a representative one (rare palette, full colony).
-    const apexTok = (seed, stain) => `<span class="evo-tok"><iframe src="preview.html?seed=${seed}&bare=1&static=1&nointeract=1&forceStain=${stain}&forceCells=8&forceOrganelles=capsule,nucleoid,ribosomes,pili,flagellum,plasmid,inclusion,eyespot,axial&lite=2&nodl=1" loading="lazy" scrolling="no" tabindex="-1" aria-hidden="true"></iframe></span>`;
-    const ax = pickN(gen, 3);
-    const ROWS = [
-      { name: 'Biome',         count: 1,  mass: 32, toks: apexTok(ax[0], 'gold') },
-      { name: 'Superorganism', count: 2,  mass: 16, toks: apexTok(ax[1], 'plasma') + apexTok(ax[2], 'aurora_storm') },
-      { name: 'Phoenix',       count: 4,  mass: 8,  toks: pickN(byTier.Phoenix, 4).map(imgTok).join('') },
-      { name: 'Chimera',       count: 8,  mass: 4,  toks: pickN(byTier.Chimera, 8).map(imgTok).join('') },
-      { name: 'Hybrid',        count: 16, mass: 2,  toks: pickN(byTier.Hybrid, 16).map(imgTok).join('') },
-      { name: 'Genesis',       count: 32, mass: 1,  toks: gen.map(imgTok).join('') },
+    // Apex tiers (Superorganism/Biome) are burn-only — none minted yet — so a
+    // rare-palette pre-mint Phoenix stands in (still a real token, still static).
+    const phx = pickN(byTier.Phoenix.length ? byTier.Phoenix : gen, 3);
+    const tok = (seed, size) => `<a class="tut-tok" style="width:${size}px" href="preview.html?seed=${seed}&nodl=1" target="_blank" rel="noopener" aria-label="Biom #${seed}"><img src="https://pngs.thebioms.com/thumb/${pad(seed)}.webp" loading="lazy" decoding="async" alt=""></a>`;
+    const SECS = [
+      { name:'Genesis',       count:32, mass:1,  size:58,  seeds: gen,                       hint:'It begins with thirty-two single cells.' },
+      { name:'Hybrid',        count:16, mass:2,  size:62,  seeds: pickN(byTier.Hybrid,16),   hint:'Two Genesis merge into one Hybrid — sixteen remain.' },
+      { name:'Chimera',       count:8,  mass:4,  size:84,  seeds: pickN(byTier.Chimera,8),   hint:'Two Hybrids become a Chimera.' },
+      { name:'Phoenix',       count:4,  mass:8,  size:110, seeds: pickN(byTier.Phoenix,4),   hint:'Two Chimeras become a Phoenix.' },
+      { name:'Superorganism', count:2,  mass:16, size:150, seeds: [phx[0], phx[1]],          hint:'Two Phoenixes become a Superorganism.' },
+      { name:'Biome',         count:1,  mass:32, size:230, seeds: [phx[2]],                  hint:'Two Superorganisms become a Biome — thirty-two cells, one organism.' },
     ];
-    ladder.innerHTML = ROWS.map(r => `
-      <div class="evo-row">
-        <div class="evo-toks">${r.toks}</div>
-        <div class="evo-cap"><b>${r.name}</b> · ×${r.count} · mass ${r.mass}</div>
+    const last = SECS.length - 1;
+    // NB: .tut-sec are <div>, NOT <section> — a global rule hides
+    // `body.flow-ready section:not(.flow-overlay)`, which would blank these.
+    host.innerHTML = SECS.map((s, i) => `
+      <div class="tut-sec">
+        ${i === 0 ? '<h2 class="tut-title">From one cell to a Biome.</h2>' : ''}
+        <div class="tut-grid">${s.seeds.map(seed => tok(seed, s.size)).join('')}</div>
+        <div class="tut-cap"><b>${s.name}</b> · ×${s.count} · mass ${s.mass}</div>
+        <p class="tut-hint">${s.hint}</p>
+        ${i === last
+          ? '<button type="button" class="flow-cta burn" id="flowTutDemo" style="margin-top:10px;">Try the demo</button>'
+          : '<div class="tut-scrolldown">scroll ↓</div>'}
       </div>`).join('');
+    // The demo button lives in the last section — wire it after build.
+    host.querySelector('#flowTutDemo')?.addEventListener('click', () => {
+      if (walletPollTimer) { clearInterval(walletPollTimer); walletPollTimer = null; }
+      beginDemo(document.getElementById('flowIntroStatus'));
+    });
   })();
-  document.getElementById('flowIntroHow')?.addEventListener('click', () => show('tutorial'));
-  document.getElementById('flowTutBack')?.addEventListener('click', () => show('intro'));
-  document.getElementById('flowTutDemo')?.addEventListener('click', () => {
-    if (walletPollTimer) { clearInterval(walletPollTimer); walletPollTimer = null; }
-    beginDemo(document.getElementById('flowIntroStatus'));
+  document.getElementById('flowIntroHow')?.addEventListener('click', () => {
+    show('tutorial');
+    const t = document.getElementById('flowTutorial');
+    if (t) t.scrollTop = 0;   // always start at the top (Genesis)
   });
+  document.getElementById('flowTutBack')?.addEventListener('click', () => show('intro'));
 
   // Pre-mint gate: until the mint opens, nobody owns Bioms, so the wallet
   // path ("Yes, I'm ready") dead-ends at a connect-wallet wall — and that's
