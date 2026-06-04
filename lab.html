@@ -6949,7 +6949,9 @@ collectionGrid.addEventListener('click', (e) => {
       // radioactive) into pale blobs. Render the mutated state through the
       // SAME engine the token's animation_url uses — a static, bare
       // preview.html iframe — so the thumbnail is WYSIWYG with the real NFT.
-      const url = previewUrlFor(seed, effectiveState(seed), { static: true, nointeract: true }) + '&fit=1&lite=2';
+      // NO fit=1 — the static R2 thumbs are bust-cropped, so the live one
+      // must be too, or the mutated tile looks "floating" next to the rest.
+      const url = previewUrlFor(seed, effectiveState(seed), { static: true, nointeract: true }) + '&lite=2';
       return `<div class="thumb-live"><iframe class="thumb-frame" src="${url}" loading="lazy" tabindex="-1" aria-hidden="true" scrolling="no" title="Biom #${seed}"></iframe></div>`;
     }
     const padded = String(seed).padStart(5, '0');
@@ -7304,8 +7306,7 @@ collectionGrid.addEventListener('click', (e) => {
 
     // Merge the survivor's current state with the prospective `next` and the
     // new rank, then render it through the SAME engine the NFT uses
-    // (preview.html) — exact, breathing, cursor-tilt. fit=1 centres it,
-    // nodl=1 hides the download chrome.
+    // (preview.html) — exact, breathing, cursor-tilt.
     const mergedEff = Object.assign({}, effectiveState(survivor), outcome.next, { rank: newRank, mass: newMass });
     const frame = document.getElementById('flowPreviewFrame');
     // Render EXACTLY as the NFT does everywhere else — default framing (the
