@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Communities — Bioms</title>
-<meta name="description" content="Bring your community to Bioms. Apply for a whitelist allocation before the June 8 window.">
+<meta name="description" content="Bring your community to the Bioms whitelist. Leave your X and your wallets — or just your collection contract.">
 <meta name="theme-color" content="#ece9e0">
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
@@ -14,7 +14,7 @@
 <link rel="canonical" href="https://thebioms.com/partners">
 
 <meta property="og:title" content="Bioms — for communities">
-<meta property="og:description" content="Apply for a community whitelist allocation. Each application reviewed individually before June 8.">
+<meta property="og:description" content="Apply for a community whitelist allocation. Reviewed individually before June 8.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://thebioms.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -92,9 +92,9 @@
   /* === MAIN === */
   .wrap {
     position: relative; z-index: 2;
-    max-width: 600px;
+    max-width: 560px;
     margin: 0 auto;
-    padding: clamp(56px, 11vh, 110px) 28px 96px;
+    padding: clamp(56px, 12vh, 120px) 28px 96px;
   }
   .lede { text-align: center; }
   h1 {
@@ -109,21 +109,11 @@
     line-height: 1.55;
     color: var(--ink-2);
     margin: 0 auto 44px;
-    max-width: 34em;
+    max-width: 33em;
   }
-
-  /* === GATE — first question === */
-  .gate { text-align: center; }
-  .gate-q {
-    font-size: 19px; font-weight: 500; letter-spacing: -0.01em;
-    margin-bottom: 22px; color: var(--ink);
-  }
-  .gate-row { display: flex; flex-direction: column; gap: 12px; max-width: 420px; margin: 0 auto; }
-  .gate-row .btn { width: 100%; }
 
   /* === FORM === */
-  form.partner-form { display: none; flex-direction: column; gap: 22px; }
-  form.partner-form.shown { display: flex; }
+  form.partner-form { display: flex; flex-direction: column; gap: 22px; }
   .field { display: flex; flex-direction: column; gap: 7px; }
   .field label {
     font-size: 14px; font-weight: 500; color: var(--ink);
@@ -144,25 +134,22 @@
     transition: border-color 0.15s, box-shadow 0.15s;
     -webkit-appearance: none; appearance: none;
   }
-  .field textarea { resize: vertical; min-height: 96px; line-height: 1.5; }
+  .field textarea { resize: vertical; min-height: 88px; line-height: 1.5; }
   .field textarea.addrs {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 13px; min-height: 112px; letter-spacing: 0.01em;
+    font-size: 13px; min-height: 104px; letter-spacing: 0.01em;
   }
-  .field input::placeholder, .field textarea::placeholder {
-    color: var(--ink-3);
-  }
+  .field input::placeholder, .field textarea::placeholder { color: var(--ink-3); }
   .field input:focus, .field textarea:focus {
     border-color: var(--ink);
     outline: none;
     box-shadow: 0 0 0 3px rgba(28,26,22,0.08);
   }
-  .field input.invalid, .field textarea.invalid { border-color: rgba(184, 73, 44, 0.55); }
 
-  .form-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  .form-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
   form.partner-form .btn { width: 100%; padding: 16px 22px; font-size: 16px; border-radius: var(--r-sm); }
-
   .form-note { font-size: 13px; color: var(--ink-3); text-align: center; line-height: 1.5; }
+  .form-note a { color: var(--ink-2); }
 
   /* === SUCCESS === */
   .success {
@@ -172,7 +159,7 @@
     padding: 30px 24px; text-align: center;
   }
   .success-title { font-size: 22px; letter-spacing: -0.015em; font-weight: 500; }
-  .success-sub { color: var(--ink-2); font-size: 14px; margin-top: 10px; line-height: 1.5; max-width: 34em; margin-left: auto; margin-right: auto; }
+  .success-sub { color: var(--ink-2); font-size: 14px; margin-top: 10px; line-height: 1.5; max-width: 33em; margin-left: auto; margin-right: auto; }
   .success-cta { margin-top: 18px; }
   .success-cta-btn {
     display: inline-flex; align-items: center; gap: 6px;
@@ -185,7 +172,7 @@
   .success-cta-btn:hover { background: var(--ink); color: var(--bg); }
 
   .form-error {
-    margin-top: 6px;
+    margin-top: 2px;
     padding: 12px 16px;
     border-radius: var(--r-sm);
     background: var(--burn-soft);
@@ -214,10 +201,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
-    }
+    *, *::before, *::after { transition-duration: 0.01ms !important; }
   }
 </style>
 </head>
@@ -244,80 +228,41 @@
   <div class="lede">
     <h1>For communities.</h1>
     <p class="h1-sub">
-      Bioms sets aside part of the whitelist for aligned communities. Tell us
-      about yours. Every application is read individually before the
-      <strong>June 8</strong> window.
+      Bring your community to the Bioms whitelist. Drop your community's X and
+      either your members' wallets or your collection's contract — we'll handle
+      the rest. Reviewed individually before the <strong>June 8</strong> window.
     </p>
   </div>
 
-  <!-- Gate — the first question. Individuals are sent to /reserve. -->
-  <div class="gate" id="gate">
-    <div class="gate-q">Do you lead or represent a community?</div>
-    <div class="gate-row">
-      <button type="button" class="btn" id="gateYes">Yes, I represent a community</button>
-      <a class="btn ghost" href="/reserve" style="text-align:center;text-decoration:none;">No — I'm an individual collector</a>
-    </div>
-  </div>
-
-  <!-- Application form — revealed after the gate. -->
   <form class="partner-form" id="partnerForm" novalidate aria-label="Community application">
     <div class="field">
-      <label for="pCommunity">Community name <span class="req" aria-hidden="true">*</span></label>
-      <input type="text" id="pCommunity" name="community" maxlength="120" autocomplete="off" required>
+      <label for="pTwitter">Community X / Twitter <span class="req" aria-hidden="true">*</span></label>
+      <div class="hint">The community account or its leader. One link or @handle.</div>
+      <input type="text" id="pTwitter" maxlength="200" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="@yourcommunity" required>
     </div>
 
     <div class="field">
-      <label for="pAbout">About your community <span class="req" aria-hidden="true">*</span></label>
-      <div class="hint">What it is, who's in it, and why Bioms fits. A few sentences.</div>
-      <textarea id="pAbout" name="about" maxlength="2000" required placeholder="We're a 4k-member generative-art collective focused on…"></textarea>
-    </div>
-
-    <div class="field">
-      <label for="pTwitter">X / Twitter <span class="req" aria-hidden="true">*</span></label>
-      <div class="hint">Link or @handle of the community account.</div>
-      <input type="text" id="pTwitter" name="twitter" maxlength="200" autocomplete="off" placeholder="@yourcommunity" required>
-    </div>
-
-    <div class="field">
-      <label for="pSize">Audience size <span class="req" aria-hidden="true">*</span></label>
-      <div class="hint">Roughly. e.g. 12k on X, 4k in Discord.</div>
-      <input type="text" id="pSize" name="audience" maxlength="120" autocomplete="off" required>
-    </div>
-
-    <div class="field">
-      <label for="pDiscord">Discord / Telegram</label>
-      <div class="hint">Invite link, if you have one.</div>
-      <input type="text" id="pDiscord" name="discord" maxlength="200" autocomplete="off">
-    </div>
-
-    <div class="field">
-      <label for="pLinks">Collection or website</label>
-      <div class="hint">For NFT communities: your contract or site.</div>
-      <input type="text" id="pLinks" name="links" maxlength="400" autocomplete="off">
-    </div>
-
-    <div class="field">
-      <label for="pSpots">Spots requested <span class="req" aria-hidden="true">*</span></label>
-      <div class="hint">How many whitelist spots you're asking for.</div>
-      <input type="number" id="pSpots" name="spots" min="1" max="100000" inputmode="numeric" autocomplete="off" required>
-    </div>
-
-    <div class="field">
-      <label for="pAddrs">Member wallets</label>
-      <div class="hint">ENS or 0x, one per line. Optional, but it speeds up review — we verify them on-chain. Up to ~250; for more, share a link above.</div>
-      <textarea id="pAddrs" name="members" class="addrs" maxlength="12000" placeholder="vitalik.eth&#10;0x1234…&#10;yourmember.eth"></textarea>
+      <label for="pAddrs">Member wallets or collection contract</label>
+      <div class="hint">ENS or 0x, one per line. Or paste your collection's contract — we'll pull the holders ourselves. Leave blank if you'll send a list after a raffle.</div>
+      <textarea id="pAddrs" class="addrs" maxlength="12000" placeholder="0xYourCollectionContract…&#10;or&#10;vitalik.eth&#10;0x1234…"></textarea>
     </div>
 
     <div class="field">
       <label for="pContact">Contact <span class="req" aria-hidden="true">*</span></label>
       <div class="hint">Telegram or email so we can reach you.</div>
-      <input type="text" id="pContact" name="contact" maxlength="200" autocomplete="off" placeholder="@you on Telegram, or email" required>
+      <input type="text" id="pContact" maxlength="200" autocomplete="off" placeholder="@you on Telegram, or email" required>
+    </div>
+
+    <div class="field">
+      <label for="pNotes">Anything else</label>
+      <div class="hint">Optional — community size, how many spots you'd want, anything useful.</div>
+      <textarea id="pNotes" maxlength="2000" placeholder=""></textarea>
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn" id="partnerSubmit" disabled>Submit application</button>
+      <button type="submit" class="btn" id="partnerSubmit" disabled>Submit</button>
       <div class="form-error" id="formError" hidden aria-live="polite" role="status"></div>
-      <p class="form-note">Reviewed individually. We only reach out if it's a fit.</p>
+      <p class="form-note">Reviewed individually. We only reach out if it's a fit. Collecting just for yourself? <a href="/reserve">Reserve as an individual →</a></p>
     </div>
   </form>
 
@@ -349,39 +294,29 @@
 
 <script>
 // =============================================================
-// PARTNERS — community whitelist-allocation application
+// PARTNERS — community whitelist-allocation application (minimal)
 //
-// Isolated from the individual /reserve waitlist: this posts to
+// Isolated from the individual /reserve waitlist: posts to
 // /api/partner (D1 table `partners`), never the `waitlist` table.
-// Member wallets are stored as raw text and validated on-chain
-// later during manual triage — no per-submit resolution, so the
-// endpoint stays cheap and can't be used to drain the Alchemy quota.
+// The wallets/contract field is stored as raw text and triaged
+// off-line (snapshot a collection's holders, or validate a pasted
+// list on-chain) — no per-submit resolution, so the endpoint stays
+// cheap and makes no Alchemy calls.
 // =============================================================
 const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
   ? 'http://localhost:8787'
   : 'https://api.thebioms.com';
 
-const gate     = document.getElementById('gate');
-const form     = document.getElementById('partnerForm');
-const submitBtn = document.getElementById('partnerSubmit');
+const form       = document.getElementById('partnerForm');
+const submitBtn  = document.getElementById('partnerSubmit');
 const successPanel = document.getElementById('successPanel');
 const formError  = document.getElementById('formError');
 
-// Required fields gate the submit button.
-const REQUIRED = ['pCommunity', 'pAbout', 'pTwitter', 'pSize', 'pSpots', 'pContact'];
-
-document.getElementById('gateYes').addEventListener('click', () => {
-  gate.style.display = 'none';
-  form.classList.add('shown');
-  document.getElementById('pCommunity').focus();
-});
+// Only the X handle and a contact are required — wallets/contract are optional.
+const REQUIRED = ['pTwitter', 'pContact'];
 
 function validate() {
-  let ok = true;
-  for (const id of REQUIRED) {
-    const el = document.getElementById(id);
-    if (!el.value.trim()) ok = false;
-  }
+  const ok = REQUIRED.every(id => document.getElementById(id).value.trim());
   submitBtn.disabled = !ok;
 }
 form.addEventListener('input', () => { validate(); clearError(); });
@@ -395,7 +330,7 @@ const ERROR_COPY = {
   forbidden_origin: 'Your browser blocked the request. Refresh the page and try again.',
   invalid_json: 'Something got malformed. Refresh and try again.',
   body_too_large: 'The application is too large. Trim the wallet list and try again.',
-  missing_fields: 'Please fill the required fields (marked *).',
+  missing_fields: 'Please add your community X and a contact.',
   value_too_long: 'One of the fields is too long. Trim it and try again.',
 };
 
@@ -420,15 +355,10 @@ form.addEventListener('submit', async (e) => {
 
   const val = id => document.getElementById(id).value.trim();
   const payload = {
-    community: val('pCommunity'),
-    about:     val('pAbout'),
-    twitter:   val('pTwitter'),
-    audience:  val('pSize'),
-    discord:   val('pDiscord'),
-    links:     val('pLinks'),
-    spots:     val('pSpots'),
-    members:   val('pAddrs'),
-    contact:   val('pContact'),
+    twitter: val('pTwitter'),
+    members: val('pAddrs'),   // wallets OR a collection contract — triaged off-line
+    contact: val('pContact'),
+    about:   val('pNotes'),   // free-text "anything else"
   };
 
   submitBtn.disabled = true;

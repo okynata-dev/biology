@@ -1985,7 +1985,9 @@ async function handlePartnerAdd(req, env, origin) {
   for (const v of [community, about, twitter, audience, discord, links, contact, members]) {
     if (v === null) return error('value_too_long', 400, origin);
   }
-  if (!community || !about || !twitter || !audience || !contact) {
+  // Minimal intake: only the community X handle and a contact are required.
+  // Everything else (wallets/contract, notes, size) is optional.
+  if (!twitter || !contact) {
     return error('missing_fields', 400, origin);
   }
   // Requested spots — digits only, clamped.
@@ -2007,7 +2009,7 @@ async function handlePartnerAdd(req, env, origin) {
     `INSERT INTO partners
        (community, about, twitter, audience_size, discord, links, requested_spots, member_addrs, contact, status, ts, ip_hash)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
-  ).bind(community, about, twitter, audience, discord || null, links || null,
+  ).bind(community || twitter, about, twitter, audience, discord || null, links || null,
          spots, members || null, contact, nowMs, ipHash).run();
 
   return json({ ok: true }, { headers: { 'cache-control': 'no-store' } }, origin);
