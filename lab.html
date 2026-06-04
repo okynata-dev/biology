@@ -7304,7 +7304,11 @@ collectionGrid.addEventListener('click', (e) => {
     // nodl=1 hides the download chrome.
     const mergedEff = Object.assign({}, effectiveState(survivor), outcome.next, { rank: newRank, mass: newMass });
     const frame = document.getElementById('flowPreviewFrame');
-    frame.src = previewUrlFor(survivor, mergedEff, {}) + '&fit=1&nodl=1';
+    // Render EXACTLY as the NFT does everywhere else — default framing (the
+    // iconic bust-crop), NOT fit=1. fit=1 showed the full composition incl.
+    // the loose accent particles, which read as "a bacterium floating in air"
+    // instead of the clean centred token on OpenSea / the pick tiles / /view.
+    frame.src = previewUrlFor(survivor, mergedEff, {}) + '&nodl=1';
 
     const tierEl = document.getElementById('flowPreviewTier');
     tierEl.textContent = (tier ? tier.name : 'Genesis') + ' · Rank ' + newRank;
