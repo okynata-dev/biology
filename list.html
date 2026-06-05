@@ -415,8 +415,12 @@ function renderRows(rows) {
     rowsEl.innerHTML = '<tr><td colspan="3" class="empty">No signups yet. Be the first?</td></tr>';
     return;
   }
-  // Use position-from-top as "#" since we don't expose internal id
-  const html = rows.map((r, i) => `
+  // Cap the rendered rows — the full list runs to tens of thousands and
+  // painting every one as a <tr> locks up the page. The signups count and
+  // the CSV use the FULL set; narrow with search or Download CSV for all.
+  const MAX = 1000;
+  const shown = rows.slice(0, MAX);
+  const html = shown.map((r, i) => `
     <tr>
       <td class="id">${i + 1}</td>
       <td class="addr">
@@ -425,7 +429,9 @@ function renderRows(rows) {
       <td class="date" title="${new Date(r.signedUpMs).toISOString()}">${fmtDate(r.signedUpMs)}</td>
     </tr>
   `).join('');
-  rowsEl.innerHTML = html;
+  rowsEl.innerHTML = html + (rows.length > MAX
+    ? `<tr><td colspan="3" class="empty">Showing the first ${MAX.toLocaleString()} of ${rows.length.toLocaleString()}. Use search to find an address, or Download CSV for the full list.</td></tr>`
+    : '');
 }
 
 function applyFilter() {
@@ -442,7 +448,7 @@ async function loadList() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
     allRows = data.list || [];
-    totalEl.textContent = String(data.total || 0);
+    totalEl.textContent = (data.total || 0).toLocaleString();
     lastAgoEl.textContent = allRows.length > 0 ? timeAgo(allRows[0].signedUpMs) : '—';
     applyFilter();
   } catch (err) {

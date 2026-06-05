@@ -1868,11 +1868,13 @@ async function handleAdminWaitlist(req, env, origin) {
   if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('forbidden', 403, origin);
   const url = new URL(req.url);
   const format = (url.searchParams.get('format') || 'json').toLowerCase();
-  const rawLimit = parseInt(url.searchParams.get('limit') || '5000', 10);
-  // parseInt('abc') is NaN — Math.min(10000, NaN) === NaN, ".bind(NaN)"
+  const rawLimit = parseInt(url.searchParams.get('limit') || '100000', 10);
+  // parseInt('abc') is NaN — Math.min(100000, NaN) === NaN, ".bind(NaN)"
   // would land as NULL in D1 and LIMIT NULL means "no limit". Clamp.
+  // Default high so the owner's snapshot export is COMPLETE without needing
+  // to pass &limit — a truncated allowlist would silently drop real signups.
   const limit = Number.isFinite(rawLimit) && rawLimit > 0
-    ? Math.min(10000, rawLimit) : 5000;
+    ? Math.min(100000, rawLimit) : 100000;
 
   const { results } = await env.DB.prepare(
     'SELECT id, kind, value, ts FROM waitlist ORDER BY ts DESC LIMIT ?'
@@ -1917,7 +1919,10 @@ async function handleAdminWaitlist(req, env, origin) {
 // no internal ids. Cached at edge for 60s so a viral spike doesn't
 // hit D1 on every refresh.
 async function handleWaitlistList(env, origin) {
-  const limit = 10000;
+  // High cap so the public /list page + its CSV reflect the FULL waitlist,
+  // not a truncated 10k. Edge-cached 60s, so the larger payload is built at
+  // most once per minute. Bump again if signups ever approach this.
+  const limit = 100000;
   const { results } = await env.DB.prepare(
     'SELECT value, ts FROM waitlist ORDER BY ts DESC LIMIT ?'
   ).bind(limit).all();
