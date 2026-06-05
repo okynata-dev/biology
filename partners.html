@@ -229,15 +229,9 @@
   <div class="card">
     <form id="partnerForm" novalidate aria-label="Community application">
       <div class="field">
-        <div class="lbl-row"><label for="pTwitter">Community X</label></div>
-        <div class="hint">The account or its lead — one link or @handle.</div>
+        <div class="lbl-row"><label for="pTwitter">Your X</label></div>
+        <div class="hint">Your community or its lead — we'll reach you here by DM.</div>
         <input type="text" id="pTwitter" maxlength="200" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="@yourcommunity" autofocus required>
-      </div>
-
-      <div class="field">
-        <div class="lbl-row"><label for="pContact">Contact</label></div>
-        <div class="hint">Telegram or email so we can reach you.</div>
-        <input type="text" id="pContact" maxlength="200" autocomplete="off" placeholder="@you on Telegram, or email" required>
       </div>
 
       <div class="field">
@@ -267,7 +261,7 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
     </div>
     <h2>Application received.</h2>
-    <p>We read every one individually. If it's a fit, we'll reach you at the contact you left before the June 8 window.</p>
+    <p>We read every one individually. If it's a fit, we'll reach out on X before the June 8 window.</p>
     <a class="follow" href="https://twitter.com/theBioms" target="_blank" rel="noopener">Follow @theBioms</a>
   </div>
 </main>
@@ -306,8 +300,9 @@ const successPanel = document.getElementById('successPanel');
 const noteEl      = document.querySelector('.note');
 const formError   = document.getElementById('formError');
 
-// Only the X handle and a contact are required — wallets/contract are optional.
-const REQUIRED = ['pTwitter', 'pContact'];
+// Only the X handle is required — it doubles as the contact (we DM on X).
+// Wallets/contract and notes are optional.
+const REQUIRED = ['pTwitter'];
 
 function validate() {
   const ok = REQUIRED.every(id => document.getElementById(id).value.trim());
@@ -324,7 +319,7 @@ const ERROR_COPY = {
   forbidden_origin: 'Your browser blocked the request. Refresh the page and try again.',
   invalid_json: 'Something got malformed. Refresh and try again.',
   body_too_large: 'The application is too large. Trim the wallet list and try again.',
-  missing_fields: 'Please add your community X and a contact.',
+  missing_fields: 'Please add your community X.',
   value_too_long: 'One of the fields is too long. Trim it and try again.',
 };
 
@@ -351,7 +346,7 @@ form.addEventListener('submit', async (e) => {
   const payload = {
     twitter: val('pTwitter'),
     members: val('pAddrs'),   // wallets OR a collection contract — triaged off-line
-    contact: val('pContact'),
+    contact: val('pTwitter'), // X handle doubles as the contact (we DM on X); kept so the worker's contact check still passes
     about:   val('pNotes'),   // free-text "anything else"
   };
 

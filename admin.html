@@ -209,34 +209,6 @@
   }
   td.addr a { color: inherit; text-decoration: none; }
   td.addr a:hover { color: var(--bad); text-decoration: underline; text-underline-offset: 3px; }
-  td.copy-cell { width: 50px; }
-  .copy-btn {
-    background: transparent;
-    border: 1px solid var(--rule);
-    color: var(--ink-3);
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 11px;
-    cursor: pointer;
-    font: inherit;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-  }
-  .copy-btn:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-  .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
-  .delete-btn {
-    background: transparent;
-    border: 1px solid var(--rule);
-    color: var(--ink-3);
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 11px;
-    cursor: pointer;
-    font: inherit;
-    margin-left: 6px;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-  }
-  .delete-btn:hover { background: var(--bad); color: var(--bg); border-color: var(--bad); }
-  .delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   td.date {
     color: var(--ink-2);
     font-variant-numeric: tabular-nums;
@@ -279,6 +251,10 @@
   .papp-title a { color: inherit; text-decoration: none; }
   .papp-title a:hover { text-decoration: underline; text-underline-offset: 3px; }
   .papp-meta { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* Mark applications to export their wallets (client-side selection, persisted in localStorage). */
+  .papp.marked { border-color: var(--ok); box-shadow: inset 0 0 0 1px rgba(45,106,79,0.5); }
+  .papp-sel { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); cursor: pointer; user-select: none; }
+  .papp-sel input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--ink); margin: 0; }
   .badge {
     font-size: 10.5px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--rule);
     color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
@@ -310,7 +286,7 @@
     .papp-grid dt { margin-top: 8px; }
     header { padding: 16px 18px; }
     main { padding: 18px; }
-    td.id, td.copy-cell, th:nth-child(1), th:nth-child(4) { display: none; }
+    td.id, th:nth-child(1) { display: none; }
     td.addr { word-break: break-all; }
     td.date { width: auto; font-size: 11px; }
     .auth { margin: 32px auto; padding: 24px; }
@@ -329,6 +305,7 @@
   <div class="actions" id="actions" hidden>
     <button class="btn" id="refresh-btn">Refresh</button>
     <button class="btn" id="download-btn">Download CSV</button>
+    <button class="btn" id="dl-selected-btn" hidden>Selected addresses</button>
     <button class="btn danger" id="logout-btn">Forget token</button>
   </div>
 </header>
@@ -362,10 +339,10 @@
       <div class="wrap-table">
         <table>
           <thead>
-            <tr><th>#</th><th>Address</th><th></th><th>Saved</th></tr>
+            <tr><th>#</th><th>Address</th><th>Saved</th></tr>
           </thead>
           <tbody id="rows">
-            <tr><td colspan="4" class="loading">Loading…</td></tr>
+            <tr><td colspan="3" class="loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -378,7 +355,7 @@
         <span><strong id="p-pending">—</strong>pending</span>
       </div>
       <div class="toolbar">
-        <input class="search" id="p-search" placeholder="Filter by community, handle, contact…" autocomplete="off">
+        <input class="search" id="p-search" placeholder="Filter by community or X handle…" autocomplete="off">
       </div>
       <div class="papp-list" id="p-list">
         <div class="loading">Loading…</div>
@@ -440,6 +417,21 @@ const pTotalEl   = document.getElementById('p-total');
 const pPendingEl = document.getElementById('p-pending');
 const pSearchEl  = document.getElementById('p-search');
 const pListEl    = document.getElementById('p-list');
+const dlSelectedBtn = document.getElementById('dl-selected-btn');
+
+// ===== Partner selection (mark apps → export their wallets) =====
+// Purely client-side: a Set of partner ids, persisted in localStorage so the
+// marks survive reloads. No worker write, no D1 — this is review-and-export
+// only, it never mutates the application or the waitlist.
+const SEL_KEY = 'bioms-admin-marked-partners';
+function loadSelected() { try { return new Set(JSON.parse(localStorage.getItem(SEL_KEY) || '[]')); } catch (_) { return new Set(); } }
+function saveSelected() { try { localStorage.setItem(SEL_KEY, JSON.stringify([...selectedPartners])); } catch (_) {} }
+let selectedPartners = loadSelected();
+function updateSelectedBtn() {
+  const n = selectedPartners.size;
+  dlSelectedBtn.textContent = n ? `Selected addresses (${n})` : 'Selected addresses';
+  dlSelectedBtn.disabled = n === 0;
+}
 
 // ===== Token handling =====
 function getToken() {
@@ -490,13 +482,13 @@ function fmtDate(ms) {
 // ===== Render =====
 function renderRows(rows) {
   if (rows.length === 0) {
-    rowsEl.innerHTML = '<tr><td colspan="4" class="empty">No signups yet.</td></tr>';
+    rowsEl.innerHTML = '<tr><td colspan="3" class="empty">No signups yet.</td></tr>';
     return;
   }
   // Cap the rendered rows — the full list is tens of thousands; building
-  // every <tr> + two listeners each freezes the page (was rendering 14k+
-  // rows / 28k buttons, ~900ms block → blank screen). The count + Download
-  // CSV use the full set; narrow with search.
+  // every <tr> freezes the page (was rendering 14k+ rows, ~900ms block →
+  // blank screen). The count + Download CSV use the full set; narrow with
+  // search.
   const MAX = 1000;
   const html = rows.slice(0, MAX).map(r => `
     <tr>
@@ -504,61 +496,12 @@ function renderRows(rows) {
       <td class="addr">
         <a href="https://etherscan.io/address/${r.value}" target="_blank" rel="noopener" title="View on Etherscan">${r.value}</a>
       </td>
-      <td class="copy-cell">
-        <button class="copy-btn" data-value="${r.value}">Copy</button>
-        <button class="delete-btn" data-value="${r.value}" title="Delete this signup">Del</button>
-      </td>
       <td class="date" title="${new Date(r.signedUpMs).toISOString()}">${fmtDate(r.signedUpMs)}</td>
     </tr>
   `).join('');
   rowsEl.innerHTML = html + (rows.length > MAX
-    ? `<tr><td colspan="4" class="empty">Showing the first ${MAX.toLocaleString()} of ${rows.length.toLocaleString()}. Use search to find an address, or Download CSV for the full list.</td></tr>`
+    ? `<tr><td colspan="3" class="empty">Showing the first ${MAX.toLocaleString()} of ${rows.length.toLocaleString()}. Use search to find an address, or Download CSV for the full list.</td></tr>`
     : '');
-  // Wire copy buttons
-  rowsEl.querySelectorAll('.copy-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const v = btn.dataset.value;
-      try {
-        await navigator.clipboard.writeText(v);
-        const orig = btn.textContent;
-        btn.textContent = 'Copied';
-        btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1400);
-      } catch (_) {}
-    });
-  });
-  // Wire delete buttons — confirm, send to worker, reload list
-  rowsEl.querySelectorAll('.delete-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const v = btn.dataset.value;
-      if (!confirm(`Delete ${v} from the waitlist? This cannot be undone.`)) return;
-      const token = getToken();
-      if (!token) return showAuth();
-      btn.disabled = true;
-      btn.textContent = '…';
-      try {
-        const r = await fetch(`${WORKER_URL}/api/admin/waitlist/delete`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-admin-token': token },
-          body: JSON.stringify({ value: v }),
-        });
-        if (r.status === 403 || r.status === 401) {
-          clearToken();
-          showAuth('Wrong token. Try again.');
-          return;
-        }
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        // Optimistically remove from local list + re-render
-        allRows = allRows.filter(row => row.value !== v);
-        totalEl.textContent = String(allRows.length);
-        applyFilter();
-      } catch (err) {
-        btn.disabled = false;
-        btn.textContent = 'Del';
-        alert('Delete failed: ' + (err.message || err));
-      }
-    });
-  });
 }
 
 function applyFilter() {
@@ -572,7 +515,7 @@ function applyFilter() {
 async function loadList() {
   const token = getToken();
   if (!token) return showAuth();
-  rowsEl.innerHTML = '<tr><td colspan="4" class="loading">Loading…</td></tr>';
+  rowsEl.innerHTML = '<tr><td colspan="3" class="loading">Loading…</td></tr>';
   try {
     // Token goes in x-admin-token HEADER (not query string) so it
     // doesn't land in Cloudflare access logs or browser history.
@@ -597,7 +540,7 @@ async function loadList() {
     // user can hit Refresh, instead of leaving the page in its hidden default
     // state (which read as a mysterious blank screen).
     showContent();
-    rowsEl.innerHTML = `<tr><td colspan="4" class="empty">Failed to load: ${err.message || err}. The API may be unreachable — check your connection and hit Refresh.</td></tr>`;
+    rowsEl.innerHTML = `<tr><td colspan="3" class="empty">Failed to load: ${err.message || err}. The API may be unreachable — check your connection and hit Refresh.</td></tr>`;
   }
 }
 
@@ -715,7 +658,9 @@ function renderPartners(list) {
     const date = p.submittedMs ? fmtDate(p.submittedMs) : '';
     const rows = [];
     if (p.twitter) rows.push(['X', tw ? `<a href="${esc(tw)}" target="_blank" rel="noopener">${esc(p.twitter)}</a>` : esc(p.twitter)]);
-    if (p.contact) rows.push(['Contact', `${esc(p.contact)} <button class="mini-copy" data-copy="${esc(p.contact)}">Copy</button>`]);
+    // Contact now equals the X handle (we DM on X); only show it if a legacy
+    // entry left a distinct contact, so we don't print the handle twice.
+    if (p.contact && p.contact !== p.twitter) rows.push(['Contact', `${esc(p.contact)} <button class="mini-copy" data-copy="${esc(p.contact)}">Copy</button>`]);
     if (p.requestedSpots) rows.push(['Spots wanted', esc(p.requestedSpots)]);
     if (p.audienceSize) rows.push(['Audience', esc(p.audienceSize)]);
     if (p.discord) rows.push(['Discord/TG', esc(p.discord)]);
@@ -723,9 +668,11 @@ function renderPartners(list) {
     if (p.about) rows.push(['Notes', esc(p.about)]);
     if (p.memberAddrs) rows.push(['Wallets / contract', `<div class="mono-block">${esc(p.memberAddrs)}</div><button class="mini-copy" data-copy="${esc(p.memberAddrs)}">Copy all</button>`]);
     const grid = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
-    return `<div class="papp">
+    const pid = esc(String(p.id));
+    const marked = selectedPartners.has(String(p.id));
+    return `<div class="papp${marked ? ' marked' : ''}">
       <div class="papp-head">
-        <div class="papp-head-l"><span class="papp-title">${titleHtml}</span><span class="badge ${esc(status)}">${esc(status)}</span></div>
+        <div class="papp-head-l"><label class="papp-sel"><input type="checkbox" class="papp-check" data-id="${pid}" ${marked ? 'checked' : ''}>Mark</label><span class="papp-title">${titleHtml}</span><span class="badge ${esc(status)}">${esc(status)}</span></div>
         <span class="papp-meta">#${esc(p.id)} · ${esc(date)}</span>
       </div>
       <dl class="papp-grid">${grid}</dl>
@@ -738,7 +685,42 @@ function renderPartners(list) {
       setTimeout(() => { b.textContent = o; b.classList.remove('copied'); }, 1300);
     } catch (_) {}
   }));
+  pListEl.querySelectorAll('.papp-check').forEach(cb => cb.addEventListener('change', () => {
+    const id = cb.dataset.id;
+    if (cb.checked) selectedPartners.add(id); else selectedPartners.delete(id);
+    saveSelected();
+    updateSelectedBtn();
+    const card = cb.closest('.papp');
+    if (card) card.classList.toggle('marked', cb.checked);
+  }));
+  updateSelectedBtn();
 }
+
+// Gather every wallet / ENS / contract from the marked applications, dedupe
+// case-insensitively, and download one CSV — addresses only, one per line,
+// nothing else. Client-side; uses the already-loaded partner data.
+function downloadSelectedAddresses() {
+  const picked = allPartners.filter(p => selectedPartners.has(String(p.id)));
+  if (!picked.length) { alert('Nothing marked. Tick "Mark" on the applications you want, then try again.'); return; }
+  const seen = new Set();
+  const out = [];
+  picked.forEach(p => {
+    const toks = String(p.memberAddrs || '').match(/0x[a-fA-F0-9]{40}|[A-Za-z0-9-]+\.eth/gi) || [];
+    toks.forEach(t => {
+      const k = t.toLowerCase();
+      if (!seen.has(k)) { seen.add(k); out.push(t.trim()); }
+    });
+  });
+  if (!out.length) { alert('The marked applications have no wallet addresses yet (blank, or a contract still pending a holder snapshot).'); return; }
+  const blob = new Blob([out.join('\n') + '\n'], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `bioms-partner-addresses-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+dlSelectedBtn.addEventListener('click', downloadSelectedAddresses);
 
 function applyPartnerFilter() {
   const q = (pSearchEl.value || '').trim().toLowerCase();
@@ -754,6 +736,8 @@ function switchView(view) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
   viewWaitlist.hidden = view !== 'waitlist';
   viewPartners.hidden = view !== 'partners';
+  dlSelectedBtn.hidden = view !== 'partners';
+  if (view === 'partners') updateSelectedBtn();
   if (view === 'partners' && allPartners.length === 0) loadPartners();
 }
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
