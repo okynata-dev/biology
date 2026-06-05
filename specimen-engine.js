@@ -1005,7 +1005,10 @@
     const cells = generateMorphology(state.morphology, state.cellCount, state);
     cells.forEach((c, i) => c.cellIndex = i);
     const rng = mulberry32(seed);
-    const organelles = generateOrganelles(state, cells, rng, true);
+    // isFitMode default stays TRUE so existing callers (make.html banner
+    // export) are byte-identical. Save-as-PNG of a MUTATED biom passes
+    // isFitMode:false + bustCrop:true to match the on-screen NFT framing.
+    const organelles = generateOrganelles(state, cells, rng, opts.isFitMode !== false);
     const accents = generateAccents(state.accentCount, rng);
     const all = [...cells, ...organelles, ...accents].sort((a, b) => a.z - b.z);
     const palette = PALETTES[state.palette];
@@ -1028,6 +1031,10 @@
     const fy = opts.flipY || 1;
     const tx = opts.tx || 0;
     const ty = opts.ty || 0;
+    // Bust-crop vertical shift — mirror preview.html's default +15% (cy + 15)
+    // so a mutated Save-as-PNG frames the iconic NFT bust, not the full
+    // floating composition. 0 for /make + base renders (no bustCrop opt).
+    const vOff = (opts.bustCrop ? 15 : 0) / 100 * finalSize;
 
     ctx.save();
     ctx.translate(W / 2, H / 2);                          // element CSS position (left:50%, top:50%)
@@ -1042,7 +1049,7 @@
     // Draw each panel at its % coords scaled to finalSize
     all.forEach((item, idx) => {
       const px = (item.cx / 100) * finalSize - (item.w / 100 * finalSize) / 2;
-      const py = (item.cy / 100) * finalSize - (item.h / 100 * finalSize) / 2;
+      const py = (item.cy / 100) * finalSize - (item.h / 100 * finalSize) / 2 + vOff;
       const pw = (item.w / 100) * finalSize;
       const ph = (item.h / 100) * finalSize;
       const itemRot = (item.rot || 0) * Math.PI / 180;
@@ -1450,6 +1457,11 @@
       scale: 1,
       rotation: 0,
       flipX: 1, flipY: 1,
+      // Match the on-screen NFT framing (non-fit bust-crop), NOT the full
+      // floating composition that fit-mode produced — the bug holders hit
+      // when saving a mutated biom.
+      isFitMode: false,
+      bustCrop: true,
       state: stateOverride || undefined,
     });
     c.toBlob((blob) => {
