@@ -493,7 +493,12 @@ function renderRows(rows) {
     rowsEl.innerHTML = '<tr><td colspan="4" class="empty">No signups yet.</td></tr>';
     return;
   }
-  const html = rows.map(r => `
+  // Cap the rendered rows — the full list is tens of thousands; building
+  // every <tr> + two listeners each freezes the page (was rendering 14k+
+  // rows / 28k buttons, ~900ms block → blank screen). The count + Download
+  // CSV use the full set; narrow with search.
+  const MAX = 1000;
+  const html = rows.slice(0, MAX).map(r => `
     <tr>
       <td class="id">#${r.id}</td>
       <td class="addr">
@@ -506,7 +511,9 @@ function renderRows(rows) {
       <td class="date" title="${new Date(r.signedUpMs).toISOString()}">${fmtDate(r.signedUpMs)}</td>
     </tr>
   `).join('');
-  rowsEl.innerHTML = html;
+  rowsEl.innerHTML = html + (rows.length > MAX
+    ? `<tr><td colspan="4" class="empty">Showing the first ${MAX.toLocaleString()} of ${rows.length.toLocaleString()}. Use search to find an address, or Download CSV for the full list.</td></tr>`
+    : '');
   // Wire copy buttons
   rowsEl.querySelectorAll('.copy-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
