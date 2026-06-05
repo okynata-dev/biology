@@ -257,8 +257,57 @@
     font-size: 13px;
   }
 
+  /* === TABS === */
+  .tabs { display: flex; gap: 8px; margin-bottom: 22px; }
+  .tab {
+    background: var(--paper); border: 1px solid var(--rule); color: var(--ink-2);
+    padding: 8px 16px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  /* === PARTNER APPLICATIONS === */
+  .papp-list { display: flex; flex-direction: column; gap: 14px; }
+  .papp {
+    background: var(--paper); border: 1px solid var(--rule);
+    border-radius: 12px; padding: 18px 20px;
+  }
+  .papp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .papp-head-l { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .papp-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .papp-title a { color: inherit; text-decoration: none; }
+  .papp-title a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .papp-meta { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .badge {
+    font-size: 10.5px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--rule);
+    color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+    background: rgba(28,26,22,0.05);
+  }
+  .badge.approved { color: var(--ok); border-color: rgba(45,106,79,0.4); background: rgba(45,106,79,0.08); }
+  .badge.rejected { color: var(--bad); border-color: rgba(154,74,46,0.4); background: rgba(154,74,46,0.08); }
+  .papp-grid { display: grid; grid-template-columns: 116px 1fr; gap: 7px 14px; font-size: 13px; align-items: start; }
+  .papp-grid dt { color: var(--ink-3); }
+  .papp-grid dd { color: var(--ink); word-break: break-word; }
+  .papp-grid dd a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+  .papp-grid dd a:hover { text-decoration-color: var(--ink); }
+  .mono-block {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px;
+    background: var(--bg); border: 1px solid var(--rule); border-radius: 8px;
+    padding: 8px 10px; max-height: 130px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  .mini-copy {
+    background: transparent; border: 1px solid var(--rule); color: var(--ink-3);
+    border-radius: 6px; padding: 2px 7px; font: inherit; font-size: 11px; cursor: pointer; margin-left: 6px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .mini-copy:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .mini-copy.copied { color: var(--ok); border-color: var(--ok); }
+
   /* === MOBILE === */
   @media (max-width: 700px) {
+    .papp-grid { grid-template-columns: 1fr; gap: 2px 0; }
+    .papp-grid dt { margin-top: 8px; }
     header { padding: 16px 18px; }
     main { padding: 18px; }
     td.id, td.copy-cell, th:nth-child(1), th:nth-child(4) { display: none; }
@@ -275,7 +324,7 @@
     <img src="/favicon.svg?v=3" alt="">
     <span class="label">Bioms</span>
     <span class="sep">·</span>
-    <span class="label">Waitlist</span>
+    <span class="label">Admin</span>
   </a>
   <div class="actions" id="actions" hidden>
     <button class="btn" id="refresh-btn">Refresh</button>
@@ -296,29 +345,44 @@
 
   <!-- CONTENT — visible when authenticated -->
   <div id="content" hidden>
-    <div class="stats">
-      <span><strong id="total">—</strong>signups</span>
-      <span>last <strong id="last-ago">—</strong></span>
+    <div class="tabs">
+      <button class="tab active" data-view="waitlist" type="button">Waitlist</button>
+      <button class="tab" data-view="partners" type="button">Partners</button>
     </div>
 
-    <div class="toolbar">
-      <input class="search" id="search" placeholder="Filter by address…" autocomplete="off">
+    <!-- WAITLIST VIEW -->
+    <div id="view-waitlist">
+      <div class="stats">
+        <span><strong id="total">—</strong>signups</span>
+        <span>last <strong id="last-ago">—</strong></span>
+      </div>
+      <div class="toolbar">
+        <input class="search" id="search" placeholder="Filter by address…" autocomplete="off">
+      </div>
+      <div class="wrap-table">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Address</th><th></th><th>Saved</th></tr>
+          </thead>
+          <tbody id="rows">
+            <tr><td colspan="4" class="loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
-    <div class="wrap-table">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Address</th>
-            <th></th>
-            <th>Saved</th>
-          </tr>
-        </thead>
-        <tbody id="rows">
-          <tr><td colspan="4" class="loading">Loading…</td></tr>
-        </tbody>
-      </table>
+    <!-- PARTNERS VIEW -->
+    <div id="view-partners" hidden>
+      <div class="stats">
+        <span><strong id="p-total">—</strong>applications</span>
+        <span><strong id="p-pending">—</strong>pending</span>
+      </div>
+      <div class="toolbar">
+        <input class="search" id="p-search" placeholder="Filter by community, handle, contact…" autocomplete="off">
+      </div>
+      <div class="papp-list" id="p-list">
+        <div class="loading">Loading…</div>
+      </div>
     </div>
   </div>
 </main>
@@ -367,6 +431,15 @@ const downloadBtn = document.getElementById('download-btn');
 const logoutBtn   = document.getElementById('logout-btn');
 
 let allRows = [];
+let allPartners = [];
+let currentView = 'waitlist';
+
+const viewWaitlist = document.getElementById('view-waitlist');
+const viewPartners = document.getElementById('view-partners');
+const pTotalEl   = document.getElementById('p-total');
+const pPendingEl = document.getElementById('p-pending');
+const pSearchEl  = document.getElementById('p-search');
+const pListEl    = document.getElementById('p-list');
 
 // ===== Token handling =====
 function getToken() {
@@ -540,7 +613,7 @@ authSubmit.addEventListener('click', () => {
 });
 tokenInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') authSubmit.click(); });
 
-refreshBtn.addEventListener('click', loadList);
+refreshBtn.addEventListener('click', () => currentView === 'partners' ? loadPartners() : loadList());
 
 downloadBtn.addEventListener('click', async () => {
   const token = getToken();
@@ -553,7 +626,9 @@ downloadBtn.addEventListener('click', async () => {
   downloadBtn.disabled = true;
   downloadBtn.textContent = 'Preparing…';
   try {
-    const r = await fetch(`${WORKER_URL}/api/admin/waitlist?format=csv`, {
+    // Download the CSV for whichever tab is active.
+    const kind = currentView === 'partners' ? 'partners' : 'waitlist';
+    const r = await fetch(`${WORKER_URL}/api/admin/${kind}?format=csv`, {
       headers: { 'x-admin-token': token },
     });
     if (r.status === 403 || r.status === 401) {
@@ -566,7 +641,7 @@ downloadBtn.addEventListener('click', async () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `bioms-waitlist-${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `bioms-${kind}-${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -588,6 +663,87 @@ logoutBtn.addEventListener('click', () => {
 });
 
 searchEl.addEventListener('input', applyFilter);
+
+// ===== Partners (community applications) =====
+// Data is user-submitted free text → ESCAPE everything before injecting.
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function twUrl(t) {
+  t = String(t || '').trim();
+  if (/^https?:\/\//i.test(t)) return t;
+  const h = t.replace(/^@/, '').replace(/[^A-Za-z0-9_]/g, '');
+  return h ? ('https://x.com/' + h) : '';
+}
+
+async function loadPartners() {
+  const token = getToken();
+  if (!token) return showAuth();
+  pListEl.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    const r = await fetch(`${WORKER_URL}/api/admin/partners`, { headers: { 'x-admin-token': token } });
+    if (r.status === 403 || r.status === 401) { clearToken(); showAuth('Wrong token. Try again.'); return; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    allPartners = data.partners || [];
+    pTotalEl.textContent = String(allPartners.length);
+    pPendingEl.textContent = String(allPartners.filter(p => (p.status || 'pending') === 'pending').length);
+    applyPartnerFilter();
+  } catch (err) {
+    pListEl.innerHTML = `<div class="empty">Failed to load: ${esc(err.message || err)}</div>`;
+  }
+}
+
+function renderPartners(list) {
+  if (!list.length) { pListEl.innerHTML = '<div class="empty">No applications yet.</div>'; return; }
+  pListEl.innerHTML = list.map(p => {
+    const status = p.status || 'pending';
+    const tw = twUrl(p.twitter);
+    const titleTxt = p.community ? esc(p.community) : (p.twitter ? esc(p.twitter) : '—');
+    const titleHtml = tw ? `<a href="${esc(tw)}" target="_blank" rel="noopener">${titleTxt}</a>` : titleTxt;
+    const date = p.submittedMs ? fmtDate(p.submittedMs) : '';
+    const rows = [];
+    if (p.twitter) rows.push(['X', tw ? `<a href="${esc(tw)}" target="_blank" rel="noopener">${esc(p.twitter)}</a>` : esc(p.twitter)]);
+    if (p.contact) rows.push(['Contact', `${esc(p.contact)} <button class="mini-copy" data-copy="${esc(p.contact)}">Copy</button>`]);
+    if (p.requestedSpots) rows.push(['Spots wanted', esc(p.requestedSpots)]);
+    if (p.audienceSize) rows.push(['Audience', esc(p.audienceSize)]);
+    if (p.discord) rows.push(['Discord/TG', esc(p.discord)]);
+    if (p.links) rows.push(['Collection/site', esc(p.links)]);
+    if (p.about) rows.push(['Notes', esc(p.about)]);
+    if (p.memberAddrs) rows.push(['Wallets / contract', `<div class="mono-block">${esc(p.memberAddrs)}</div><button class="mini-copy" data-copy="${esc(p.memberAddrs)}">Copy all</button>`]);
+    const grid = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+    return `<div class="papp">
+      <div class="papp-head">
+        <div class="papp-head-l"><span class="papp-title">${titleHtml}</span><span class="badge ${esc(status)}">${esc(status)}</span></div>
+        <span class="papp-meta">#${esc(p.id)} · ${esc(date)}</span>
+      </div>
+      <dl class="papp-grid">${grid}</dl>
+    </div>`;
+  }).join('');
+  pListEl.querySelectorAll('.mini-copy').forEach(b => b.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(b.dataset.copy);
+      const o = b.textContent; b.textContent = 'Copied'; b.classList.add('copied');
+      setTimeout(() => { b.textContent = o; b.classList.remove('copied'); }, 1300);
+    } catch (_) {}
+  }));
+}
+
+function applyPartnerFilter() {
+  const q = (pSearchEl.value || '').trim().toLowerCase();
+  const f = !q ? allPartners
+    : allPartners.filter(p => [p.community, p.twitter, p.contact, p.links, p.discord, p.about]
+        .some(x => String(x || '').toLowerCase().includes(q)));
+  renderPartners(f);
+}
+pSearchEl.addEventListener('input', applyPartnerFilter);
+
+function switchView(view) {
+  currentView = view;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  viewWaitlist.hidden = view !== 'waitlist';
+  viewPartners.hidden = view !== 'partners';
+  if (view === 'partners' && allPartners.length === 0) loadPartners();
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
 
 // Boot
 loadList();
