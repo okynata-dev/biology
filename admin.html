@@ -592,7 +592,12 @@ async function loadList() {
     applyFilter();
     showContent();
   } catch (err) {
-    rowsEl.innerHTML = `<tr><td colspan="4" class="empty">Failed to load: ${err.message || err}</td></tr>`;
+    // Network / CORS failure (not an auth error — 401/403 is handled above).
+    // Reveal the content chrome so the message is actually visible and the
+    // user can hit Refresh, instead of leaving the page in its hidden default
+    // state (which read as a mysterious blank screen).
+    showContent();
+    rowsEl.innerHTML = `<tr><td colspan="4" class="empty">Failed to load: ${err.message || err}. The API may be unreachable — check your connection and hit Refresh.</td></tr>`;
   }
 }
 
@@ -695,7 +700,8 @@ async function loadPartners() {
     pPendingEl.textContent = String(allPartners.filter(p => (p.status || 'pending') === 'pending').length);
     applyPartnerFilter();
   } catch (err) {
-    pListEl.innerHTML = `<div class="empty">Failed to load: ${esc(err.message || err)}</div>`;
+    showContent();
+    pListEl.innerHTML = `<div class="empty">Failed to load: ${esc(err.message || err)}. The API may be unreachable — check your connection and hit Refresh.</div>`;
   }
 }
 

@@ -59,7 +59,12 @@ function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': ok ? origin : 'https://thebioms.com',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'content-type',
+    // x-admin-token is required for the /admin panel's cross-origin fetches
+    // (admin.html on thebioms.com → api.thebioms.com). A custom request
+    // header triggers a CORS preflight; if it isn't listed here the browser
+    // blocks the GET and the panel silently renders blank. content-type stays
+    // for the JSON POST endpoints (waitlist/partner submit).
+    'Access-Control-Allow-Headers': 'content-type, x-admin-token',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
