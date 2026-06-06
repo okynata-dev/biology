@@ -1902,80 +1902,87 @@ async function collageRender(cols, rows, seeds, gapPct, w, h, opts) {
   // source (384px) downsamples cleanly. Forcing FULL at 32×32 would
   // try to decode 1024 × 1200² RGBA = ~5.8GB and crash the tab.
   const variant = (cols * rows >= COLLAGE_SM_CELL_THRESHOLD) ? 'sm' : 'full';
-  await Promise.all(seeds.map(s => _ensureCachedBiom(s, variant)));
 
-  // Materialise each cached entry as an HTMLImageElement we can
-  // drawImage onto the canvas. Cached entry may be a remote URL
-  // (/cutout/) or a data: URL (thumb fallback / engine fallback) —
-  // both work as <img src>. crossOrigin='anonymous' is required so
-  // the remote URLs don't taint the canvas; for data: URLs it's a
-  // no-op. Browser HTTP cache + image-decode cache share decoded
-  // bitmaps across every reference, so repeated seeds in a grid
-  // don't cost extra fetch or decode work.
-  const cellImgs = await Promise.all(seeds.map((seed) => {
-    return new Promise((resolve, reject) => {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+
+  // Same geometry math as applyTransform's collage branch so the exported
+  // grid matches the on-screen preview exactly. Spacing (gapPct) can be
+  // negative — cells overlap.
+  const gp = Math.max(gapPct / 100, -0.95);
+  const widthDiv  = cols + (cols - 1) * gp;
+  const heightDiv = rows + (rows - 1) * gp;
+  const cellFit = Math.min(w / widthDiv, h / heightDiv);
+  const cellPx  = cellFit * opts.scale;
+  const stepPx  = cellPx * (1 + gp);
+  const totalW = stepPx * (cols - 1) + cellPx;
+  const totalH = stepPx * (rows - 1) + cellPx;
+
+  // Outer transform — see applyTransform / CSS for the chain.
+  const baseSize = Math.min(w, h);
+  const txPx = opts.tx * baseSize / 100;
+  const tyPx = opts.ty * baseSize / 100;
+
+  ctx.save();
+  ctx.translate(w / 2 + txPx, h / 2 + tyPx);
+  ctx.scale(opts.flipX, opts.flipY);
+  ctx.rotate(opts.rotation * Math.PI / 180);
+  const gridLeft = -totalW / 2;
+  const gridTop  = -totalH / 2;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  // Round cell + step to integer px so non-integer cellPx doesn't accumulate
+  // sub-px drift (visible as 1-px seams on large grids).
+  const cellPxI = Math.max(1, Math.round(cellPx));
+  const stepPxI = Math.round(stepPx);
+
+  // Draw cells ONE AT A TIME, decoding then releasing each before the next.
+  // iOS Safari caps per-tab image memory; holding all 64 cutouts decoded at
+  // once (~370 MB at 1200px 'full') blows the budget and aborts the decode
+  // ("cached img decode failed"). Sequential keeps the peak at a single cell,
+  // so a dense 4K collage exports on a phone. A tile that fails to load is
+  // skipped (transparent gap) rather than aborting the whole export.
+  function loadCell(seed) {
+    const url = collageCellCache.get(variant + ':' + seed);
+    if (!url) return Promise.resolve(null);
+    return new Promise((resolve) => {
       const i = new Image();
       i.crossOrigin = 'anonymous';
       i.onload  = () => resolve(i);
-      i.onerror = () => reject(new Error(`cached img decode failed: ${seed}`));
-      i.src = collageCellCache.get(variant + ':' + seed);
+      i.onerror = () => resolve(null);
+      i.src = url;
     });
-  }));
+  }
+
+  for (let r = 0; r < rows; r++) {
+    for (let col = 0; col < cols; col++) {
+      const idx = r * cols + col;
+      const seed = seeds[idx];
+      if (seed == null) continue;
+      try { await _ensureCachedBiom(seed, variant); } catch (_) {}
+      let img = await loadCell(seed);
+      if (img) {
+        const cx = gridLeft + col * stepPxI;
+        const cy = gridTop  + r   * stepPxI;
+        ctx.drawImage(img, cx, cy, cellPxI, cellPxI);
+      }
+      // Drop the reference + clear src so the decoded bitmap is reclaimed
+      // before the next cell loads — this is what keeps iOS under its cap.
+      if (img) { try { img.src = ''; } catch (_) {} }
+      img = null;
+    }
+  }
+  ctx.restore();
 
   return new Promise((resolve, reject) => {
-    try {
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, w, h);
-
-      // Same geometry math as applyTransform's collage branch so the
-      // exported grid matches the on-screen preview exactly. Spacing
-      // (gapPct) can be negative — cells overlap.
-      const gp = Math.max(gapPct / 100, -0.95);
-      const widthDiv  = cols + (cols - 1) * gp;
-      const heightDiv = rows + (rows - 1) * gp;
-      const cellFit = Math.min(w / widthDiv, h / heightDiv);
-      const cellPx  = cellFit * opts.scale;
-      const stepPx  = cellPx * (1 + gp);
-      const totalW = stepPx * (cols - 1) + cellPx;
-      const totalH = stepPx * (rows - 1) + cellPx;
-
-      // Outer transform — see applyTransform / CSS for the chain.
-      const baseSize = Math.min(w, h);
-      const txPx = opts.tx * baseSize / 100;
-      const tyPx = opts.ty * baseSize / 100;
-
-      ctx.save();
-      ctx.translate(w / 2 + txPx, h / 2 + tyPx);
-      ctx.scale(opts.flipX, opts.flipY);
-      ctx.rotate(opts.rotation * Math.PI / 180);
-      const gridLeft = -totalW / 2;
-      const gridTop  = -totalH / 2;
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-
-      // Round cell + step to integer px so non-integer cellPx doesn't
-      // accumulate sub-px drift (visible as 1-px seams on large grids).
-      const cellPxI = Math.max(1, Math.round(cellPx));
-      const stepPxI = Math.round(stepPx);
-      for (let r = 0; r < rows; r++) {
-        for (let col = 0; col < cols; col++) {
-          const idx = r * cols + col;
-          if (idx >= cellImgs.length || !cellImgs[idx]) continue;
-          const cx = gridLeft + col * stepPxI;
-          const cy = gridTop  + r   * stepPxI;
-          ctx.drawImage(cellImgs[idx], cx, cy, cellPxI, cellPxI);
-        }
-      }
-      ctx.restore();
-
-      c.toBlob((blob) => {
-        if (!blob) return reject(new Error('toBlob returned null'));
-        resolve(blob);
-      }, 'image/png');
-    } catch (e) { reject(e); }
+    c.toBlob((blob) => {
+      if (!blob) return reject(new Error('toBlob returned null'));
+      resolve(blob);
+    }, 'image/png');
   });
 }
 
