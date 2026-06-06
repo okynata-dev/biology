@@ -592,8 +592,8 @@
 
       <div class="controls">
         <div class="mode-tabs" role="tablist" aria-label="Maker mode">
-          <button type="button" id="modeSingleBtn" role="tab" aria-pressed="true">Single</button>
-          <button type="button" id="modeCollageBtn" role="tab" aria-pressed="false">Collage</button>
+          <button type="button" id="modeSingleBtn" role="tab" aria-pressed="false">Single</button>
+          <button type="button" id="modeCollageBtn" role="tab" aria-pressed="true">Collage</button>
         </div>
 
         <div class="ctrl-group">
@@ -614,7 +614,7 @@
         </div>
 
         <div class="ctrl-group" data-mode-only="collage">
-          <div class="ctrl-label"><span>Grid</span><span class="val" id="gridVal">4 × 4</span></div>
+          <div class="ctrl-label"><span>Grid</span><span class="val" id="gridVal">8 × 8</span></div>
           <!-- Six presets cover the natural sizes: small mosaic, pack,
                wall, mural, full grid (80×100 = 8000 cells), and
                Custom for anything off the path. -->
@@ -649,8 +649,8 @@
         </div>
 
         <div class="ctrl-group">
-          <div class="ctrl-label"><span>Scale</span><span class="val" id="scaleVal">200%</span></div>
-          <input type="range" class="slider" id="scaleSlider" min="10" max="400" value="200" step="1" />
+          <div class="ctrl-label"><span>Scale</span><span class="val" id="scaleVal">250%</span></div>
+          <input type="range" class="slider" id="scaleSlider" min="10" max="400" value="250" step="1" />
         </div>
 
         <div class="ctrl-group">
@@ -778,18 +778,18 @@ const FORMATS = [
 // leaking a "hero" seed in view-source pre-reveal. seedInput.value
 // gets set during init below.
 const state = {
-  mode: 'single',                 // 'single' | 'collage'
+  mode: 'collage',                // 'single' | 'collage' — Banner Maker opens in Collage
   seed: (1 + Math.floor(Math.random() * 8000)),
   // Collage params. collageSeeds is regenerated on dimension change and
-  // on shuffle. Default 4×4 matches the first preset chip.
-  gridCols: 4,
-  gridRows: 4,
+  // on shuffle. Default 8×8 (64 Bioms) — the collage view it opens in.
+  gridCols: 8,
+  gridRows: 8,
   cellGapPct: -75,                // spacing as % of cell size; negative = overlap (-75..20)
   collageSeeds: [],               // populated by initCollageSeeds() / shuffleCollageSeeds()
   format: FORMATS.find(f => f.id === 'desktop_4k') || FORMATS[0],
   customW: 1500,
   customH: 500,
-  tx: 0,  ty: 0,  scale: 2,  rotation: 0,  flipX: 1,  flipY: 1,
+  tx: 0,  ty: 0,  scale: 2.5,  rotation: 0,  flipX: 1,  flipY: 1,
 };
 
 // =========================================================================
@@ -1684,12 +1684,12 @@ flipHBtn.addEventListener('click', () => { state.flipX *= -1; applyTransform(); 
 flipVBtn.addEventListener('click', () => { state.flipY *= -1; applyTransform(); deselectTemplates(); });
 
 resetBtn.addEventListener('click', () => {
-  // Reset returns to the default composition (scale 200%, spacing -75%),
+  // Reset returns to the default composition (scale 250%, spacing -75%),
   // not a bare identity transform — that's the look the maker boots with.
-  state.tx = 0; state.ty = 0; state.scale = 2; state.rotation = 0;
+  state.tx = 0; state.ty = 0; state.scale = 2.5; state.rotation = 0;
   state.flipX = 1; state.flipY = 1;
   state.cellGapPct = -75;
-  scaleSlider.value = 200; scaleVal.textContent = '200%';
+  scaleSlider.value = 250; scaleVal.textContent = '250%';
   rotSlider.value = 0; rotVal.textContent = '0°';
   gapSlider.value = -75; gapVal.textContent = '-75%';
   applyTransform();
