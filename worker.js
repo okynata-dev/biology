@@ -214,7 +214,7 @@ async function loadTokenState(env, tokenId) {
   // Mutations row + absorbed lineage + image_version (cache-bust counter,
   // bumped each time renderTokenMaster() re-uploads the master to R2).
   const m = await env.DB.prepare(
-    'SELECT received_palette, received_organelles, received_anomalies, absorbed_seeds, image_version FROM token_state WHERE token_id = ?'
+    'SELECT received_palette, received_organelles, received_anomalies, absorbed_seeds, image_version, mass FROM token_state WHERE token_id = ?'
   ).bind(tokenId).first();
 
   const mutations = {
@@ -253,7 +253,12 @@ async function loadTokenState(env, tokenId) {
     at: burnSelfRow.burned_at,
   } : null;
 
-  return { mutations, depletions, absorbedSeeds, burned: burnedInfo, imageVersion };
+  // Total base organisms folded in (additive mass) once the token has been
+  // merged; NULL until then (callers fall back to the pre-mint floor mass,
+  // then 1 for a base Genesis).
+  const mass = (m && m.mass != null) ? m.mass : null;
+
+  return { mutations, depletions, absorbedSeeds, burned: burnedInfo, imageVersion, mass };
 }
 
 // ----- viem client factory -----
@@ -1008,8 +1013,24 @@ async function handleBurn(req, env, ctx, origin) {
   const recAnoSet = new Set(recM.anomalies || []);
   for (const a of donorEffectiveAnomalies) recAnoSet.add(a);
   recM.anomalies = Array.from(recAnoSet);
-  // Append donor seed to lineage — first absorbed seed = rank-2, etc.
-  absorbedSeeds.push(donorId);
+  // Lineage record = union of both trees + the donor itself.
+  absorbedSeeds = Array.from(new Set([
+    ...absorbedSeeds,
+    ...(Array.isArray(donorData.absorbedSeeds) ? donorData.absorbedSeeds : []),
+    donorId,
+  ]));
+
+  // === Additive mass (mirrors lab.html): the survivor's MASS = sum of both
+  //     organisms' masses; the tier is derived from mass (1+floor(log2),
+  //     capped 6). Any two Bioms combine — no equal-rank rule — so nothing is
+  //     wasted and no token gets stuck. A token's current mass = its stored
+  //     mass, else its pre-mint floor (2^(premintRank-1)), else 1 (base).
+  //     This is purely server-side state: a tampered client can't fabricate
+  //     mass, since each side is read from D1 / the fixed pre-mint table.
+  const recipientMass = (recipientData.mass != null ? recipientData.mass : _premintMass(recipientId));
+  const donorMass     = (donorData.mass     != null ? donorData.mass     : _premintMass(donorId));
+  const newMass = recipientMass + donorMass;
+  const newRank = _rankForMass(newMass);
 
   const ts = Date.now();
   const tsSec = Math.floor(ts / 1000);
@@ -1027,13 +1048,14 @@ async function handleBurn(req, env, ctx, origin) {
         'INSERT INTO log (ts, donor, recipient, trait, result, signer, roll_hex) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind(ts, donorId, recipientId, '*burn*', 'burn', signerLc, null),
       env.DB.prepare(`
-        INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, absorbed_seeds, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, absorbed_seeds, mass, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(token_id) DO UPDATE SET
           received_palette = excluded.received_palette,
           received_organelles = excluded.received_organelles,
           received_anomalies = excluded.received_anomalies,
           absorbed_seeds = excluded.absorbed_seeds,
+          mass = excluded.mass,
           updated_at = excluded.updated_at
       `).bind(
         recipientId,
@@ -1041,6 +1063,7 @@ async function handleBurn(req, env, ctx, origin) {
         JSON.stringify(recM.organelles),
         JSON.stringify(recM.anomalies),
         JSON.stringify(absorbedSeeds),
+        newMass,
         tsSec
       ),
     ]);
@@ -1067,10 +1090,8 @@ async function handleBurn(req, env, ctx, origin) {
     ctx.waitUntil(renderTokenMaster(env, recipientId).catch(() => {}));
   }
 
-  // Rank = pre-mint base rank (intrinsic floor for elevated tokens) + burns.
-  // Mirrors buildMetadata so the Lab's post-burn rank matches OpenSea.
-  const _pmRecip = PREMINT[recipientId] || PREMINT[String(recipientId)];
-  const _recipBaseRank = _pmRecip ? _pmRecip.rank : 1;
+  // Survivor's new mass + derived tier level (1-6). Mirrors buildMetadata +
+  // lab.html so the Lab's post-burn state matches what OpenSea will show.
   return json({
     ok: true,
     burnedTokenId: donorId,
@@ -1078,7 +1099,8 @@ async function handleBurn(req, env, ctx, origin) {
     txHash,
     blockNumber: verdict.blockNumber ? String(verdict.blockNumber) : null,
     absorbedSeeds,
-    rank: _recipBaseRank + absorbedSeeds.length,
+    mass: newMass,
+    rank: newRank,
   }, {}, origin);
 }
 
@@ -1265,13 +1287,41 @@ const _ORG_LABEL = {
   axial: 'Axial filament',
 };
 
+// Binary tier ladder — rank IS the tier level (1-6). Two equal-rank Bioms
+// merge into one of rank+1, so a rank-r Biom is the survivor of a balanced
+// tree of 2^(r-1) base organisms. Genesis 1 · Hybrid 2 · Chimera 4 · Phoenix
+// 8 · Superorganism 16 · Biome 32 (organisms). The top two are burn-only.
+// Mirrors lab.html tierForRank exactly. New tiers later = extend this ladder.
 function _tierForRank(rank) {
-  if (rank <= 1)  return 'Genesis';        // base mint, 0 absorbed
-  if (rank <= 3)  return 'Hybrid';         // 1-2 absorbed
-  if (rank <= 7)  return 'Chimera';        // 3-6 absorbed
-  if (rank <= 15) return 'Phoenix';        // 7-14 absorbed
-  if (rank <= 23) return 'Superorganism';  // 15-22 absorbed — apex, burn-only
-  return 'Biome';                          // 23+ absorbed — apex, burn-only
+  if (rank <= 1)  return 'Genesis';
+  if (rank === 2) return 'Hybrid';
+  if (rank === 3) return 'Chimera';
+  if (rank === 4) return 'Phoenix';
+  if (rank === 5) return 'Superorganism';
+  return 'Biome';                          // 6+ — apex, burn-only
+}
+
+// Additive-mass model (mirrors lab.html massToRank exactly): a token's rank is
+// derived from its MASS = total base organisms folded into it (Genesis = 1).
+// Merging adds masses; the tier climbs at each doubling. 1+floor(log2(mass)),
+// capped at 6. mass 1→Genesis · 2→Hybrid · 4→Chimera · 8→Phoenix · 16→
+// Superorganism · 32→Biome. So 32 organisms → one Biome; max 250 in 8,000.
+function _rankForMass(mass) {
+  // Mirror lab.html massToRank EXACTLY (threshold table, not a log2 formula) so
+  // the server result is byte-identical to the client's live preview.
+  const m = Math.max(1, Math.floor(mass || 1));
+  if (m <= 1)  return 1;
+  if (m <= 3)  return 2;
+  if (m <= 7)  return 3;
+  if (m <= 15) return 4;
+  if (m <= 31) return 5;
+  return 6;
+}
+// Pre-mint elevated tokens start with a head-start mass = 2^(rank-1):
+// Hybrid(2)→2, Chimera(3)→4, Phoenix(4)→8. Base tokens are mass 1.
+function _premintMass(id) {
+  const pm = PREMINT[id] || PREMINT[String(id)];
+  return pm ? Math.pow(2, pm.rank - 1) : 1;
 }
 
 // === OpenSea metadata builder ===
@@ -1291,11 +1341,13 @@ async function buildMetadata(env, tokenId) {
   let mutations = {};
   let imageVersion = 1;
   let absorbedSeeds = [];
+  let storedMass = null;
   try {
     const loaded = await loadTokenState(env, tokenId);
     mutations = loaded.mutations || {};
     imageVersion = loaded.imageVersion || 1;
     absorbedSeeds = loaded.absorbedSeeds || [];
+    storedMass = (loaded.mass != null) ? loaded.mass : null;
   } catch (_) { /* ignore */ }
 
   // Effective state after mutations.
@@ -1322,14 +1374,14 @@ async function buildMetadata(env, tokenId) {
   if (Array.isArray(mutations.anomalies)) {
     for (const a of mutations.anomalies) eff[a] = true;
   }
-  // Rank derived from absorbed_seeds length (each burn adds a parent).
-  // Genesis = 0 absorbed (rank 1), every absorption shifts the tier.
-  const absorbed = absorbedSeeds.length;
-  // Base rank = pre-mint elevation (Genesis = 1). Post-mint burns add on top.
-  const baseRank = pm ? pm.rank : 1;
-  const rank = baseRank + absorbed;
+  // Mass = total base organisms folded in: the stored mass once the token has
+  // been merged in the Lab, else the pre-mint floor (2^(premintRank-1)), else 1
+  // (base Genesis). Tier (rank) is derived from mass — mirrors lab.html exactly.
+  // 32 organisms = one Biome.
+  const mass = (storedMass != null ? storedMass : _premintMass(tokenId));
+  const rank = _rankForMass(mass);
   const tier = _tierForRank(rank);
-  const totalAbsorbed = rank - 1;  // includes the pre-mint synthetic lineage
+  const totalAbsorbed = mass - 1;  // organisms folded in (excludes the survivor)
 
   // Attributes — order matters for OpenSea grouping
   const attributes = [

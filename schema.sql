@@ -15,9 +15,11 @@ CREATE TABLE IF NOT EXISTS token_state (
   received_palette      TEXT,
   received_organelles   TEXT,    -- JSON array, e.g. '["plasmid","flagellum"]'
   received_anomalies    TEXT,    -- JSON array
-  absorbed_seeds        TEXT,    -- JSON array of seeds burned into this token (rank ladder)
+  absorbed_seeds        TEXT,    -- JSON array of seeds burned into this token (lineage)
+  mass                  INTEGER, -- total base organisms folded in (Genesis=1); tier = 1+floor(log2(mass)), capped 6; NULL = base/pre-mint floor
   updated_at            INTEGER  -- unix seconds
 );
+-- Existing databases: ALTER TABLE token_state ADD COLUMN mass INTEGER;  (run once, before deploying the binary worker)
 
 -- Permanent record of on-chain burns. Primary key on burned_token_id
 -- enforces "a token can only be burned once" at the schema level —
