@@ -370,8 +370,8 @@
 <main class="wrap" id="main">
   <h1>Be counted.</h1>
   <p class="h1-sub">
-    WL mint opens <strong>June 8, 7 PM GMT+7</strong> · 0.005 ETH. The list closes
-    2 hours earlier — drop your wallet before <strong>5 PM GMT+7</strong>. The snapshot pulls from this list.
+    WL mint opens <strong>June 8, 7 PM GMT+7</strong> · 0.005 ETH. Drop your wallet
+    before the list closes — <strong>5 PM GMT+7</strong>, two hours before mint.
   </p>
 
   <!-- Pre-mint live countdown. Same component as the homepage drop block.
@@ -380,6 +380,7 @@
   <div id="cdPreState">
     <!-- aria-live removed: ticking countdown spams screen readers every
          second. aria-label still announces the purpose on focus. -->
+    <div style="margin-bottom:11px; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-3);">until the list closes</div>
     <div class="countdown" id="countdown" aria-label="Time until the waitlist closes">
       <div class="cd-unit"><span class="cd-num" id="cdDays">—</span><span class="cd-lbl">Days</span></div>
       <div class="cd-sep">:</div>
@@ -389,7 +390,6 @@
       <div class="cd-sep">:</div>
       <div class="cd-unit"><span class="cd-num" id="cdSecs">—</span><span class="cd-lbl">Secs</span></div>
     </div>
-    <div style="margin-top:12px; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3);">until the list closes</div>
   </div>
 
   <div id="formContainer">
