@@ -1754,6 +1754,13 @@ async function _sha256Hex(text) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Waitlist hard close: 2 hours before the WL mint (mint = 2026-06-08 19:00
+// GMT+7). After this, NEW sign-ups are rejected so the snapshot can be frozen,
+// processed, and the OpenSea allowlist set up in time. Existing rows are
+// untouched; reads (count / list / check) keep working so the owner can pull
+// the snapshot after close.
+const WAITLIST_CLOSE_MS = new Date('2026-06-08T17:00:00+07:00').getTime();
+
 async function handleWaitlistAdd(req, env, origin) {
   // Stricter Origin check on this endpoint than the global one in fetch().
   // The global guard allows missing Origin to support server-to-server
@@ -1765,6 +1772,10 @@ async function handleWaitlistAdd(req, env, origin) {
   // only catches the present-but-empty case (curl with no Origin set).
   const reqOrigin = req.headers.get('Origin') || '';
   if (!reqOrigin) return error('origin_required', 403, origin);
+
+  // Submissions close 2h before mint (see WAITLIST_CLOSE_MS). This blocks only
+  // NEW entries so the snapshot can be frozen on time — existing rows stay.
+  if (Date.now() >= WAITLIST_CLOSE_MS) return error('waitlist_closed', 403, origin);
 
   let body;
   try { body = await req.json(); }

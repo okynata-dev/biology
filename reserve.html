@@ -370,8 +370,8 @@
 <main class="wrap" id="main">
   <h1>Be counted.</h1>
   <p class="h1-sub">
-    WL mint opens <strong>June 8, 7 PM GMT+7</strong> · 0.005 ETH. Drop your
-    wallet — the WL snapshot pulls from this list.
+    WL mint opens <strong>June 8, 7 PM GMT+7</strong> · 0.005 ETH. The list closes
+    2 hours earlier — drop your wallet before <strong>5 PM GMT+7</strong>. The snapshot pulls from this list.
   </p>
 
   <!-- Pre-mint live countdown. Same component as the homepage drop block.
@@ -380,7 +380,7 @@
   <div id="cdPreState">
     <!-- aria-live removed: ticking countdown spams screen readers every
          second. aria-label still announces the purpose on focus. -->
-    <div class="countdown" id="countdown" aria-label="Time until WL mint opens">
+    <div class="countdown" id="countdown" aria-label="Time until the waitlist closes">
       <div class="cd-unit"><span class="cd-num" id="cdDays">—</span><span class="cd-lbl">Days</span></div>
       <div class="cd-sep">:</div>
       <div class="cd-unit"><span class="cd-num" id="cdHrs">—</span><span class="cd-lbl">Hrs</span></div>
@@ -389,6 +389,7 @@
       <div class="cd-sep">:</div>
       <div class="cd-unit"><span class="cd-num" id="cdSecs">—</span><span class="cd-lbl">Secs</span></div>
     </div>
+    <div style="margin-top:12px; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3);">until the list closes</div>
   </div>
 
   <div id="formContainer">
@@ -570,6 +571,7 @@ function showSuccess(resp) {
 // to a short user-facing line + (optional) actionable hint. Codes that
 // aren't in the map fall back to a generic 'Try again in a moment.'
 const ERROR_COPY = {
+  waitlist_closed: 'The list is closed — sign-ups ended 2 hours before mint. See you at the drop on OpenSea.',
   rate_limited: 'Too many attempts from this network. Wait a few minutes and try again.',
   origin_required: 'Your browser blocked the request. Refresh the page and try again.',
   forbidden_origin: 'Your browser blocked the request. Refresh the page and try again.',
@@ -658,7 +660,12 @@ loadCount();
 // OpenSea — so we hide the entire form area + countdown and reveal the
 // "Mint on OpenSea" CTA pair. Single page-state swap, no reload.
 (function mintCountdown() {
-  const MINT_AT = new Date('2026-06-08T19:00:00+07:00').getTime();
+  // The waitlist closes 2 hours BEFORE the mint so the snapshot can be frozen
+  // and the OpenSea allowlist set up. The countdown targets the CLOSE time.
+  // Three states: open (form + countdown) → closed (form gone, "mint at 7 PM")
+  // → live (mint opened, go to OpenSea). The server enforces the same cutoff.
+  const CLOSE_AT = new Date('2026-06-08T17:00:00+07:00').getTime();  // 2h before mint
+  const MINT_AT  = new Date('2026-06-08T19:00:00+07:00').getTime();
   const elDays = document.getElementById('cdDays');
   const elHrs  = document.getElementById('cdHrs');
   const elMins = document.getElementById('cdMins');
@@ -670,31 +677,40 @@ loadCount();
   if (!elDays || !preState || !liveState) return;
 
   const pad = (n) => String(n).padStart(2, '0');
+  const subEl = document.querySelector('.h1-sub');
+  const h1El  = document.querySelector('h1');
+  const osBtn = liveState.querySelector('a.btn');
+  let phase = 'open';
+
+  function showEnd(live) {
+    const next = live ? 'live' : 'closed';
+    if (phase === next) return;
+    phase = next;
+    preState.hidden = true;
+    if (formContainer) formContainer.hidden = true;
+    if (successPanel)  successPanel.hidden  = true;
+    liveState.hidden = false;
+    if (live) {
+      if (h1El)  h1El.textContent = 'The mint is live.';
+      if (subEl) subEl.innerHTML  = 'Mint via OpenSea — anyone can mint now.';
+      if (osBtn) osBtn.textContent = 'Mint on OpenSea';
+    } else {
+      if (h1El)  h1El.textContent = 'The list is closed.';
+      if (subEl) subEl.innerHTML  = 'The WL snapshot is locked. Mint opens <strong>June 8, 7 PM GMT+7</strong> on OpenSea.';
+      if (osBtn) osBtn.textContent = 'View on OpenSea';
+    }
+  }
 
   function tick() {
-    const diff = MINT_AT - Date.now();
-    if (diff <= 0) {
-      // Mint opened — hide countdown + form + success state,
-      // show "Mint on OpenSea" CTAs.
-      preState.hidden = true;
-      if (formContainer) formContainer.hidden = true;
-      if (successPanel)  successPanel.hidden  = true;
-      liveState.hidden = false;
-      // Update the subtitle to reflect new state.
-      const sub = document.querySelector('.h1-sub');
-      if (sub) sub.innerHTML = 'WL window is open. Mint via OpenSea — anyone can mint, no allowlist gate now.';
-      const h1 = document.querySelector('h1');
-      if (h1) h1.textContent = 'The mint is live.';
-      return false;
-    }
-    const days = Math.floor(diff / 86400000);
-    const hrs  = Math.floor((diff % 86400000) / 3600000);
-    const mins = Math.floor((diff % 3600000) / 60000);
-    const secs = Math.floor((diff % 60000) / 1000);
-    elDays.textContent = String(days);
-    elHrs.textContent  = pad(hrs);
-    elMins.textContent = pad(mins);
-    elSecs.textContent = pad(secs);
+    const now = Date.now();
+    if (now >= MINT_AT)  { showEnd(true);  return false; }  // mint live → stop ticking
+    if (now >= CLOSE_AT) { showEnd(false); return true;  }  // closed → keep ticking to catch mint
+    // Still open — count down to CLOSE.
+    const diff = CLOSE_AT - now;
+    elDays.textContent = String(Math.floor(diff / 86400000));
+    elHrs.textContent  = pad(Math.floor((diff % 86400000) / 3600000));
+    elMins.textContent = pad(Math.floor((diff % 3600000) / 60000));
+    elSecs.textContent = pad(Math.floor((diff % 60000) / 1000));
     return true;
   }
 
@@ -702,7 +718,10 @@ loadCount();
   let timer = setInterval(() => { if (!tick()) { clearInterval(timer); timer = null; } }, 1000);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { if (timer) { clearInterval(timer); timer = null; } }
-    else if (!preState.hidden) { tick(); if (!timer) timer = setInterval(tick, 1000); }
+    else if (phase !== 'live') {
+      if (!tick()) return;
+      if (!timer) timer = setInterval(() => { if (!tick()) { clearInterval(timer); timer = null; } }, 1000);
+    }
   });
 })();
 </script>
