@@ -444,11 +444,24 @@ function applyFilter() {
 async function loadList() {
   rowsEl.innerHTML = '<tr><td colspan="3" class="loading">Loading…</td></tr>';
   try {
-    const r = await fetch(`${WORKER_URL}/api/waitlist/list`);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json();
+    // /list is capped server-side (newest N rows), so its length under-reports
+    // the true signup count once we pass that cap. Pull the real total from
+    // /count — same number the reserve page shows — for the headline.
+    const [listR, countR] = await Promise.all([
+      fetch(`${WORKER_URL}/api/waitlist/list`),
+      fetch(`${WORKER_URL}/api/waitlist/count`).catch(() => null),
+    ]);
+    if (!listR.ok) throw new Error('HTTP ' + listR.status);
+    const data = await listR.json();
     allRows = data.list || [];
-    totalEl.textContent = (data.total || 0).toLocaleString();
+    let total = data.total || allRows.length;
+    if (countR && countR.ok) {
+      try {
+        const c = await countR.json();
+        if (typeof c.count === 'number') total = c.count;
+      } catch (_) {}
+    }
+    totalEl.textContent = total.toLocaleString();
     lastAgoEl.textContent = allRows.length > 0 ? timeAgo(allRows[0].signedUpMs) : '—';
     applyFilter();
   } catch (err) {
