@@ -1936,13 +1936,17 @@ async function handleAdminWaitlist(req, env, origin) {
   if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('forbidden', 403, origin);
   const url = new URL(req.url);
   const format = (url.searchParams.get('format') || 'json').toLowerCase();
-  const rawLimit = parseInt(url.searchParams.get('limit') || '100000', 10);
-  // parseInt('abc') is NaN — Math.min(100000, NaN) === NaN, ".bind(NaN)"
+  const rawLimit = parseInt(url.searchParams.get('limit') || '1000000', 10);
+  // parseInt('abc') is NaN — Math.min(MAX, NaN) === NaN, ".bind(NaN)"
   // would land as NULL in D1 and LIMIT NULL means "no limit". Clamp.
-  // Default high so the owner's snapshot export is COMPLETE without needing
-  // to pass &limit — a truncated allowlist would silently drop real signups.
+  // Default + ceiling raised 100k -> 1M: the bot flood blew past 100k and a
+  // truncated export silently drops the OLDEST signups (ORDER BY ts DESC).
+  // The waitlist closes server-side at ~200k, so the in-memory CSV build
+  // below stays well within Worker memory; if the list ever approaches the
+  // 1M ceiling, switch the CSV path to a streamed Response.
+  const MAX_EXPORT = 1000000;
   const limit = Number.isFinite(rawLimit) && rawLimit > 0
-    ? Math.min(100000, rawLimit) : 100000;
+    ? Math.min(MAX_EXPORT, rawLimit) : MAX_EXPORT;
 
   const { results } = await env.DB.prepare(
     'SELECT id, kind, value, ts FROM waitlist ORDER BY ts DESC LIMIT ?'
