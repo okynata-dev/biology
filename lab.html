@@ -7542,17 +7542,15 @@ collectionGrid.addEventListener('click', (e) => {
   // Pre-mint: "Try the demo" → demo (nobody owns Bioms yet, so the wallet
   // path would dead-end at a connect wall). Post-mint: flip MINT_OPEN and the
   // same CTA becomes "Enter the Lab" → the wallet flow.
-  // Public gate for the real (wallet → on-chain burn) Lab. Stays false so the
-  // whole public sees the demo, even after mint. The owner can preview the real
-  // flow privately via  /lab?live=<OWNER_LAB_KEY>  — that unlocks the wallet
-  // flow for THAT browser session only, without opening the Lab to anyone else.
+  // Public gate for the real (wallet → on-chain burn) Lab. Auto-opens to
+  // EVERYONE at LAB_OPEN_AT — set to the moment the 24h public mint window
+  // closed. Before that, the public sees the demo. The owner can preview the
+  // real flow early via  /lab?live=<OWNER_LAB_KEY>  (that browser only).
   // NOTE: the key lives in client JS, so it's obfuscation, not hard security —
-  // worst case, someone who finds it can burn THEIR OWN tokens slightly early
-  // (the worker still verifies on-chain ownership + a real burn tx). To open the
-  // Lab to everyone, set PUBLIC_LAB_OPEN = true (and redeploy).
-  const PUBLIC_LAB_OPEN = false;
+  // the worker still verifies on-chain ownership + a real burn tx on every burn.
+  const LAB_OPEN_AT = 1781010073843; // 2026-06-09 20:01 GMT+7
   const OWNER_LAB_KEY = '3e9107de0687d996b2e4';
-  let MINT_OPEN = PUBLIC_LAB_OPEN;
+  let MINT_OPEN = Date.now() >= LAB_OPEN_AT;
   try {
     if (!MINT_OPEN && new URLSearchParams(location.search).get('live') === OWNER_LAB_KEY) {
       MINT_OPEN = true;
