@@ -1,0 +1,71 @@
+# Re-render ONE survivor's looping MP4 after a Lab burn.
+#
+# The collection's MP4s were batch-rendered from base seeds
+# (render-videos.yml). After a burn the survivor mutates, so its video
+# goes stale. This workflow renders just that token WITH its Lab
+# mutations baked in (make-videos.py --mutated pulls them from
+# /api/state) and overwrites the R2 object.
+#
+# Triggers:
+#   - repository_dispatch from the bioms-api worker after each on-chain
+#     burn (event_type: refresh-survivor-video, client_payload.tokenId).
+#     Requires GH_DISPATCH_TOKEN secret on the WORKER side — see
+#     _dispatchSurvivorVideoRefresh() in worker.js.
+#   - workflow_dispatch for manual runs (Actions tab -> enter token id).
+#
+# Reuses the CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID repo secrets
+# already configured for render-videos.yml.
+
+name: Refresh survivor video
+
+on:
+  repository_dispatch:
+    types: [refresh-survivor-video]
+  workflow_dispatch:
+    inputs:
+      tokenId:
+        description: 'Survivor token id (e.g. 161). Comma-separate for several.'
+        required: true
+        type: string
+
+concurrency:
+  # One render per token at a time; rapid successive burns into the same
+  # survivor queue up instead of racing each other's R2 upload.
+  group: refresh-video-${{ github.event.client_payload.tokenId || github.event.inputs.tokenId }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Playwright + certifi
+        run: |
+          pip install playwright certifi
+          python -m playwright install --with-deps chromium
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install wrangler
+        run: npm install -g wrangler@4
+
+      - name: Render with Lab mutations
+        run: |
+          ids="${{ github.event.client_payload.tokenId || github.event.inputs.tokenId }}"
+          echo "Rendering survivor(s): $ids"
+          mkdir -p pngs/video
+          python scripts/make-videos.py --only "$ids" --mutated --workers 2
+
+      - name: Upload to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          ids="${{ github.event.client_payload.tokenId || github.event.inputs.tokenId }}"
+          bash scripts_upload_videos.sh --only ${ids//,/ }

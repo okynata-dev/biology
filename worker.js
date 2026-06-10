@@ -1081,6 +1081,13 @@ async function handleBurn(req, env, ctx, origin) {
   refreshOpenSeaMetadata(env, recipientId).catch(e => {
     console.warn('OS refresh top-level error:', e?.message || e);
   });
+  // Best-effort: kick the GitHub Action that re-renders the survivor's
+  // looping MP4 with its new mutations (Workers can't run ffmpeg). No-op
+  // until GH_DISPATCH_TOKEN is set — manual fallback is the
+  // "Refresh survivor video" workflow_dispatch in the Actions tab.
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(_dispatchSurvivorVideoRefresh(env, recipientId).catch(() => {}));
+  }
   // Background re-render of recipient's master PNG. Burn-absorb cycles
   // tend to produce the most visually dramatic mutations (palette
   // blends + organelle stacks + cell-count bumps), so a fresh master
@@ -1518,6 +1525,33 @@ function _previewUrlForTokenState(tokenId, mutations) {
   return `https://thebioms.com/preview.html?${params.toString()}`;
 }
 
+// Fire-and-forget GitHub repository_dispatch → .github/workflows/
+// refresh-survivor-video.yml re-renders the survivor's MP4 with its
+// post-burn mutations and re-uploads to R2 (~8 min end-to-end).
+// Setup: a fine-grained PAT with Contents read+write on the repo,
+// stored as a worker secret:
+//   echo "<pat>" | npx wrangler secret put GH_DISPATCH_TOKEN
+async function _dispatchSurvivorVideoRefresh(env, tokenId) {
+  if (!env.GH_DISPATCH_TOKEN) return;
+  const repo = env.GH_REPO || 'okynata-dev/biology';
+  const r = await fetchWithTimeout(`https://api.github.com/repos/${repo}/dispatches`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.GH_DISPATCH_TOKEN}`,
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'bioms-api-worker',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      event_type: 'refresh-survivor-video',
+      client_payload: { tokenId: String(tokenId) },
+    }),
+  });
+  if (r.status !== 204) {
+    console.warn(`[video-dispatch] token ${tokenId}: GitHub responded ${r.status}`);
+  }
+}
+
 // Re-render a token's master PNG and upload to R2.
 // Returns { ok, version } on success, { ok: false, reason } on failure.
 // Safe to call concurrently for different tokenIds (different R2 keys).
@@ -1656,12 +1690,17 @@ async function handleVideo(env, tokenIdStr, origin) {
   } catch (_) {}
   const r2Url = `https://pngs.thebioms.com/video/${padded}.mp4?v=${v}`;
   try {
-    const r = await fetch(r2Url, { cf: { cacheTtl: 31536000, cacheEverything: true } });
+    // 1h TTL, not a year: after a burn the CI re-render lands ~8 min
+    // later, and a download made in that window would otherwise pin the
+    // pre-burn video at the edge (and in the user's browser) until the
+    // next version bump. An hour self-heals; videos change rarely enough
+    // that the extra origin pulls are noise.
+    const r = await fetch(r2Url, { cf: { cacheTtl: 3600, cacheEverything: true } });
     if (!r.ok) return error('not_found', r.status, origin);
     const headers = new Headers();
     headers.set('Content-Type', 'video/mp4');
     headers.set('Content-Disposition', `attachment; filename="BIOM-${tokenId}.mp4"`);
-    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    headers.set('Cache-Control', 'public, max-age=3600, must-revalidate');
     headers.set('Access-Control-Allow-Origin', '*');
     const cl = r.headers.get('content-length');
     if (cl) headers.set('Content-Length', cl);
