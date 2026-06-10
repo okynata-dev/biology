@@ -92,23 +92,32 @@
   }
   .ev-meta {
     margin: 9px 0 0; display: flex; align-items: center; flex-wrap: wrap;
-    gap: 6px 10px; font-size: 12.5px; color: var(--ink-3);
+    gap: 5px 12px; font-size: 12px; color: var(--ink-3);
     font-variant-numeric: tabular-nums;
   }
+  /* time · address · tx are one unbreakable unit — either the whole
+     group fits next to the tier chip, or the whole group moves to its
+     own line. No more orphaned "tx ↗" dangling alone. */
+  .ev-meta .grp {
+    display: inline-flex; align-items: center; gap: 7px;
+    white-space: nowrap;
+  }
+  .ev-meta .grp .sep { opacity: 0.4; user-select: none; }
   .ev-meta a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--rule); }
   .ev-meta a:hover { color: var(--ink); border-bottom-color: var(--ink); }
   .ev-tier {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 2.5px 9px; border-radius: 999px;
+    padding: 2px 8px; border-radius: 999px;
     border: 1px solid var(--rule); background: var(--bg);
-    font-size: 11.5px; color: var(--ink-2); letter-spacing: 0.02em;
+    font-size: 11px; color: var(--ink-2); letter-spacing: 0.02em;
+    white-space: nowrap;
   }
   .ev-tier.up { border-color: var(--burn); color: var(--burn); background: var(--burn-soft); }
   .ev-tier .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 
   /* --- share --- */
   .ev-share {
-    align-self: start;
+    align-self: center;
     display: inline-flex; align-items: center; gap: 7px;
     padding: 7px 13px; border-radius: 999px;
     border: 1px solid var(--rule); background: transparent;
@@ -295,21 +304,34 @@
     ));
     meta.appendChild(tier);
 
+    const grp = document.createElement('span');
+    grp.className = 'grp';
+    const mkSep = () => {
+      const s = document.createElement('span');
+      s.className = 'sep';
+      s.textContent = '·';
+      s.setAttribute('aria-hidden', 'true');
+      return s;
+    };
+
     const when = document.createElement('span');
     when.textContent = timeAgo(ev.burnedAt);
     when.title = new Date(ev.burnedAt).toUTCString();
-    meta.appendChild(when);
+    grp.appendChild(when);
+    grp.appendChild(mkSep());
 
     const by = document.createElement('span');
     by.textContent = 'by ' + shortAddr(ev.signer);
-    meta.appendChild(by);
+    grp.appendChild(by);
+    grp.appendChild(mkSep());
 
     const tx = document.createElement('a');
     tx.href = 'https://etherscan.io/tx/' + encodeURIComponent(ev.txHash);
     tx.target = '_blank'; tx.rel = 'noopener';
     tx.textContent = 'tx ↗';
-    meta.appendChild(tx);
+    grp.appendChild(tx);
 
+    meta.appendChild(grp);
     body.appendChild(meta);
 
     // share
