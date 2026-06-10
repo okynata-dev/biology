@@ -1550,6 +1550,7 @@ async function _dispatchSurvivorVideoRefresh(env, tokenId) {
   if (r.status !== 204) {
     console.warn(`[video-dispatch] token ${tokenId}: GitHub responded ${r.status}`);
   }
+  return r.status;  // 204 = dispatched
 }
 
 // Re-render a token's master PNG and upload to R2.
@@ -2626,6 +2627,20 @@ export default {
       }
       if (path === '/api/burn' && req.method === 'POST') {
         return await handleBurn(req, env, ctx, origin);
+      }
+      if (path.startsWith('/api/admin/refresh-video/') && req.method === 'POST') {
+        // POST /api/admin/refresh-video/<tokenId>   x-admin-token: <secret>
+        // Manually kick the survivor-video GitHub Action (same dispatch the
+        // burn handler fires). Recovery path if a post-burn dispatch failed.
+        const gate = _adminGate(req, env, origin);
+        if (gate) return gate;
+        const id = parseInt(path.slice('/api/admin/refresh-video/'.length), 10);
+        if (!Number.isFinite(id) || id < 1 || id > maxTokenId(env)) {
+          return error('bad_token_id', 400, origin);
+        }
+        if (!env.GH_DISPATCH_TOKEN) return error('gh_token_not_set', 503, origin);
+        const ghStatus = await _dispatchSurvivorVideoRefresh(env, id);
+        return json({ ok: ghStatus === 204, ghStatus, tokenId: id }, {}, origin);
       }
       if (path.startsWith('/api/admin/regen/') && req.method === 'POST') {
         // POST /api/admin/regen/<tokenId>   x-admin-token: <secret>
