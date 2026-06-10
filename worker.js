@@ -1793,7 +1793,7 @@ async function handleShareBurn(env, ctx, tokenIdStr) {
     const donorSp = _pickName(tokenId);
     const survSp = _pickName(ev.recipientId);
     const title = `${donorSp} — #${tokenId} → ${survSp} — #${ev.recipientId}`;
-    const desc = `The survivor is now a ${ev.tier}, mass ${ev.mass}. Nothing is reversible.`;
+    const desc = `The survivor is now a ${ev.tier} — rank ${ev.rank}. Nothing is reversible.`;
     const img = `https://api.thebioms.com/api/og/burn/${tokenId}.png`;
     // Pre-warm the composed image so the X crawler doesn't eat the
     // first render's 2-5s — by the time the tweet is posted, R2 has it.
@@ -1883,7 +1883,7 @@ async function ensureBurnOgImage(env, burnedId) {
     d: String(burnedId),
     s: String(ev.recipientId),
     tier: ev.tier,
-    mass: String(ev.mass),
+    rank: String(ev.rank),
   });
   // Extensionless canonical — CF Pages 308-redirects the .html form,
   // and the redirect isn't guaranteed to carry the query string.

@@ -11,7 +11,7 @@
   1200x630, waits for window.__cardReady, screenshots, and uploads the
   result to R2 as the twitter:image for /b/<burnedTokenId> share pages.
 
-  Params: ?d=<donorId>&s=<survivorId>&tier=<Tier>&mass=<n>
+  Params: ?d=<donorId>&s=<survivorId>&tier=<Tier>&rank=<n>
 -->
 <style>
   :root {
@@ -106,7 +106,7 @@
     return Number.isFinite(n) && n >= 0 && n <= 99999 ? n : null;
   };
   const d = num('d'), s = num('s');
-  const mass = num('mass');
+  const rank = num('rank');
   // Tier comes from a fixed vocabulary — anything else is dropped.
   const TIERS = ['Genesis', 'Hybrid', 'Chimera', 'Phoenix', 'Superorganism', 'Biome'];
   const tier = TIERS.includes(q.get('tier')) ? q.get('tier') : null;
@@ -120,12 +120,12 @@
   if (s != null) { imgS.src = THUMB(s); document.getElementById('lblS').textContent = '#' + s; }
 
   const cap = document.getElementById('caption');
-  if (tier && mass != null) {
+  if (tier && rank != null) {
     cap.appendChild(document.createTextNode('The survivor is now a '));
     const t = document.createElement('strong');
     t.textContent = tier;
     cap.appendChild(t);
-    cap.appendChild(document.createTextNode(`, mass ${mass}. Nothing is reversible.`));
+    cap.appendChild(document.createTextNode(` — rank ${rank}. Nothing is reversible.`));
   } else {
     cap.textContent = 'Nothing is reversible.';
   }

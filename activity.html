@@ -249,7 +249,7 @@
     const text =
       `${donorSp} — #${ev.burnedTokenId} → ${survSp} — #${ev.recipientTokenId}\n` +
       `─────\n` +
-      `The survivor is now a ${ev.tier}, mass ${ev.mass}.\n` +
+      `The survivor is now a ${ev.tier} — rank ${ev.rank}.\n` +
       `Nothing is reversible.`;
     return 'https://twitter.com/intent/tweet?' + new URLSearchParams({
       text,
@@ -334,7 +334,7 @@
     const dot = document.createElement('span'); dot.className = 'dot';
     tier.appendChild(dot);
     tier.appendChild(document.createTextNode(
-      (ev.tierUp ? 'Now ' : '') + ev.tier + ' · mass ' + ev.mass
+      (ev.tierUp ? 'Now ' : '') + ev.tier + ' · rank ' + ev.rank
     ));
     meta.appendChild(tier);
 
