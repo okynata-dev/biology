@@ -1729,6 +1729,85 @@ async function handleActivity(env, url, origin) {
 }
 
 // ============================================================
+// SHARE CARD — thebioms.com/b/<tokenId>
+//
+// The tweet composer (web intent) cannot attach media, so the activity
+// feed's "Share on X" appends this URL instead: X/Telegram/Discord
+// scrape the twitter:card / og:image meta here and render the survivor's
+// CURRENT master image as a large card under the tweet. Humans who click
+// through get JS-redirected to /activity (bots don't run JS, so the
+// crawler still sees the meta).
+//
+// Served on the MAIN zone via a narrow worker route (thebioms.com/b/*,
+// see wrangler.toml) so the link in the tweet reads as thebioms.com.
+// ============================================================
+function _escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+async function handleShareBurn(env, tokenIdStr) {
+  const tokenId = parseInt(tokenIdStr, 10);
+  const maxId = maxTokenId(env);
+  if (!Number.isFinite(tokenId) || tokenId < 1 || tokenId > maxId) {
+    return new Response('Not found', { status: 404 });
+  }
+  // Defensive: the card must render even if D1 hiccups — fall back to
+  // the token's pre-mint state.
+  let mass = _premintMass(tokenId);
+  let imageVersion = 1;
+  try {
+    const loaded = await loadTokenState(env, tokenId);
+    if (loaded.mass != null) mass = loaded.mass;
+    imageVersion = loaded.imageVersion || 1;
+  } catch (_) {}
+  const rank = _rankForMass(mass);
+  const tier = _tierForRank(rank);
+  const species = _pickName(tokenId);
+  const padded = String(tokenId).padStart(5, '0');
+  // Same URL buildMetadata serves to OpenSea — renderTokenMaster bumps
+  // ?v= after each burn, so the card always shows the post-burn render.
+  const img = `https://pngs.thebioms.com/preview/${padded}.webp?v=${imageVersion}`;
+  const title = `${species} — Biom #${tokenId}`;
+  const desc = `${tier}, mass ${mass}. Forged in the Bioms Lab — every burn is recorded. Nothing is reversible.`;
+  const t = _escHtml(title), d = _escHtml(desc), i = _escHtml(img);
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${t}</title>
+<meta name="robots" content="noindex">
+<meta name="description" content="${d}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bioms">
+<meta property="og:title" content="${t}">
+<meta property="og:description" content="${d}">
+<meta property="og:image" content="${i}">
+<meta property="og:url" content="https://thebioms.com/b/${tokenId}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@theBioms">
+<meta name="twitter:title" content="${t}">
+<meta name="twitter:description" content="${d}">
+<meta name="twitter:image" content="${i}">
+<link rel="canonical" href="https://thebioms.com/activity">
+<script>location.replace('/activity');</script>
+</head>
+<body>
+<p><a href="/activity">${t} — see the burn record</a></p>
+</body>
+</html>`;
+  return new Response(html, {
+    status: 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      // Short cache: ?v= on the image handles freshness, but tier/mass in
+      // the text change after each burn too.
+      'cache-control': 'public, max-age=300, must-revalidate',
+    },
+  });
+}
+
+// ============================================================
 // WAITLIST — pre-mint signup
 // Two endpoints:
 //   POST /api/waitlist        — add a row {kind, value}
@@ -2236,6 +2315,12 @@ export default {
     const path = url.pathname;
 
     try {
+      if (path.startsWith('/b/')) {
+        // Share card for the activity feed's tweet intent — reached via
+        // the thebioms.com/b/* worker route (main zone), not the api
+        // subdomain. Plain HTML, no CORS involved.
+        return await handleShareBurn(env, path.slice('/b/'.length));
+      }
       if (path === '/api/health') {
         // Strict address validation — placeholder strings like
         // "0xYourContractAddress" used to pass the old truthy+zero check

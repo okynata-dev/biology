@@ -29,6 +29,19 @@ compatibility_date = "2026-05-17"
 compatibility_flags = ["nodejs_compat"]
 
 # ------------------------------------------------------------
+# Share-card route on the MAIN zone. thebioms.com is a CF Pages
+# project; Workers routes take precedence over Pages for matching
+# paths, so this narrow /b/* pattern sends ONLY the tweet share-card
+# URLs to the worker (handleShareBurn) and leaves every other path
+# to Pages. Do NOT widen this pattern — a broad match would shadow
+# the live site. The api.thebioms.com custom domain (dashboard-
+# configured) is unaffected.
+# ------------------------------------------------------------
+routes = [
+  { pattern = "thebioms.com/b/*", zone_name = "thebioms.com" }
+]
+
+# ------------------------------------------------------------
 # D1 binding — REQUIRED. The database_id below is intentionally a
 # do-not-deploy placeholder; replace it with the UUID printed by
 # `wrangler d1 create bioms-lab` BEFORE the first `wrangler deploy`.

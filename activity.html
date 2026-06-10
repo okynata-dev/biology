@@ -226,15 +226,21 @@
     return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
+  // The intent URL can't attach media, so the link points at /b/<id> —
+  // a worker-served share card whose twitter:image is the survivor's
+  // CURRENT master render. X scrapes it and shows the new organism as a
+  // large card under the tweet.
   function tweetUrl(ev) {
     const donorSp = speciesOf(ev.burnedTokenId);
     const survSp  = speciesOf(ev.recipientTokenId);
     const text =
-      `${donorSp} — Biom #${ev.burnedTokenId} — was burned into ${survSp} — Biom #${ev.recipientTokenId}. ` +
-      `The survivor is now a ${ev.tier}, mass ${ev.mass}. Nothing is reversible.`;
+      `${donorSp} — #${ev.burnedTokenId} → ${survSp} — #${ev.recipientTokenId}\n` +
+      `─────\n` +
+      `The survivor is now a ${ev.tier}, mass ${ev.mass}.\n` +
+      `Nothing is reversible.`;
     return 'https://twitter.com/intent/tweet?' + new URLSearchParams({
       text,
-      url: 'https://thebioms.com/activity',
+      url: `https://thebioms.com/b/${ev.recipientTokenId}`,
     }).toString();
   }
 
