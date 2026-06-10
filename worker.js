@@ -1885,7 +1885,9 @@ async function ensureBurnOgImage(env, burnedId) {
     tier: ev.tier,
     mass: String(ev.mass),
   });
-  const url = `https://thebioms.com/og-card.html?${params.toString()}`;
+  // Extensionless canonical — CF Pages 308-redirects the .html form,
+  // and the redirect isn't guaranteed to carry the query string.
+  const url = `https://thebioms.com/og-card?${params.toString()}`;
   let browser = null;
   try {
     browser = await puppeteer.launch(env.BROWSER);
