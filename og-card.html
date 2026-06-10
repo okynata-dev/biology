@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1200, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Bioms — burn card template</title>
+<!--
+  OG-image TEMPLATE — not a user-facing page, not linked from nav.
+  The worker's Browser Rendering pipeline (handleOgBurn) loads this at
+  1200x630, waits for window.__cardReady, screenshots, and uploads the
+  result to R2 as the twitter:image for /b/<burnedTokenId> share pages.
+
+  Params: ?d=<donorId>&s=<survivorId>&tier=<Tier>&mass=<n>
+-->
+<style>
+  :root {
+    --bg: #ece9e0;
+    --paper: #f4f1e8;
+    --ink: #1c1a16;
+    --ink-2: #5b554a;
+    --ink-3: #686356;
+    --rule: rgba(28, 26, 22, 0.12);
+    --burn: #b8492c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1200px; height: 630px; overflow: hidden;
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    position: relative;
+  }
+
+  .mark {
+    position: absolute; top: 36px; left: 44px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 22px; font-weight: 600; letter-spacing: -0.01em;
+  }
+  .mark img { width: 24px; height: 24px; display: block; }
+  .tag {
+    position: absolute; top: 42px; right: 48px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 14px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  .pair { display: flex; align-items: center; gap: 44px; margin-top: -8px; }
+  .cell { text-align: center; }
+  .cell img {
+    width: 300px; height: 300px; display: block;
+    border-radius: 34px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05), 0 22px 48px rgba(0, 0, 0, 0.09);
+  }
+  .cell .lbl {
+    display: block; margin-top: 16px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 19px; letter-spacing: 0.06em; color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .cell.gone img { filter: grayscale(1); opacity: 0.45; }
+  .cell.gone .lbl { text-decoration: line-through; text-decoration-color: rgba(28, 26, 22, 0.4); }
+  .arrow { color: var(--burn); font-size: 54px; line-height: 1; padding-bottom: 40px; user-select: none; }
+
+  .caption {
+    position: absolute; bottom: 44px; left: 0; right: 0;
+    text-align: center;
+    font-size: 23px; color: var(--ink-2); letter-spacing: -0.01em;
+  }
+  .caption strong { color: var(--burn); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="mark">
+  <img src="/favicon.svg?v=3" alt="">
+  <span>Bioms</span>
+</div>
+<div class="tag">Lab record</div>
+
+<div class="pair">
+  <div class="cell gone">
+    <img id="imgD" alt="">
+    <span class="lbl" id="lblD"></span>
+  </div>
+  <div class="arrow">&#8594;</div>
+  <div class="cell">
+    <img id="imgS" alt="">
+    <span class="lbl" id="lblS"></span>
+  </div>
+</div>
+
+<p class="caption" id="caption"></p>
+
+<script>
+(function () {
+  'use strict';
+  const q = new URLSearchParams(location.search);
+  const num = (k) => {
+    const n = parseInt(q.get(k) || '', 10);
+    return Number.isFinite(n) && n >= 0 && n <= 99999 ? n : null;
+  };
+  const d = num('d'), s = num('s');
+  const mass = num('mass');
+  // Tier comes from a fixed vocabulary — anything else is dropped.
+  const TIERS = ['Genesis', 'Hybrid', 'Chimera', 'Phoenix', 'Superorganism', 'Biome'];
+  const tier = TIERS.includes(q.get('tier')) ? q.get('tier') : null;
+
+  const pad = (n) => String(n).padStart(5, '0');
+  const THUMB = (n) => `https://pngs.thebioms.com/thumb/${pad(n)}.webp`;
+
+  const imgD = document.getElementById('imgD');
+  const imgS = document.getElementById('imgS');
+  if (d != null) { imgD.src = THUMB(d); document.getElementById('lblD').textContent = '#' + d; }
+  if (s != null) { imgS.src = THUMB(s); document.getElementById('lblS').textContent = '#' + s; }
+
+  const cap = document.getElementById('caption');
+  if (tier && mass != null) {
+    cap.appendChild(document.createTextNode('The survivor is now a '));
+    const t = document.createElement('strong');
+    t.textContent = tier;
+    cap.appendChild(t);
+    cap.appendChild(document.createTextNode(`, mass ${mass}. Nothing is reversible.`));
+  } else {
+    cap.textContent = 'Nothing is reversible.';
+  }
+
+  // Ready flag for the screenshot pipeline — set once both thumbs have
+  // decoded (or after a hard 4s fallback so a missing thumb can't hang
+  // the render forever).
+  const decodes = [imgD, imgS]
+    .filter(img => img.src)
+    .map(img => img.decode().catch(() => {}));
+  Promise.all(decodes).then(() => { window.__cardReady = true; });
+  setTimeout(() => { window.__cardReady = true; }, 4000);
+})();
+</script>
+
+</body>
+</html>

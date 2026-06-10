@@ -1729,14 +1729,19 @@ async function handleActivity(env, url, origin) {
 }
 
 // ============================================================
-// SHARE CARD — thebioms.com/b/<tokenId>
+// SHARE CARD — thebioms.com/b/<id>
 //
 // The tweet composer (web intent) cannot attach media, so the activity
 // feed's "Share on X" appends this URL instead: X/Telegram/Discord
-// scrape the twitter:card / og:image meta here and render the survivor's
-// CURRENT master image as a large card under the tweet. Humans who click
-// through get JS-redirected to /activity (bots don't run JS, so the
-// crawler still sees the meta).
+// scrape the twitter:card / og:image meta here and render a card under
+// the tweet. Humans who click through get JS-redirected to /activity
+// (bots don't run JS, so the crawler still sees the meta).
+//
+// <id> is the BURNED token id — the natural event id, since a token can
+// only ever burn once (PK on burns.burned_token_id). For a burn event
+// the og:image is a COMPOSED card (donor → survivor, rendered by
+// handleOgBurn below). If <id> never burned, falls back to a plain
+// token card with the survivor's master render.
 //
 // Served on the MAIN zone via a narrow worker route (thebioms.com/b/*,
 // see wrangler.toml) so the link in the tweet reads as thebioms.com.
@@ -1746,14 +1751,59 @@ function _escHtml(s) {
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
 }
-async function handleShareBurn(env, tokenIdStr) {
+
+// Mass/tier of the survivor AS OF a given burn event — same replay as
+// handleActivity (token_state only stores the current mass). Returns
+// null if the token was never burned.
+async function _burnEventStats(env, burnedId) {
+  const { results } = await env.DB.prepare(
+    'SELECT burned_token_id, recipient_token_id, burned_at FROM burns ORDER BY burned_at ASC, burned_token_id ASC'
+  ).all();
+  const rows = results || [];
+  const massOf = new Map();
+  const cur = (id) => (massOf.has(id) ? massOf.get(id) : _premintMass(id));
+  for (const r of rows) {
+    const mass = cur(r.recipient_token_id) + cur(r.burned_token_id);
+    massOf.set(r.recipient_token_id, mass);
+    if (r.burned_token_id === burnedId) {
+      const rank = _rankForMass(mass);
+      return {
+        recipientId: r.recipient_token_id,
+        burnedAt: r.burned_at,
+        mass,
+        rank,
+        tier: _tierForRank(rank),
+      };
+    }
+  }
+  return null;
+}
+
+async function handleShareBurn(env, ctx, tokenIdStr) {
   const tokenId = parseInt(tokenIdStr, 10);
   const maxId = maxTokenId(env);
   if (!Number.isFinite(tokenId) || tokenId < 1 || tokenId > maxId) {
     return new Response('Not found', { status: 404 });
   }
-  // Defensive: the card must render even if D1 hiccups — fall back to
-  // the token's pre-mint state.
+
+  // --- Burn event card (the normal case for links from /activity) ---
+  let ev = null;
+  try { ev = await _burnEventStats(env, tokenId); } catch (_) {}
+  if (ev) {
+    const donorSp = _pickName(tokenId);
+    const survSp = _pickName(ev.recipientId);
+    const title = `${donorSp} — #${tokenId} → ${survSp} — #${ev.recipientId}`;
+    const desc = `The survivor is now a ${ev.tier}, mass ${ev.mass}. Nothing is reversible.`;
+    const img = `https://api.thebioms.com/api/og/burn/${tokenId}.png`;
+    // Pre-warm the composed image so the X crawler doesn't eat the
+    // first render's 2-5s — by the time the tweet is posted, R2 has it.
+    if (ctx && typeof ctx.waitUntil === 'function') {
+      ctx.waitUntil(ensureBurnOgImage(env, tokenId).catch(() => {}));
+    }
+    return _shareCardHtml({ title, desc, img, url: `https://thebioms.com/b/${tokenId}` });
+  }
+
+  // --- Fallback: plain token card with the current master render ---
   let mass = _premintMass(tokenId);
   let imageVersion = 1;
   try {
@@ -1761,8 +1811,7 @@ async function handleShareBurn(env, tokenIdStr) {
     if (loaded.mass != null) mass = loaded.mass;
     imageVersion = loaded.imageVersion || 1;
   } catch (_) {}
-  const rank = _rankForMass(mass);
-  const tier = _tierForRank(rank);
+  const tier = _tierForRank(_rankForMass(mass));
   const species = _pickName(tokenId);
   const padded = String(tokenId).padStart(5, '0');
   // Same URL buildMetadata serves to OpenSea — renderTokenMaster bumps
@@ -1770,6 +1819,10 @@ async function handleShareBurn(env, tokenIdStr) {
   const img = `https://pngs.thebioms.com/preview/${padded}.webp?v=${imageVersion}`;
   const title = `${species} — Biom #${tokenId}`;
   const desc = `${tier}, mass ${mass}. Forged in the Bioms Lab — every burn is recorded. Nothing is reversible.`;
+  return _shareCardHtml({ title, desc, img, url: `https://thebioms.com/b/${tokenId}` });
+}
+
+function _shareCardHtml({ title, desc, img, url }) {
   const t = _escHtml(title), d = _escHtml(desc), i = _escHtml(img);
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -1783,7 +1836,7 @@ async function handleShareBurn(env, tokenIdStr) {
 <meta property="og:title" content="${t}">
 <meta property="og:description" content="${d}">
 <meta property="og:image" content="${i}">
-<meta property="og:url" content="https://thebioms.com/b/${tokenId}">
+<meta property="og:url" content="${_escHtml(url)}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@theBioms">
 <meta name="twitter:title" content="${t}">
@@ -1803,6 +1856,71 @@ async function handleShareBurn(env, tokenIdStr) {
       // Short cache: ?v= on the image handles freshness, but tier/mass in
       // the text change after each burn too.
       'cache-control': 'public, max-age=300, must-revalidate',
+    },
+  });
+}
+
+// ============================================================
+// OG IMAGE — composed burn card (donor → survivor), 1200x630
+//
+// GET /api/og/burn/<burnedId>.png — the twitter:image behind /b/<id>.
+// Burn events are immutable, so the image is rendered ONCE via Browser
+// Rendering (og-card.html template on Pages) and cached in R2 forever
+// (key share/burn-<id>.png). First request pays the 2-5s render; the
+// share page pre-warms it via ctx.waitUntil, so the X crawler almost
+// always hits the R2 copy.
+// ============================================================
+async function ensureBurnOgImage(env, burnedId) {
+  const key = `share/burn-${burnedId}.png`;
+  const existing = await env.PNGS.get(key);
+  if (existing) return { ok: true, body: existing.body };
+
+  const ev = await _burnEventStats(env, burnedId);
+  if (!ev) return { ok: false, reason: 'no_such_burn' };
+  if (!env.BROWSER) return { ok: false, reason: 'no_browser_binding' };
+
+  const params = new URLSearchParams({
+    d: String(burnedId),
+    s: String(ev.recipientId),
+    tier: ev.tier,
+    mass: String(ev.mass),
+  });
+  const url = `https://thebioms.com/og-card.html?${params.toString()}`;
+  let browser = null;
+  try {
+    browser = await puppeteer.launch(env.BROWSER);
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1200, height: 630, deviceScaleFactor: 1 });
+    await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+    await page.waitForFunction(() => window.__cardReady === true, { timeout: 10000 });
+    const buffer = await page.screenshot({ type: 'png', omitBackground: false });
+    await env.PNGS.put(key, buffer, { httpMetadata: { contentType: 'image/png' } });
+    console.log(`[og] burn card ${burnedId} rendered, ${buffer.byteLength} bytes`);
+    return { ok: true, body: buffer };
+  } catch (e) {
+    console.warn(`[og] burn card ${burnedId} failed:`, e?.message || String(e));
+    return { ok: false, reason: 'render_failed' };
+  } finally {
+    if (browser) { try { await browser.close(); } catch (_) {} }
+  }
+}
+
+async function handleOgBurn(env, idStr) {
+  const burnedId = parseInt(idStr, 10);
+  if (!Number.isFinite(burnedId) || burnedId < 1 || burnedId > maxTokenId(env)) {
+    return new Response('Not found', { status: 404 });
+  }
+  const result = await ensureBurnOgImage(env, burnedId);
+  if (!result.ok) {
+    return new Response('Not found', { status: result.reason === 'no_such_burn' ? 404 : 502 });
+  }
+  return new Response(result.body, {
+    status: 200,
+    headers: {
+      'content-type': 'image/png',
+      // Immutable: a token burns once, the composition never changes.
+      'cache-control': 'public, max-age=31536000, immutable',
+      'access-control-allow-origin': '*',
     },
   });
 }
@@ -2319,7 +2437,13 @@ export default {
         // Share card for the activity feed's tweet intent — reached via
         // the thebioms.com/b/* worker route (main zone), not the api
         // subdomain. Plain HTML, no CORS involved.
-        return await handleShareBurn(env, path.slice('/b/'.length));
+        return await handleShareBurn(env, ctx, path.slice('/b/'.length));
+      }
+      if (path.startsWith('/api/og/burn/')) {
+        // Composed 1200x630 burn card (donor → survivor) — the
+        // twitter:image behind /b/<id>. Rendered once, cached in R2.
+        const id = path.slice('/api/og/burn/'.length).replace(/\.png$/, '');
+        return await handleOgBurn(env, id);
       }
       if (path === '/api/health') {
         // Strict address validation — placeholder strings like

@@ -227,9 +227,9 @@
   }
 
   // The intent URL can't attach media, so the link points at /b/<id> —
-  // a worker-served share card whose twitter:image is the survivor's
-  // CURRENT master render. X scrapes it and shows the new organism as a
-  // large card under the tweet.
+  // a worker-served share page for THIS event (id = burned token, which
+  // can only burn once). Its twitter:image is a composed 1200x630 card:
+  // donor (faded) → survivor, rendered server-side and cached in R2.
   function tweetUrl(ev) {
     const donorSp = speciesOf(ev.burnedTokenId);
     const survSp  = speciesOf(ev.recipientTokenId);
@@ -240,7 +240,7 @@
       `Nothing is reversible.`;
     return 'https://twitter.com/intent/tweet?' + new URLSearchParams({
       text,
-      url: `https://thebioms.com/b/${ev.recipientTokenId}`,
+      url: `https://thebioms.com/b/${ev.burnedTokenId}`,
     }).toString();
   }
 
