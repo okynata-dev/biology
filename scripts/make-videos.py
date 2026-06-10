@@ -38,6 +38,15 @@ Usage:
     python3 scripts/make-videos.py --loop 16        # loop length (s)
     python3 scripts/make-videos.py --fps 30 --size 1080
 
+Mutated tokens (post-burn survivors):
+    python3 scripts/make-videos.py --only 161,49 --mutated
+  --mutated fetches each seed's Lab mutations from
+  https://api.thebioms.com/api/state/<seed> and appends the same force-*
+  params the metadata animation_url uses (forceStain, forceOrganelles,
+  forcePhage/Endo/Biofilm), so the loop shows the POST-BURN organism.
+  Without it the video is the base seed render. After each burn the
+  survivor's video goes stale — re-run for the survivor + upload.
+
 After running, upload via:
     bash scripts_upload_videos.sh
 
@@ -128,8 +137,45 @@ def encode_frames(frame_glob: Path, mp4_path: Path, fps: int, crf: int):
     subprocess.run(cmd, check=True)
 
 
+def mutation_params(seed: int) -> str:
+    """Fetch the seed's Lab mutations from the live API and translate them
+    into the same force-* preview params buildMetadata puts in the token's
+    animation_url. Returns '' for unmutated tokens. Fail-loud: a network
+    error raises, because silently rendering the BASE look for a mutated
+    token is exactly the bug this flag exists to prevent."""
+    import json as _json
+    import ssl
+    import urllib.request
+    # python.org macOS builds ship without system CA certs — use certifi
+    # (present in this venv via playwright's deps) so HTTPS verifies.
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ctx = ssl.create_default_context()
+    # Plain urllib UA gets 403'd by Cloudflare bot rules — send a browser-ish
+    # one; this is our own API and the endpoint is public.
+    req = urllib.request.Request(
+        f"https://api.thebioms.com/api/state/{seed}",
+        headers={"User-Agent": "Mozilla/5.0 (bioms make-videos script)"},
+    )
+    with urllib.request.urlopen(req, timeout=15, context=ctx) as r:
+        m = _json.load(r).get("mutations") or {}
+    parts = []
+    if m.get("palette"):
+        parts.append(("forceStain", m["palette"]))
+    if m.get("organelles"):
+        parts.append(("forceOrganelles", ",".join(m["organelles"])))
+    anomalies = m.get("anomalies") or []
+    if "phageAttached" in anomalies: parts.append(("forcePhage", "1"))
+    if "endosymbiont" in anomalies:  parts.append(("forceEndo", "1"))
+    if "biofilmHalo" in anomalies:   parts.append(("forceBiofilm", "1"))
+    from urllib.parse import urlencode
+    return ("&" + urlencode(parts)) if parts else ""
+
+
 def render_one(port: int, seed: int, size: int, loop_s: float, fps: int,
-               crf: int, chrome_path):
+               crf: int, chrome_path, extra: str = ""):
     """Render one biom's seamless loop. A fresh context per seed keeps state
     clean; deterministic __seek stepping makes the loop exact."""
     frames = int(round(loop_s * fps))
@@ -146,7 +192,7 @@ def render_one(port: int, seed: int, size: int, loop_s: float, fps: int,
             )
             page = ctx.new_page()
             url = (f"http://127.0.0.1:{port}/preview.html"
-                   f"?seed={seed}&loop={loop_s}&render=1")
+                   f"?seed={seed}&loop={loop_s}&render=1{extra}")
             page.goto(url, wait_until="load", timeout=20000)
             page.wait_for_function("window.__biomReady === true", timeout=12000)
             # The seamless-loop math + deterministic stepping live in the page;
@@ -181,10 +227,11 @@ def render_one(port: int, seed: int, size: int, loop_s: float, fps: int,
 
 
 def worker_run(worker_idx: int, seeds_chunk, port: int, size: int,
-               loop_s: float, fps: int, crf: int, chrome_path):
+               loop_s: float, fps: int, crf: int, chrome_path, extras=None):
     results = []
     for i, seed in enumerate(seeds_chunk):
-        r = render_one(port, seed, size, loop_s, fps, crf, chrome_path)
+        extra = (extras or {}).get(seed, "")
+        r = render_one(port, seed, size, loop_s, fps, crf, chrome_path, extra)
         results.append(r)
         if (i + 1) % 10 == 0:
             ok_so_far = sum(1 for _, ok, _ in results if ok)
@@ -209,6 +256,9 @@ def main():
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--workers", type=int, default=2,
                     help="Parallel browsers. Each holds ~250 MB; 4 is comfortable on M1.")
+    ap.add_argument("--mutated", action="store_true",
+                    help="Fetch each seed's Lab mutations from the live API and "
+                         "bake them into the render (post-burn survivors).")
     args = ap.parse_args()
 
     check_ffmpeg()
@@ -218,6 +268,13 @@ def main():
     else:
         # Tokens are 1..3000 (SeaDrop 1-indexed); seed == tokenId by identity.
         seeds = list(range(1, 3001))
+
+    extras = {}
+    if args.mutated:
+        for s in seeds:
+            extras[s] = mutation_params(s)
+            label = extras[s] or "(no mutations — base render)"
+            print(f"  → state {s}: {label}")
 
     DST.mkdir(parents=True, exist_ok=True)
     chrome = find_chrome()
@@ -239,7 +296,7 @@ def main():
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = [
             pool.submit(worker_run, i, chunk, args.port, args.size,
-                        args.loop, args.fps, args.crf, chrome)
+                        args.loop, args.fps, args.crf, chrome, extras)
             for i, chunk in enumerate(chunks) if chunk
         ]
         for f in as_completed(futures):

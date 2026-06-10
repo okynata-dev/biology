@@ -1643,7 +1643,18 @@ async function handleVideo(env, tokenIdStr, origin) {
     return error('bad_token_id', 400, origin);
   }
   const padded = String(tokenId).padStart(5, '0');
-  const r2Url = `https://pngs.thebioms.com/video/${padded}.mp4`;
+  // Cache-bust on mutation: the edge caches this fetch for a year, but a
+  // burned-into survivor gets its video re-rendered (make-videos.py
+  // --mutated). image_version bumps on every regen, so keying the cache
+  // on it makes the edge pull the fresh MP4 without a manual purge.
+  let v = 1;
+  try {
+    const row = await env.DB.prepare(
+      'SELECT image_version FROM token_state WHERE token_id = ?'
+    ).bind(tokenId).first();
+    if (row?.image_version) v = row.image_version;
+  } catch (_) {}
+  const r2Url = `https://pngs.thebioms.com/video/${padded}.mp4?v=${v}`;
   try {
     const r = await fetch(r2Url, { cf: { cacheTtl: 31536000, cacheEverything: true } });
     if (!r.ok) return error('not_found', r.status, origin);
