@@ -80,22 +80,10 @@
 /manifesto.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
-/reserve
+/activity
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
-/reserve.html
-  Content-Security-Policy: frame-ancestors 'none'
-  X-Frame-Options: DENY
-/partners
-  Content-Security-Policy: frame-ancestors 'none'
-  X-Frame-Options: DENY
-/partners.html
-  Content-Security-Policy: frame-ancestors 'none'
-  X-Frame-Options: DENY
-/list
-  Content-Security-Policy: frame-ancestors 'none'
-  X-Frame-Options: DENY
-/list.html
+/activity.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
 /soup
@@ -195,9 +183,7 @@
   Cache-Control: public, max-age=60, must-revalidate
 /explore
   Cache-Control: public, max-age=60, must-revalidate
-/reserve
-  Cache-Control: public, max-age=60, must-revalidate
-/list
+/activity
   Cache-Control: public, max-age=60, must-revalidate
 /manifesto
   Cache-Control: public, max-age=60, must-revalidate

@@ -3378,7 +3378,7 @@
     <span class="sep">·</span>
     <a href="/make">Banners</a>
     <span class="sep">·</span>
-    <a href="/reserve">Mint</a>
+    <a href="/activity">Activity</a>
     <span class="sep">·</span>
     <a href="/manifesto">Manifesto</a>
   </div>
@@ -3474,7 +3474,7 @@
     <div class="flow-pick-grid" id="flowPickGrid" role="listbox" aria-label="Your Bioms"></div>
     <div class="flow-pick-empty" id="flowPickEmpty" hidden>
       <strong>No Bioms in this wallet yet.</strong><br>
-      The mint has not opened. You can play the demo right here.
+      <a href="https://opensea.io/collection/bioms/overview" target="_blank" rel="noopener">Collect one on OpenSea</a>, or play the demo right here.
       <div class="flow-cta-row" style="margin-top:18px;">
         <button type="button" class="flow-cta" id="flowPickDemo">Play the demo</button>
       </div>
@@ -5020,7 +5020,7 @@ function renderCollection() {
       } else if (Wallet.workerOnline === false) {
         collectionEmpty.textContent = 'Lab API is offline. The Bioms will surface once it is back.';
       } else if (Wallet.config && !Wallet.config.contractDeployed) {
-        collectionEmpty.textContent = 'The mint has not opened yet. Your Bioms will appear here once it does.';
+        collectionEmpty.textContent = 'The Lab cannot reach the contract right now. Your Bioms will surface once it can.';
       } else {
         collectionEmpty.textContent = `No Bioms found in ${shortAddr(Wallet.address)}.`;
       }

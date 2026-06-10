@@ -62,9 +62,10 @@ These come from the project owner; honor them:
 
 | File | Role |
 |---|---|
-| `index.html` | Landing. Hero biom, "Evolve" section (homepage Lab pitch), drop block with countdown + CTAs that auto-swap to OpenSea at T-0 (`#dropPre` / `#dropLive`). `?lite=1` on hero iframe for perf. |
+| `index.html` | Landing. Hero biom, "Evolve" section (homepage Lab pitch), closing "The colony is live." block (OpenSea + /activity CTAs — the pre-mint countdown/drop block was removed 2026-06-10). `?lite=1` on hero iframe for perf. |
 | `lab.html` | The Lab — **stacked-modal storytelling flow**, 5 acts. See "Lab flow" below. |
-| `reserve.html` | Waitlist. Has countdown to WL window, auto-swaps form → "Mint live" CTAs at T-0. Real signups counter from `/api/waitlist/count`. |
+| `activity.html` | Public burn feed (added 2026-06-10). Polls `GET /api/activity`, renders donor→survivor pairs with tier/mass at burn time + per-event "Share on X" tweet intent. |
+| `reserve.html` | RETIRED post-mint — 301 to `/` via `_redirects` (file kept for rollback). Same for `partners.html` and `list.html`. |
 | `make.html` | Banner Maker. Single Biom or N×M collage mode. Drag/zoom/rotate/flip. Pixel-identical preview ↔ export via shared rendering path. Uses cached cutout PNGs from R2 with thumb fallback. |
 | `explore.html` | Trait Explorer — 46 trait cards with pre-rendered PNGs (not iframes — that melted laptops). |
 | `preview.html` | The token renderer — pointed to by NFT `animation_url`. URL params: `?seed=N`, `?lite=1` (cheap), `?lite=2` (cheaper), `?cutout=1` (transparent), `?fit=1`, `?bg=white`, `?static=1`. |
@@ -90,6 +91,7 @@ Worker name: **`bioms-api`** (custom domain `api.thebioms.com`).
 | `POST /api/conjugate` | Legacy crossbreed endpoint. **Crossbreed mechanic is removed from the UI**, but the endpoint still exists in case we ever revert. |
 | `POST /api/waitlist` | Reserve form submit (email, eth addr, twitter). |
 | `GET /api/waitlist/count` | Live signup counter. |
+| `GET /api/activity` | Public burn feed for `/activity` — replays the `burns` table chronologically and annotates each event with the survivor's mass/tier as of that burn. `?limit=` up to 200, 30s edge cache. |
 | `GET /api/metadata/<tokenId>` | **OpenSea metadata endpoint**, returns ERC-721 JSON. Used as token URI baseURI. |
 | `GET /api/download/<tokenId>` | Master image (WebP) with `Content-Disposition: attachment` — unambiguous save URL. Mutated tokens get an animated WebP. |
 | `GET /api/video/<tokenId>` | Pre-rendered MP4 loop of the biom's breathing animation. |

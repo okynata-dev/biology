@@ -1678,6 +1678,57 @@ async function handleLog(env, url, origin) {
 }
 
 // ============================================================
+// ACTIVITY FEED — public burn history for /activity
+//
+// Returns the most recent burns, newest first, each annotated with the
+// survivor's mass + tier AS OF that burn. Mass-at-event can't be read
+// straight off token_state (that holds only the CURRENT mass), so we
+// replay the whole burns table in chronological order and accumulate
+// masses in memory. Cheap: burns are bounded by total supply (every
+// burn destroys a token forever, so the table can never exceed 7,999
+// rows) and the replay is pure arithmetic — no per-row I/O.
+// ============================================================
+async function handleActivity(env, url, origin) {
+  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10) || 50));
+  const { results } = await env.DB.prepare(
+    'SELECT burned_token_id, recipient_token_id, signer, tx_hash, burned_at FROM burns ORDER BY burned_at ASC, burned_token_id ASC'
+  ).all();
+  const rows = results || [];
+
+  // Replay: every token starts at its pre-mint mass (1 for base tokens);
+  // each burn folds the donor's accumulated mass into the recipient.
+  // Mirrors handleBurn's additive-mass model exactly.
+  const massOf = new Map();
+  const currentMass = (id) => (massOf.has(id) ? massOf.get(id) : _premintMass(id));
+  const events = rows.map((r) => {
+    const donorMass = currentMass(r.burned_token_id);
+    const recipientMassBefore = currentMass(r.recipient_token_id);
+    const mass = recipientMassBefore + donorMass;
+    massOf.set(r.recipient_token_id, mass);
+    const rankBefore = _rankForMass(recipientMassBefore);
+    const rank = _rankForMass(mass);
+    return {
+      burnedTokenId: r.burned_token_id,
+      recipientTokenId: r.recipient_token_id,
+      signer: r.signer,
+      txHash: r.tx_hash,
+      burnedAt: r.burned_at,           // unix ms
+      donorMass,
+      mass,                            // survivor's mass after this burn
+      rank,                            // 1..6
+      tier: _tierForRank(rank),        // Genesis..Biome
+      tierUp: rank > rankBefore,       // this burn crossed a tier boundary
+    };
+  });
+
+  return json(
+    { total: events.length, events: events.slice(-limit).reverse() },
+    { headers: { 'Cache-Control': 'public, max-age=30, must-revalidate' } },
+    origin
+  );
+}
+
+// ============================================================
 // WAITLIST — pre-mint signup
 // Two endpoints:
 //   POST /api/waitlist        — add a row {kind, value}
@@ -2322,6 +2373,11 @@ export default {
         // render fails silently.
         const id = path.slice('/api/admin/regen/'.length);
         return await handleAdminRegen(req, env, id, origin);
+      }
+      if (path === '/api/activity') {
+        // Public burn feed for /activity — no gate, no PII beyond what's
+        // already on-chain (signer + tx hash are public record anyway).
+        return await handleActivity(env, url, origin);
       }
       if (path === '/api/log') {
         // The log exposes the full burn history (donor/recipient/trait/

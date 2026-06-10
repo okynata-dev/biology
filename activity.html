@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="bioms-reveal" content="true">
+<title>Bioms — Activity</title>
+<meta name="description" content="Every burn in the Bioms Lab, recorded. Who burned what, when, and what the survivor became.">
+<link rel="canonical" href="https://thebioms.com/activity">
+<meta property="og:title" content="Bioms — Activity">
+<meta property="og:description" content="Every burn in the Lab, recorded. Nothing is reversible.">
+<meta property="og:image" content="https://thebioms.com/og-collage.png">
+<meta property="og:url" content="https://thebioms.com/activity">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@theBioms">
+<link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml">
+<link rel="stylesheet" href="/design.css?v=4">
+<style>
+  /* ============================================================
+     ACTIVITY — the public burn ledger.
+     Cream page, one quiet column. Each entry is a small record of
+     an irreversible act: donor (faded), survivor (alive), the
+     outcome, and a way to tell X about it.
+     ============================================================ */
+  body { margin: 0; }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 22px; }
+
+  .feed-head { padding: 72px 0 36px; }
+  .feed-head h1 {
+    font-size: clamp(34px, 6vw, 52px);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    margin: 0 0 14px;
+    font-weight: 650;
+  }
+  .feed-head p {
+    font-size: 16px; line-height: 1.55; color: var(--ink-2);
+    margin: 0; max-width: 48ch;
+  }
+  .feed-count {
+    margin-top: 18px; font-size: 13px; color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .feed-count strong { color: var(--ink); font-weight: 600; }
+
+  .feed { list-style: none; margin: 0 0 90px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+
+  .ev {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 18px;
+    align-items: center;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 18px;
+    padding: 16px 18px;
+  }
+  .ev.fresh { animation: ev-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  @keyframes ev-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* --- the pair: donor (gone) → survivor --- */
+  .ev-pair { display: flex; align-items: center; gap: 10px; }
+  .ev-thumb { text-align: center; }
+  .ev-thumb img {
+    width: 72px; height: 72px; display: block;
+    border-radius: 14px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+  }
+  .ev-thumb .lbl {
+    display: block; margin-top: 5px; font-size: 10.5px;
+    color: var(--ink-3); font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  .ev-thumb.gone img { filter: grayscale(1); opacity: 0.45; }
+  .ev-thumb.gone .lbl { text-decoration: line-through; text-decoration-color: rgba(28,26,22,0.35); }
+  .ev-arrow { color: var(--burn); font-size: 17px; line-height: 1; user-select: none; padding-bottom: 16px; }
+
+  /* --- the record --- */
+  .ev-body { min-width: 0; }
+  .ev-line { font-size: 15px; line-height: 1.45; margin: 0; }
+  .ev-line .nm { font-weight: 600; }
+  .ev-species {
+    margin: 3px 0 0; font-size: 11.5px; letter-spacing: 0.06em;
+    color: var(--ink-3); text-transform: uppercase;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ev-meta {
+    margin: 9px 0 0; display: flex; align-items: center; flex-wrap: wrap;
+    gap: 6px 10px; font-size: 12.5px; color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .ev-meta a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--rule); }
+  .ev-meta a:hover { color: var(--ink); border-bottom-color: var(--ink); }
+  .ev-tier {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2.5px 9px; border-radius: 999px;
+    border: 1px solid var(--rule); background: var(--bg);
+    font-size: 11.5px; color: var(--ink-2); letter-spacing: 0.02em;
+  }
+  .ev-tier.up { border-color: var(--burn); color: var(--burn); background: var(--burn-soft); }
+  .ev-tier .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* --- share --- */
+  .ev-share {
+    align-self: start;
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 13px; border-radius: 999px;
+    border: 1px solid var(--rule); background: transparent;
+    color: var(--ink-2); font-size: 12.5px; text-decoration: none;
+    white-space: nowrap; cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .ev-share:hover { color: var(--ink); border-color: var(--ink); text-decoration: none; }
+  .ev-share svg { width: 12px; height: 12px; display: block; }
+
+  .feed-status { padding: 60px 0 100px; text-align: center; color: var(--ink-3); font-size: 15px; }
+  .feed-status a { color: var(--ink); }
+
+  @media (max-width: 600px) {
+    .ev { grid-template-columns: 1fr; gap: 14px; }
+    .ev-pair { justify-content: flex-start; }
+    .ev-share { justify-self: start; }
+    .feed-head { padding: 52px 0 28px; }
+  }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+<nav>
+  <a class="brand" href="/" aria-label="Bioms — home">
+    <img class="brand-mark" src="/favicon.svg?v=3" alt="" width="18" height="18" decoding="async">
+    <span>Bioms</span>
+  </a>
+  <div class="nav-links">
+    <a href="/lab">Lab</a>
+    <a href="/activity" class="active">Activity</a>
+    <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
+      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    </a>
+  </div>
+</nav>
+
+<main id="main">
+  <div class="wrap">
+    <header class="feed-head">
+      <h1>Activity.</h1>
+      <p>Every burn in the Lab, recorded. One Biom gone, one carrying everything forward. Nothing here can be undone.</p>
+      <p class="feed-count" id="feedCount" hidden><strong id="feedTotal">0</strong> burns so far.</p>
+    </header>
+
+    <ol class="feed" id="feed" aria-label="Burn history" aria-live="polite"></ol>
+
+    <div class="feed-status" id="feedStatus">Loading the record…</div>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-meta">
+    <span>© 2026 Bioms</span>
+    <span class="sep">·</span>
+    <a href="/lab">Lab</a>
+    <span class="sep">·</span>
+    <a href="/explore">Traits</a>
+    <span class="sep">·</span>
+    <a href="/gallery">Gallery</a>
+    <span class="sep">·</span>
+    <a href="/view">View</a>
+    <span class="sep">·</span>
+    <a href="/make">Banners</a>
+    <span class="sep">·</span>
+    <a href="/manifesto">Manifesto</a>
+  </div>
+  <div class="footer-meta">
+    <a href="https://opensea.io/collection/bioms/overview" target="_blank" rel="noopener">OpenSea</a>
+    <span class="sep">·</span>
+    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
+    <span class="sep">·</span>
+    <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">by @timsouw</a>
+  </div>
+</footer>
+
+<!-- Engine is loaded only for species(): the per-token genus name that
+     makes each entry read as an organism, not a token id. -->
+<script src="specimen-engine.js?v=2"></script>
+<script>
+(function () {
+  'use strict';
+  const API = 'https://api.thebioms.com';
+  const THUMB = id => `https://pngs.thebioms.com/thumb/${String(id).padStart(5, '0')}.webp`;
+  const POLL_MS = 60000;
+
+  const feedEl   = document.getElementById('feed');
+  const statusEl = document.getElementById('feedStatus');
+  const countEl  = document.getElementById('feedCount');
+  const totalEl  = document.getElementById('feedTotal');
+
+  const speciesOf = seed => {
+    try { return window.BiomEngine.species(seed); } catch (_) { return ''; }
+  };
+  const shortAddr = a => (a && a.length > 10) ? a.slice(0, 6) + '…' + a.slice(-4) : (a || '');
+
+  function timeAgo(ms) {
+    const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+    if (s < 60)        return 'just now';
+    if (s < 3600)      return Math.floor(s / 60) + 'm ago';
+    if (s < 86400)     return Math.floor(s / 3600) + 'h ago';
+    if (s < 86400 * 30) return Math.floor(s / 86400) + 'd ago';
+    return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  function tweetUrl(ev) {
+    const donorSp = speciesOf(ev.burnedTokenId);
+    const survSp  = speciesOf(ev.recipientTokenId);
+    const text =
+      `${donorSp} — Biom #${ev.burnedTokenId} — was burned into ${survSp} — Biom #${ev.recipientTokenId}. ` +
+      `The survivor is now a ${ev.tier}, mass ${ev.mass}. Nothing is reversible.`;
+    return 'https://twitter.com/intent/tweet?' + new URLSearchParams({
+      text,
+      url: 'https://thebioms.com/activity',
+    }).toString();
+  }
+
+  // Build one entry. All content is created via textContent /
+  // setAttribute — nothing from the API touches innerHTML.
+  function renderEvent(ev, fresh) {
+    const li = document.createElement('li');
+    li.className = 'ev' + (fresh ? ' fresh' : '');
+    li.dataset.tx = ev.txHash;
+
+    // pair
+    const pair = document.createElement('div');
+    pair.className = 'ev-pair';
+    const mkThumb = (id, gone) => {
+      const t = document.createElement('div');
+      t.className = 'ev-thumb' + (gone ? ' gone' : '');
+      const img = document.createElement('img');
+      img.src = THUMB(id);
+      img.alt = (gone ? 'Burned Biom #' : 'Biom #') + id;
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      t.appendChild(img);
+      const lbl = document.createElement('span');
+      lbl.className = 'lbl';
+      lbl.textContent = '#' + id;
+      t.appendChild(lbl);
+      return t;
+    };
+    pair.appendChild(mkThumb(ev.burnedTokenId, true));
+    const arrow = document.createElement('span');
+    arrow.className = 'ev-arrow';
+    arrow.textContent = '→';
+    arrow.setAttribute('aria-hidden', 'true');
+    pair.appendChild(arrow);
+    pair.appendChild(mkThumb(ev.recipientTokenId, false));
+    li.appendChild(pair);
+
+    // record
+    const body = document.createElement('div');
+    body.className = 'ev-body';
+
+    const line = document.createElement('p');
+    line.className = 'ev-line';
+    const a = document.createElement('span'); a.className = 'nm'; a.textContent = 'Biom #' + ev.burnedTokenId;
+    const b = document.createElement('span'); b.className = 'nm'; b.textContent = 'Biom #' + ev.recipientTokenId;
+    line.appendChild(a);
+    line.appendChild(document.createTextNode(' was burned into '));
+    line.appendChild(b);
+    line.appendChild(document.createTextNode('.'));
+    li.appendChild(body);
+    body.appendChild(line);
+
+    const sp = document.createElement('p');
+    sp.className = 'ev-species';
+    sp.textContent = speciesOf(ev.burnedTokenId) + ' → ' + speciesOf(ev.recipientTokenId);
+    body.appendChild(sp);
+
+    const meta = document.createElement('div');
+    meta.className = 'ev-meta';
+
+    const tier = document.createElement('span');
+    tier.className = 'ev-tier' + (ev.tierUp ? ' up' : '');
+    const dot = document.createElement('span'); dot.className = 'dot';
+    tier.appendChild(dot);
+    tier.appendChild(document.createTextNode(
+      (ev.tierUp ? 'Now ' : '') + ev.tier + ' · mass ' + ev.mass
+    ));
+    meta.appendChild(tier);
+
+    const when = document.createElement('span');
+    when.textContent = timeAgo(ev.burnedAt);
+    when.title = new Date(ev.burnedAt).toUTCString();
+    meta.appendChild(when);
+
+    const by = document.createElement('span');
+    by.textContent = 'by ' + shortAddr(ev.signer);
+    meta.appendChild(by);
+
+    const tx = document.createElement('a');
+    tx.href = 'https://etherscan.io/tx/' + encodeURIComponent(ev.txHash);
+    tx.target = '_blank'; tx.rel = 'noopener';
+    tx.textContent = 'tx ↗';
+    meta.appendChild(tx);
+
+    body.appendChild(meta);
+
+    // share
+    const share = document.createElement('a');
+    share.className = 'ev-share';
+    share.href = tweetUrl(ev);
+    share.target = '_blank'; share.rel = 'noopener';
+    share.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+      '<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>' +
+      '<span>Share on X</span>';
+    li.appendChild(share);
+
+    return li;
+  }
+
+  const seen = new Set();
+  let firstLoad = true;
+
+  async function refresh() {
+    let data;
+    try {
+      const r = await fetch(API + '/api/activity?limit=100');
+      if (!r.ok) throw new Error('http ' + r.status);
+      data = await r.json();
+    } catch (e) {
+      if (firstLoad) statusEl.textContent = 'The record is unreachable right now. It will retry on its own.';
+      return;
+    }
+
+    const events = data.events || [];
+    totalEl.textContent = String(data.total || events.length);
+    countEl.hidden = false;
+
+    if (!events.length) {
+      statusEl.innerHTML = 'No burns yet. <a href="/lab">The Lab is open.</a>';
+      firstLoad = false;
+      return;
+    }
+    statusEl.textContent = '';
+    statusEl.style.display = 'none';
+
+    // events arrive newest-first; prepend unseen ones in reverse so the
+    // newest ends up on top and ordering survives partial overlaps.
+    const unseen = events.filter(ev => !seen.has(ev.txHash + ':' + ev.burnedTokenId));
+    for (let i = unseen.length - 1; i >= 0; i--) {
+      const ev = unseen[i];
+      seen.add(ev.txHash + ':' + ev.burnedTokenId);
+      feedEl.prepend(renderEvent(ev, !firstLoad));
+    }
+    firstLoad = false;
+  }
+
+  refresh();
+  setInterval(refresh, POLL_MS);
+})();
+</script>
+
+</body>
+</html>

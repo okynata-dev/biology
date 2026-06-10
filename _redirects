@@ -1,0 +1,12 @@
+# Cloudflare Pages — redirects. Evaluated BEFORE static assets, so these
+# win over the .html files still in the repo (kept for history/rollback).
+#
+# Post-mint retirement (2026-06-10): the mint is over, so the waitlist,
+# partner-application, and public-list surfaces are gone. Old links from
+# tweets/DMs land on the homepage instead of a stale signup form.
+/reserve        /   301
+/reserve.html   /   301
+/partners       /   301
+/partners.html  /   301
+/list           /   301
+/list.html      /   301
