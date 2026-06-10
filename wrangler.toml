@@ -87,6 +87,15 @@ bucket_name = "bioms-pngs"
 [browser]
 binding = "BROWSER"
 
+# ------------------------------------------------------------
+# Cron triggers — the X auto-poster (worker.js scheduled()).
+#   */5  — drip out untweeted burns from D1 (2 per tick, oldest first)
+#   Mon 09:00 UTC — weekly colony report (skipped when 0 burns/week)
+# Needs the four X_* secrets; without them scheduled() is a no-op.
+# ------------------------------------------------------------
+[triggers]
+crons = ["*/5 * * * *", "0 9 * * 1"]
+
 [vars]
 # Public config — fine to commit. Secrets go via `wrangler secret put`.
 CHAIN_ID = "1"

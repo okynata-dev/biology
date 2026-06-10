@@ -118,6 +118,16 @@ CREATE INDEX IF NOT EXISTS idx_partners_ts     ON partners(ts);
 CREATE INDEX IF NOT EXISTS idx_partners_status ON partners(status);
 CREATE INDEX IF NOT EXISTS idx_partners_iphash ON partners(ip_hash);
 
+-- X auto-poster dedup — one row per burn the bot has tweeted (or
+-- decided to skip: tweet_id 'backfill' for pre-bot history, 'duplicate'
+-- when X rejected identical text). PK mirrors burns: an event is
+-- tweeted at most once, ever.
+CREATE TABLE IF NOT EXISTS tweeted_burns (
+  burned_token_id  INTEGER PRIMARY KEY,
+  tweeted_at       INTEGER NOT NULL,    -- unix milliseconds
+  tweet_id         TEXT
+);
+
 -- Per-IP burn throttle (fail-open). Append-only; one row per burn attempt,
 -- counted over a 60s window in worker.js _ipRateOk(). The per-signer limit
 -- only sees successful burns, so this is what stops valid-signature spam

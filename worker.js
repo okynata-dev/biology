@@ -1979,6 +1979,134 @@ async function handleOgBurn(env, idStr) {
 }
 
 // ============================================================
+// X (TWITTER) AUTO-POSTER — cron-driven, write-only
+//
+// Every 5 min the scheduled() handler checks for burns that haven't
+// been tweeted yet and posts them from @theBioms (same copy as the
+// activity feed's share intent, so the /b/<id> card renders under the
+// tweet). Mondays it posts a colony report — skipped on quiet weeks.
+//
+// Auth is OAuth 1.0a user-context (app keys + @theBioms token pair,
+// all four as worker secrets). HMAC-SHA1 via WebCrypto — no deps.
+// Free X tier is write-only ~500 posts/month; at the current burn
+// rate that's orders of magnitude of headroom. Posted burns are
+// recorded in D1 (tweeted_burns) so retries never double-post.
+// ============================================================
+const _pctX = s => encodeURIComponent(s).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+
+async function _hmacSha1B64(key, msg) {
+  const k = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(msg));
+  return btoa(String.fromCharCode(...new Uint8Array(sig)));
+}
+
+function _xConfigured(env) {
+  return !!(env.X_API_KEY && env.X_API_SECRET && env.X_ACCESS_TOKEN && env.X_ACCESS_SECRET);
+}
+
+// Signed request against the X v2 API. JSON bodies are NOT part of the
+// OAuth1 signature base (only form bodies are), so the base string is
+// just method + url + oauth params.
+async function _xRequest(env, method, url, jsonBody) {
+  const oauth = {
+    oauth_consumer_key: env.X_API_KEY,
+    oauth_nonce: crypto.randomUUID().replace(/-/g, ''),
+    oauth_signature_method: 'HMAC-SHA1',
+    oauth_timestamp: String(Math.floor(Date.now() / 1000)),
+    oauth_token: env.X_ACCESS_TOKEN,
+    oauth_version: '1.0',
+  };
+  const baseParams = Object.keys(oauth).sort()
+    .map(k => `${_pctX(k)}=${_pctX(oauth[k])}`).join('&');
+  const base = [method.toUpperCase(), _pctX(url), _pctX(baseParams)].join('&');
+  const signingKey = `${_pctX(env.X_API_SECRET)}&${_pctX(env.X_ACCESS_SECRET)}`;
+  oauth.oauth_signature = await _hmacSha1B64(signingKey, base);
+  const header = 'OAuth ' + Object.keys(oauth).sort()
+    .map(k => `${_pctX(k)}="${_pctX(oauth[k])}"`).join(', ');
+  const r = await fetchWithTimeout(url, {
+    method: method.toUpperCase(),
+    headers: {
+      'Authorization': header,
+      'User-Agent': 'bioms-api-worker',
+      ...(jsonBody ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(jsonBody ? { body: JSON.stringify(jsonBody) } : {}),
+  });
+  const body = await r.json().catch(() => ({}));
+  return { status: r.status, body };
+}
+
+// Same copy as activity.html's share intent — one canonical voice.
+function _burnTweetText(burnedId, ev) {
+  return `${_pickName(burnedId)} — #${burnedId} → ${_pickName(ev.recipientId)} — #${ev.recipientId}\n` +
+    `─────\n` +
+    `The survivor is now a ${ev.tier} — rank ${ev.rank}.\n` +
+    `Nothing is reversible.\n` +
+    `https://thebioms.com/b/${burnedId}`;
+}
+
+async function _tweetNewBurns(env) {
+  if (!_xConfigured(env)) return;
+  // Oldest first, two per tick — a burst of burns drips out in order
+  // instead of flooding the timeline in one cron run.
+  const { results } = await env.DB.prepare(
+    `SELECT b.burned_token_id AS id FROM burns b
+       LEFT JOIN tweeted_burns t ON t.burned_token_id = b.burned_token_id
+      WHERE t.burned_token_id IS NULL
+      ORDER BY b.burned_at ASC LIMIT 2`
+  ).all();
+  for (const row of (results || [])) {
+    const ev = await _burnEventStats(env, row.id);
+    if (!ev) continue;
+    const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', {
+      text: _burnTweetText(row.id, ev),
+    });
+    const dup = r.status === 403 && /duplicate/i.test(JSON.stringify(r.body));
+    if (r.status === 201 || dup) {
+      await env.DB.prepare(
+        'INSERT INTO tweeted_burns (burned_token_id, tweeted_at, tweet_id) VALUES (?, ?, ?)'
+      ).bind(row.id, Date.now(), dup ? 'duplicate' : (r.body?.data?.id || null)).run();
+      console.log(`[x] burn ${row.id} ${dup ? 'was a duplicate' : 'tweeted: ' + r.body?.data?.id}`);
+    } else {
+      // Auth error / rate limit / outage — log and retry on the next
+      // tick. Do NOT mark as tweeted, do NOT keep hammering this run.
+      console.warn(`[x] burn ${row.id} post failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+      break;
+    }
+  }
+}
+
+async function _tweetWeeklySummary(env) {
+  if (!_xConfigured(env)) return;
+  const weekAgo = Date.now() - 7 * 86400000;
+  const tot = await env.DB.prepare('SELECT COUNT(*) AS n FROM burns').first();
+  const wk = await env.DB.prepare('SELECT COUNT(*) AS n FROM burns WHERE burned_at > ?').bind(weekAgo).first();
+  // Quiet week → no tweet. The restrained brand never posts filler.
+  if (!wk || wk.n === 0) {
+    console.log('[x] weekly summary skipped — no burns this week');
+    return;
+  }
+  const top = await env.DB.prepare(
+    'SELECT token_id, mass FROM token_state WHERE mass IS NOT NULL ORDER BY mass DESC LIMIT 1'
+  ).first();
+  let topLine = '';
+  if (top && top.mass > 1) {
+    const rank = _rankForMass(top.mass);
+    topLine = `The most evolved organism is ${_pickName(top.token_id)} — #${top.token_id}, a ${_tierForRank(rank)} of rank ${rank}.\n`;
+  }
+  const text =
+    `Colony report.\n` +
+    `${wk.n} ${wk.n === 1 ? 'burn' : 'burns'} this week — ${tot.n} ${tot.n === 1 ? 'Biom' : 'Bioms'} gone forever.\n` +
+    topLine +
+    `https://thebioms.com/activity`;
+  const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', { text });
+  if (r.status === 201) console.log(`[x] weekly summary tweeted: ${r.body?.data?.id}`);
+  else console.warn(`[x] weekly summary failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+}
+
+// ============================================================
 // WAITLIST — pre-mint signup
 // Two endpoints:
 //   POST /api/waitlist        — add a row {kind, value}
@@ -2691,6 +2819,17 @@ export default {
     } catch (e) {
       console.error('Worker exception:', e?.stack || e);
       return error('internal_error', 500, origin);
+    }
+  },
+
+  // Cron triggers (see wrangler.toml [triggers]):
+  //   */5 * * * *  — tweet any burns not yet posted
+  //   0 9 * * 1    — Monday colony report (16:00 GMT+7), skipped if quiet
+  async scheduled(event, env, ctx) {
+    if (event.cron === '0 9 * * 1') {
+      ctx.waitUntil(_tweetWeeklySummary(env).catch(e => console.warn('[x] weekly crash:', e?.message || e)));
+    } else {
+      ctx.waitUntil(_tweetNewBurns(env).catch(e => console.warn('[x] burns crash:', e?.message || e)));
     }
   },
 };
