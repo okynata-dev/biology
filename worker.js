@@ -981,8 +981,37 @@ async function handleBurn(req, env, ctx, origin) {
   const verdict = await verifyBurnTx(env, txHash, donorId, signerLc);
   if (!verdict.ok) return error('burn_tx_verification_failed:' + verdict.reason, 400, origin);
 
-  // 7. Compute absorber's new state. The recipient absorbs ALL of the
-  //    donor's effective traits (base + any prior mutations donor had).
+  // 7+8. Compute the merge and persist — shared with the admin replay
+  // path (_persistBurnMerge), so a manually-replayed burn produces a
+  // byte-identical state to one that came through the live flow.
+  const merge = await _persistBurnMerge(env, ctx, donorId, recipientId, signerLc, txHash, {
+    nonce, ts: Date.now(),
+  });
+  if (!merge.ok) return error(merge.error, merge.status, origin);
+
+  // Survivor's new mass + derived tier level (1-6). Mirrors buildMetadata +
+  // lab.html so the Lab's post-burn state matches what OpenSea will show.
+  return json({
+    ok: true,
+    burnedTokenId: donorId,
+    recipientTokenId: recipientId,
+    txHash,
+    blockNumber: verdict.blockNumber ? String(verdict.blockNumber) : null,
+    absorbedSeeds: merge.absorbedSeeds,
+    mass: merge.mass,
+    rank: merge.rank,
+  }, {}, origin);
+}
+
+// The post-verification half of a burn: merge donor's effective traits
+// into the recipient, persist atomically, fire the re-render + OpenSea
+// refresh. Extracted from handleBurn VERBATIM so the admin replay path
+// (compensating burns that the live flow failed to register) produces
+// exactly the state the normal path would have.
+// opts: { ts }            — burn timestamp ms (chain time for replays)
+//       { nonce }         — present only on the live path (adds the
+//                           used_nonces row to the atomic batch)
+async function _persistBurnMerge(env, ctx, donorId, recipientId, signerLc, txHash, opts = {}) {
   const donorBase = generateBaseTraits(donorId);
   const donorData = await loadTokenState(env, donorId);
   const donorEffectivePalette = donorData.mutations.palette || donorBase.palette;
@@ -1032,15 +1061,18 @@ async function handleBurn(req, env, ctx, origin) {
   const newMass = recipientMass + donorMass;
   const newRank = _rankForMass(newMass);
 
-  const ts = Date.now();
+  const ts = opts.ts || Date.now();
   const tsSec = Math.floor(ts / 1000);
 
-  // 8. Persist as atomic batch
+  // Persist as atomic batch
   try {
-    await env.DB.batch([
-      env.DB.prepare(
+    const stmts = [];
+    if (opts.nonce != null) {
+      stmts.push(env.DB.prepare(
         'INSERT INTO used_nonces (signer, nonce, used_at) VALUES (?, ?, ?)'
-      ).bind(signerLc, nonce, tsSec),
+      ).bind(signerLc, opts.nonce, tsSec));
+    }
+    stmts.push(
       env.DB.prepare(
         'INSERT INTO burns (burned_token_id, recipient_token_id, signer, tx_hash, burned_at) VALUES (?, ?, ?, ?, ?)'
       ).bind(donorId, recipientId, signerLc, txHash, ts),
@@ -1066,14 +1098,15 @@ async function handleBurn(req, env, ctx, origin) {
         newMass,
         tsSec
       ),
-    ]);
+    );
+    await env.DB.batch(stmts);
   } catch (e) {
     if (String(e?.message || '').toLowerCase().includes('unique')) {
       // burns PK or used_nonces PK violation — concurrent burn race
-      return error('already_burned_or_nonce_used', 409, origin);
+      return { ok: false, error: 'already_burned_or_nonce_used', status: 409 };
     }
     console.error('Burn batch failed:', e?.stack || e);
-    return error('persist_failed', 500, origin);
+    return { ok: false, error: 'persist_failed', status: 500 };
   }
 
   // Best-effort: refresh OpenSea metadata for the recipient (donor's
@@ -1097,17 +1130,53 @@ async function handleBurn(req, env, ctx, origin) {
     ctx.waitUntil(renderTokenMaster(env, recipientId).catch(() => {}));
   }
 
-  // Survivor's new mass + derived tier level (1-6). Mirrors buildMetadata +
-  // lab.html so the Lab's post-burn state matches what OpenSea will show.
+  return { ok: true, mass: newMass, rank: newRank, absorbedSeeds };
+}
+
+// === Admin: replay a burn that happened on-chain but never reached
+// the API (lab flow died after the tx, AA-wallet timeout, etc.).
+// POST /api/admin/replay-burn   x-admin-token: <secret>
+// body: { donorId, recipientId, signer, txHash, burnedAtMs }
+// Verifies the tx really burned the donor from that signer, checks the
+// signer still owns the recipient, then runs the EXACT same merge the
+// live path runs. No signature/nonce — the admin token is the authority.
+async function handleAdminReplayBurn(req, env, ctx, origin) {
+  if (!env.ADMIN_TOKEN) return error('admin_token_not_set', 503, origin);
+  const token = req.headers.get('x-admin-token') || '';
+  if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('unauthorized', 401, origin);
+
+  let body;
+  try { body = await req.json(); } catch (_) { return error('bad_json', 400, origin); }
+  const donorId = parseInt(body.donorId, 10);
+  const recipientId = parseInt(body.recipientId, 10);
+  const signerLc = String(body.signer || '').toLowerCase();
+  const txHash = String(body.txHash || '');
+  const burnedAtMs = parseInt(body.burnedAtMs, 10) || Date.now();
+  const maxId = maxTokenId(env);
+  if (!Number.isFinite(donorId) || donorId < 1 || donorId > maxId) return error('bad_donor', 400, origin);
+  if (!Number.isFinite(recipientId) || recipientId < 1 || recipientId > maxId || recipientId === donorId) {
+    return error('bad_recipient', 400, origin);
+  }
+  if (!/^0x[a-fA-F0-9]{40}$/.test(signerLc)) return error('bad_signer', 400, origin);
+
+  const burnRow = await env.DB.prepare(
+    'SELECT tx_hash FROM burns WHERE burned_token_id = ?'
+  ).bind(donorId).first();
+  if (burnRow) return error('already_recorded', 409, origin);
+
+  const recOwner = await ownerOf(env, recipientId);
+  if (!recOwner) return error('ownerOf_failed', 502, origin);
+  if (recOwner !== signerLc) return error('not_recipient_owner', 403, origin);
+
+  const verdict = await verifyBurnTx(env, txHash, donorId, signerLc);
+  if (!verdict.ok) return error('burn_tx_verification_failed:' + verdict.reason, 400, origin);
+
+  const merge = await _persistBurnMerge(env, ctx, donorId, recipientId, signerLc, txHash, { ts: burnedAtMs });
+  if (!merge.ok) return error(merge.error, merge.status, origin);
   return json({
-    ok: true,
-    burnedTokenId: donorId,
-    recipientTokenId: recipientId,
-    txHash,
-    blockNumber: verdict.blockNumber ? String(verdict.blockNumber) : null,
-    absorbedSeeds,
-    mass: newMass,
-    rank: newRank,
+    ok: true, replayed: true,
+    burnedTokenId: donorId, recipientTokenId: recipientId,
+    mass: merge.mass, rank: merge.rank, absorbedSeeds: merge.absorbedSeeds,
   }, {}, origin);
 }
 
@@ -2006,10 +2075,12 @@ function _xConfigured(env) {
   return !!(env.X_API_KEY && env.X_API_SECRET && env.X_ACCESS_TOKEN && env.X_ACCESS_SECRET);
 }
 
-// Signed request against the X v2 API. JSON bodies are NOT part of the
-// OAuth1 signature base (only form bodies are), so the base string is
-// just method + url + oauth params.
-async function _xRequest(env, method, url, jsonBody) {
+// Signed request against the X v2 API.
+// opts: { json } JSON body | { form } multipart FormData | { query } URL params.
+// OAuth1 base string covers oauth params + query params. JSON and
+// multipart bodies are NOT signed (per spec only urlencoded forms are,
+// and we never send those).
+async function _xRequest(env, method, url, opts = {}) {
   const oauth = {
     oauth_consumer_key: env.X_API_KEY,
     oauth_nonce: crypto.randomUUID().replace(/-/g, ''),
@@ -2018,33 +2089,101 @@ async function _xRequest(env, method, url, jsonBody) {
     oauth_token: env.X_ACCESS_TOKEN,
     oauth_version: '1.0',
   };
-  const baseParams = Object.keys(oauth).sort()
-    .map(k => `${_pctX(k)}=${_pctX(oauth[k])}`).join('&');
+  const sigParams = { ...oauth, ...(opts.query || {}) };
+  const baseParams = Object.keys(sigParams).sort()
+    .map(k => `${_pctX(k)}=${_pctX(sigParams[k])}`).join('&');
   const base = [method.toUpperCase(), _pctX(url), _pctX(baseParams)].join('&');
   const signingKey = `${_pctX(env.X_API_SECRET)}&${_pctX(env.X_ACCESS_SECRET)}`;
   oauth.oauth_signature = await _hmacSha1B64(signingKey, base);
   const header = 'OAuth ' + Object.keys(oauth).sort()
     .map(k => `${_pctX(k)}="${_pctX(oauth[k])}"`).join(', ');
-  const r = await fetchWithTimeout(url, {
+  const fullUrl = opts.query
+    ? url + '?' + Object.keys(opts.query).map(k => `${_pctX(k)}=${_pctX(opts.query[k])}`).join('&')
+    : url;
+  const r = await fetchWithTimeout(fullUrl, {
     method: method.toUpperCase(),
     headers: {
       'Authorization': header,
       'User-Agent': 'bioms-api-worker',
-      ...(jsonBody ? { 'Content-Type': 'application/json' } : {}),
+      // multipart: let fetch set the boundary itself
+      ...(opts.json ? { 'Content-Type': 'application/json' } : {}),
     },
-    ...(jsonBody ? { body: JSON.stringify(jsonBody) } : {}),
-  });
+    ...(opts.json ? { body: JSON.stringify(opts.json) } : {}),
+    ...(opts.form ? { body: opts.form } : {}),
+  }, 30000);
   const body = await r.json().catch(() => ({}));
   return { status: r.status, body };
 }
 
+// Chunked media upload (initialize → append ×N → finalize → poll).
+// v2 paths: POST /2/media/upload/initialize (JSON), POST
+// /2/media/upload/{id}/append (multipart), POST
+// /2/media/upload/{id}/finalize. Returns the media_id string, or null.
+// Our 16s 1080p loops are 1-3MB — a handful of 1MB segments.
+async function _xUploadMedia(env, bytes, mediaType, category) {
+  const BASE = 'https://api.x.com/2/media/upload';
+  const total = bytes.byteLength;
+
+  const ir = await _xRequest(env, 'POST', `${BASE}/initialize`, {
+    json: { media_type: mediaType, total_bytes: total, media_category: category },
+  });
+  const mediaId = ir.body?.data?.id;
+  if (!mediaId) {
+    console.warn(`[x] media initialize failed: ${ir.status} ${JSON.stringify(ir.body).slice(0, 200)}`);
+    return null;
+  }
+
+  const CHUNK = 1024 * 1024;
+  for (let seg = 0; seg * CHUNK < total; seg++) {
+    const slice = bytes.slice(seg * CHUNK, Math.min((seg + 1) * CHUNK, total));
+    const f = new FormData();
+    f.set('segment_index', String(seg));
+    f.set('media', new Blob([slice]), 'chunk');
+    const r = await _xRequest(env, 'POST', `${BASE}/${mediaId}/append`, { form: f });
+    if (r.status >= 300) {
+      console.warn(`[x] media append ${seg} failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+      return null;
+    }
+  }
+
+  const fr = await _xRequest(env, 'POST', `${BASE}/${mediaId}/finalize`, {});
+  if (fr.status >= 300) {
+    console.warn(`[x] media finalize failed: ${fr.status} ${JSON.stringify(fr.body).slice(0, 200)}`);
+    return null;
+  }
+  let info = fr.body?.data?.processing_info || fr.body?.processing_info;
+  // Videos process async; poll until X says succeeded (cap ~25s).
+  let waited = 0;
+  while (info && info.state && info.state !== 'succeeded') {
+    if (info.state === 'failed') {
+      console.warn(`[x] media processing failed: ${JSON.stringify(info).slice(0, 200)}`);
+      return null;
+    }
+    const wait = Math.min((info.check_after_secs || 2) * 1000, 5000);
+    if ((waited += wait) > 25000) {
+      console.warn('[x] media processing timeout');
+      return null;
+    }
+    await new Promise(res => setTimeout(res, wait));
+    // Status endpoint shape varies between doc versions — try the
+    // command-style query first, fall back to media_id alone.
+    let sr = await _xRequest(env, 'GET', BASE, { query: { command: 'STATUS', media_id: mediaId } });
+    if (sr.status >= 400) {
+      sr = await _xRequest(env, 'GET', BASE, { query: { media_id: mediaId } });
+    }
+    info = sr.body?.data?.processing_info || sr.body?.processing_info;
+  }
+  return mediaId;
+}
+
 // Same copy as activity.html's share intent — one canonical voice.
+// NO URL in the text: the composed card is attached as native media,
+// and X prices link-posts at $0.20 vs $0.015 plain.
 function _burnTweetText(burnedId, ev) {
   return `${_pickName(burnedId)} — #${burnedId} → ${_pickName(ev.recipientId)} — #${ev.recipientId}\n` +
     `─────\n` +
     `The survivor is now a ${ev.tier} — rank ${ev.rank}.\n` +
-    `Nothing is reversible.\n` +
-    `https://thebioms.com/b/${burnedId}`;
+    `Nothing is reversible.`;
 }
 
 async function _tweetNewBurns(env) {
@@ -2060,8 +2199,27 @@ async function _tweetNewBurns(env) {
   for (const row of (results || [])) {
     const ev = await _burnEventStats(env, row.id);
     if (!ev) continue;
+    // Attach the composed donor→survivor card natively (no URL in the
+    // text — X bills $0.20 for posts with links vs $0.015 without, and
+    // the card carries everything anyway). Falls back to text-only if
+    // the card can't be fetched or uploaded.
+    let mediaId = null;
+    try {
+      const card = await ensureBurnOgImage(env, row.id);
+      if (card.ok) {
+        const bytes = card.body instanceof ArrayBuffer
+          ? card.body
+          : await new Response(card.body).arrayBuffer();
+        mediaId = await _xUploadMedia(env, bytes, 'image/png', 'tweet_image');
+      }
+    } catch (e) {
+      console.warn(`[x] burn ${row.id} media prep failed:`, e?.message || e);
+    }
     const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', {
-      text: _burnTweetText(row.id, ev),
+      json: {
+        text: _burnTweetText(row.id, ev),
+        ...(mediaId ? { media: { media_ids: [mediaId] } } : {}),
+      },
     });
     const dup = r.status === 403 && /duplicate/i.test(JSON.stringify(r.body));
     if (r.status === 201 || dup) {
@@ -2099,11 +2257,91 @@ async function _tweetWeeklySummary(env) {
   const text =
     `Colony report.\n` +
     `${wk.n} ${wk.n === 1 ? 'burn' : 'burns'} this week — ${tot.n} ${tot.n === 1 ? 'Biom' : 'Bioms'} gone forever.\n` +
-    topLine +
-    `https://thebioms.com/activity`;
-  const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', { text });
+    topLine.trimEnd();
+  // Media: the most evolved organism's current master render.
+  let mediaId = null;
+  if (top) {
+    try {
+      const obj = await env.PNGS.get(`preview/${String(top.token_id).padStart(5, '0')}.webp`);
+      if (obj) {
+        mediaId = await _xUploadMedia(env, await obj.arrayBuffer(), 'image/webp', 'tweet_image');
+      }
+    } catch (_) {}
+  }
+  const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', {
+    json: { text, ...(mediaId ? { media: { media_ids: [mediaId] } } : {}) },
+  });
   if (r.status === 201) console.log(`[x] weekly summary tweeted: ${r.body?.data?.id}`);
   else console.warn(`[x] weekly summary failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+}
+
+// ============================================================
+// GM POSTS — every 8h (00/08/16 UTC = 07/15/23 GMT+7), one line
+// from the audited pool + the 16s looping MP4 of a random Biom
+// that is still alive (never burned). bot_state guards against
+// double-posting if a cron tick retries.
+// ============================================================
+const GM_LINES = [
+  'gm.',
+  'gm. the colony persists.',
+  'gm from {S} — #{N}.',
+  'gm. {S} — #{N} — is awake.',
+  'gm. the dish is warm.',
+  'gm. cells divide, time passes.',
+  'gm. another rotation of the dish.',
+  'gm. {S} survived the night.',
+  'gm. microscopy hour.',
+  'gm. life at 400× magnification.',
+];
+
+async function _botStateGet(env, key) {
+  const row = await env.DB.prepare('SELECT value FROM bot_state WHERE key = ?').bind(key).first();
+  return row ? row.value : null;
+}
+async function _botStateSet(env, key, value) {
+  await env.DB.prepare(
+    'INSERT INTO bot_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+  ).bind(key, String(value)).run();
+}
+
+async function _postGm(env, force = false) {
+  if (!_xConfigured(env)) return { ok: false, reason: 'not_configured' };
+  // Idempotency: skip if a gm went out in the last 7 hours (cron is 8h).
+  if (!force) {
+    const last = parseInt(await _botStateGet(env, 'last_gm_at') || '0', 10);
+    if (Date.now() - last < 7 * 3600000) return { ok: false, reason: 'too_soon' };
+  }
+  // Random living Biom whose loop exists in R2. Burned ids are few —
+  // load once, then roll.
+  const { results } = await env.DB.prepare('SELECT burned_token_id AS id FROM burns').all();
+  const burned = new Set((results || []).map(r => r.id));
+  const maxId = maxTokenId(env);
+  let seed = null, video = null;
+  for (let tries = 0; tries < 6 && !video; tries++) {
+    const cand = 1 + Math.floor(Math.random() * maxId);
+    if (burned.has(cand)) continue;
+    const obj = await env.PNGS.get(`video/${String(cand).padStart(5, '0')}.mp4`);
+    if (obj) { seed = cand; video = obj; }
+  }
+  if (!video) return { ok: false, reason: 'no_video_found' };
+
+  const line = GM_LINES[Math.floor(Math.random() * GM_LINES.length)]
+    .replace('{S}', _pickName(seed))
+    .replace('{N}', String(seed));
+
+  const mediaId = await _xUploadMedia(env, await video.arrayBuffer(), 'video/mp4', 'tweet_video');
+  if (!mediaId) return { ok: false, reason: 'media_upload_failed' };
+
+  const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', {
+    json: { text: line, media: { media_ids: [mediaId] } },
+  });
+  if (r.status !== 201) {
+    console.warn(`[x] gm failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+    return { ok: false, reason: `post_${r.status}` };
+  }
+  await _botStateSet(env, 'last_gm_at', Date.now());
+  console.log(`[x] gm tweeted: ${r.body?.data?.id} (Biom #${seed})`);
+  return { ok: true, tweetId: r.body?.data?.id, seed, line };
 }
 
 // ============================================================
@@ -2770,6 +3008,23 @@ export default {
         const ghStatus = await _dispatchSurvivorVideoRefresh(env, id);
         return json({ ok: ghStatus === 204, ghStatus, tokenId: id }, {}, origin);
       }
+      if (path === '/api/_tmp-gm-test-r8d2' && req.method === 'POST') {
+        // TEMPORARY — fire one gm post to verify the media pipeline, removed after.
+        if (url.searchParams.get('diag') === '1') {
+          // Raw initialize probe — surface X's actual error body.
+          const r = await _xRequest(env, 'POST', 'https://api.x.com/2/media/upload/initialize', {
+            json: { media_type: 'video/mp4', total_bytes: 1000000, media_category: 'tweet_video' },
+          });
+          return json({ initStatus: r.status, initBody: r.body }, {}, origin);
+        }
+        const result = await _postGm(env, true);
+        return json(result, {}, origin);
+      }
+      if (path === '/api/admin/replay-burn' && req.method === 'POST') {
+        // Register a burn that happened on-chain but never reached the
+        // API (compensations). Admin-gated; verifies the tx on-chain.
+        return await handleAdminReplayBurn(req, env, ctx, origin);
+      }
       if (path.startsWith('/api/admin/regen/') && req.method === 'POST') {
         // POST /api/admin/regen/<tokenId>   x-admin-token: <secret>
         // Manually trigger renderTokenMaster for a single token.
@@ -2823,11 +3078,14 @@ export default {
   },
 
   // Cron triggers (see wrangler.toml [triggers]):
-  //   */5 * * * *  — tweet any burns not yet posted
-  //   0 9 * * 1    — Monday colony report (16:00 GMT+7), skipped if quiet
+  //   */5 * * * *     — tweet any burns not yet posted
+  //   0 0,8,16 * * *  — gm with a random living Biom's loop (07/15/23 GMT+7)
+  //   0 9 * * 1       — Monday colony report (16:00 GMT+7), skipped if quiet
   async scheduled(event, env, ctx) {
     if (event.cron === '0 9 * * 1') {
       ctx.waitUntil(_tweetWeeklySummary(env).catch(e => console.warn('[x] weekly crash:', e?.message || e)));
+    } else if (event.cron === '0 0,8,16 * * *') {
+      ctx.waitUntil(_postGm(env).catch(e => console.warn('[x] gm crash:', e?.message || e)));
     } else {
       ctx.waitUntil(_tweetNewBurns(env).catch(e => console.warn('[x] burns crash:', e?.message || e)));
     }
