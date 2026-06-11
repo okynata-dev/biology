@@ -128,6 +128,13 @@ CREATE TABLE IF NOT EXISTS tweeted_burns (
   tweet_id         TEXT
 );
 
+-- X bot scheduler state — tiny KV (last_gm_at, sale cursors, etc.)
+-- so cron retries never double-post.
+CREATE TABLE IF NOT EXISTS bot_state (
+  key    TEXT PRIMARY KEY,
+  value  TEXT NOT NULL
+);
+
 -- Per-IP burn throttle (fail-open). Append-only; one row per burn attempt,
 -- counted over a 60s window in worker.js _ipRateOk(). The per-signer limit
 -- only sees successful burns, so this is what stops valid-signature spam
