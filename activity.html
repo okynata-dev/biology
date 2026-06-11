@@ -248,7 +248,7 @@
     const survSp  = speciesOf(ev.recipientTokenId);
     const text =
       `${donorSp} — #${ev.burnedTokenId} → ${survSp} — #${ev.recipientTokenId}\n` +
-      `─────\n` +
+      `\n` +
       `The survivor is now a ${ev.tier} — rank ${ev.rank}.\n` +
       `Nothing is reversible.`;
     return 'https://twitter.com/intent/tweet?' + new URLSearchParams({

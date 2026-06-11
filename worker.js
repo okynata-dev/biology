@@ -2181,7 +2181,7 @@ async function _xUploadMedia(env, bytes, mediaType, category) {
 // and X prices link-posts at $0.20 vs $0.015 plain.
 function _burnTweetText(burnedId, ev) {
   return `${_pickName(burnedId)} — #${burnedId} → ${_pickName(ev.recipientId)} — #${ev.recipientId}\n` +
-    `─────\n` +
+    `\n` +
     `The survivor is now a ${ev.tier} — rank ${ev.rank}.\n` +
     `Nothing is reversible.`;
 }
@@ -2282,16 +2282,16 @@ async function _tweetWeeklySummary(env) {
 // double-posting if a cron tick retries.
 // ============================================================
 const GM_LINES = [
-  'gm.',
-  'gm. the colony persists.',
-  'gm from {S} — #{N}.',
-  'gm. {S} — #{N} — is awake.',
-  'gm. the dish is warm.',
-  'gm. cells divide, time passes.',
-  'gm. another rotation of the dish.',
-  'gm. {S} survived the night.',
-  'gm. microscopy hour.',
-  'gm. life at 400× magnification.',
+  'GBioms.',
+  'GBioms.\n\nThe colony persists.',
+  'GBioms.\n\n{S} — #{N}.',
+  'GBioms.\n\n{S} — #{N} — is awake.',
+  'GBioms.\n\nThe dish is warm.',
+  'GBioms.\n\nCells divide, time passes.',
+  'GBioms.\n\nAnother rotation of the dish.',
+  'GBioms.\n\n{S} survived the night.',
+  'GBioms.\n\nMicroscopy hour.',
+  'GBioms.\n\nLife at 400× magnification.',
 ];
 
 async function _botStateGet(env, key) {
