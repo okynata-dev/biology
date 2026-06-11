@@ -4007,6 +4007,24 @@ const Wallet = {
     onProgress?.('signing');
     const signature = await this.signBurn(donorId, recipientId, nonce, deadline);
 
+    // === Intent-first safety net ===
+    // BEFORE the irreversible tx, register the signed intent server-side
+    // and stash it locally. If this tab dies, the wallet returns a
+    // userOp hash that never resolves (AA wallets), or the final POST
+    // fails, the worker's 5-min chain sweeper still finds the on-chain
+    // burn, matches this intent, and completes the merge. The survivor
+    // can no longer silently lose the donor's mass.
+    const intentBody = { donorId, recipientId, nonce, deadline, address: this.address, signature };
+    try {
+      localStorage.setItem('bioms-pending-burn', JSON.stringify({ ...intentBody, ts: Date.now() }));
+    } catch (_) {}
+    try {
+      await fetch(`${WORKER_URL}/api/burn-intent`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(intentBody),
+      });
+    } catch (_) { /* sweeper is the backstop; don't block the burn on this */ }
+
     onProgress?.('sending');
     const txHash = await this.sendBurnTx(donorId);
 
@@ -4028,9 +4046,38 @@ const Wallet = {
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    // Registered cleanly — clear the local pending marker.
+    try { localStorage.removeItem('bioms-pending-burn'); } catch (_) {}
     return data; // { ok, burnedTokenId, recipientTokenId, txHash, absorbedSeeds, rank }
   },
+
+  // On load: if a previous session left a pending burn (tab closed mid-
+  // flow), re-post the intent so the sweeper definitely has it. Cheap,
+  // idempotent (worker upserts by donor / no-ops if already burned).
+  async recoverPendingBurn() {
+    let pending;
+    try { pending = JSON.parse(localStorage.getItem('bioms-pending-burn') || 'null'); } catch (_) { return; }
+    if (!pending || !pending.signature) return;
+    // Stale after 24h — the sweeper has long since handled or it expired.
+    if (Date.now() - (pending.ts || 0) > 86400000) {
+      try { localStorage.removeItem('bioms-pending-burn'); } catch (_) {}
+      return;
+    }
+    try {
+      await fetch(`${WORKER_URL}/api/burn-intent`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          donorId: pending.donorId, recipientId: pending.recipientId,
+          nonce: pending.nonce, deadline: pending.deadline,
+          address: pending.address, signature: pending.signature,
+        }),
+      });
+    } catch (_) {}
+    // One-shot: the burn either registered or the deadline passed.
+    try { localStorage.removeItem('bioms-pending-burn'); } catch (_) {}
+  },
 };
+try { Wallet.recoverPendingBurn(); } catch (_) {}
 
 // EIP-55 checksum (compact in-page implementation — avoids viem on the client)
 function toChecksum(addr) {

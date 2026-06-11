@@ -128,11 +128,37 @@ CREATE TABLE IF NOT EXISTS tweeted_burns (
   tweet_id         TEXT
 );
 
--- X bot scheduler state — tiny KV (last_gm_at, sale cursors, etc.)
--- so cron retries never double-post.
+-- X bot scheduler state — tiny KV (last_gm_at, sale cursors,
+-- burn_sweep_block, etc.) so cron retries never double-post.
 CREATE TABLE IF NOT EXISTS bot_state (
   key    TEXT PRIMARY KEY,
   value  TEXT NOT NULL
+);
+
+-- Intent-first burn protection. The Lab POSTs a SIGNED intent here
+-- BEFORE sending the burn tx; the 5-min chain sweeper (worker.js
+-- _sweepChainBurns) uses it to recover the merge if the client dies
+-- after the burn lands on-chain. Keyed by donor (a token burns once);
+-- rows are deleted once the burn is registered in `burns`.
+CREATE TABLE IF NOT EXISTS burn_intents (
+  donor_token_id     INTEGER PRIMARY KEY,
+  recipient_token_id INTEGER NOT NULL,
+  signer             TEXT NOT NULL,     -- lowercased
+  nonce              INTEGER NOT NULL,
+  deadline           INTEGER NOT NULL,  -- unix ms
+  signature          TEXT NOT NULL,     -- EIP-712 sig (re-verifiable)
+  created_at         INTEGER NOT NULL   -- unix ms
+);
+
+-- Wild burns — tokens burned OUTSIDE the Lab (Etherscan/OpenSea burn
+-- button), so no mass transferred. The sweeper records them here when a
+-- chain burn has no matching intent; the activity feed shows them as
+-- "burned outside the Lab" and alive-counts subtract them.
+CREATE TABLE IF NOT EXISTS wild_burns (
+  burned_token_id  INTEGER PRIMARY KEY,
+  signer           TEXT NOT NULL,
+  tx_hash          TEXT NOT NULL,
+  burned_at        INTEGER NOT NULL     -- unix ms (when the sweeper saw it)
 );
 
 -- Per-IP burn throttle (fail-open). Append-only; one row per burn attempt,

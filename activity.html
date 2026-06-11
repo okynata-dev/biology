@@ -58,6 +58,10 @@
     padding: 16px 18px;
   }
   .ev.fresh { animation: ev-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  /* Wild burn — no survivor, no share. Two columns (tile + record),
+     a hair dimmer so it reads as a loss against the normal events. */
+  .ev-wild { grid-template-columns: auto 1fr; opacity: 0.82; }
+  .ev-wild .ev-line { color: var(--ink-2); }
   @keyframes ev-in {
     from { opacity: 0; transform: translateY(-8px); }
     to   { opacity: 1; transform: none; }
@@ -260,6 +264,7 @@
   // Build one entry. All content is created via textContent /
   // setAttribute — nothing from the API touches innerHTML.
   function renderEvent(ev, fresh) {
+    if (ev.wild) return renderWildEvent(ev, fresh);
     const li = document.createElement('li');
     li.className = 'ev' + (fresh ? ' fresh' : '');
     li.dataset.tx = ev.txHash;
@@ -378,6 +383,67 @@
       '<path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>' +
       '<span>Share on X</span>';
     li.appendChild(share);
+
+    return li;
+  }
+
+  // Wild burn — a Biom burned outside the Lab (Etherscan/OpenSea), so no
+  // mass transferred. One faded tile, an honest line, no survivor, no
+  // share button. The colony lost it for nothing.
+  function renderWildEvent(ev, fresh) {
+    const li = document.createElement('li');
+    li.className = 'ev ev-wild' + (fresh ? ' fresh' : '');
+    li.dataset.tx = ev.txHash;
+
+    const pair = document.createElement('div');
+    pair.className = 'ev-pair';
+    const t = document.createElement('div');
+    t.className = 'ev-thumb gone';
+    const img = document.createElement('img');
+    img.src = THUMB(ev.burnedTokenId);
+    img.alt = 'Burned Biom #' + ev.burnedTokenId;
+    img.loading = 'lazy'; img.decoding = 'async';
+    const lbl = document.createElement('span');
+    lbl.className = 'lbl'; lbl.textContent = '#' + ev.burnedTokenId;
+    t.appendChild(img); t.appendChild(lbl);
+    pair.appendChild(t);
+    li.appendChild(pair);
+
+    const body = document.createElement('div');
+    body.className = 'ev-body';
+    const line = document.createElement('p');
+    line.className = 'ev-line';
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = 'Biom #' + ev.burnedTokenId;
+    line.appendChild(nm);
+    line.appendChild(document.createTextNode(' was burned outside the Lab. Its mass is lost.'));
+    body.appendChild(line);
+
+    const sp = document.createElement('p');
+    sp.className = 'ev-species';
+    sp.textContent = speciesOf(ev.burnedTokenId) + ' — gone';
+    body.appendChild(sp);
+
+    const meta = document.createElement('div');
+    meta.className = 'ev-meta';
+    const grp = document.createElement('span');
+    grp.className = 'grp';
+    const when = document.createElement('span');
+    when.textContent = timeAgo(ev.burnedAt);
+    when.title = new Date(ev.burnedAt).toUTCString();
+    grp.appendChild(when);
+    const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '·'; sep.setAttribute('aria-hidden','true');
+    grp.appendChild(sep);
+    const by = document.createElement('span'); by.textContent = 'by ' + shortAddr(ev.signer);
+    grp.appendChild(by);
+    const sep2 = document.createElement('span'); sep2.className = 'sep'; sep2.textContent = '·'; sep2.setAttribute('aria-hidden','true');
+    grp.appendChild(sep2);
+    const tx = document.createElement('a');
+    tx.href = 'https://etherscan.io/tx/' + encodeURIComponent(ev.txHash);
+    tx.target = '_blank'; tx.rel = 'noopener'; tx.textContent = 'tx ↗';
+    grp.appendChild(tx);
+    meta.appendChild(grp);
+    body.appendChild(meta);
+    li.appendChild(body);
 
     return li;
   }

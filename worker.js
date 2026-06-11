@@ -1180,6 +1180,165 @@ async function handleAdminReplayBurn(req, env, ctx, origin) {
   }, {}, origin);
 }
 
+// ============================================================
+// INTENT-FIRST BURN PROTECTION
+//
+// The failure that lost bubbs.eth's mass: the Lab burns on-chain FIRST,
+// then POSTs /api/burn to register the merge. If the tab dies or an
+// AA-wallet's receipt poll times out in between, the burn is permanent
+// but the survivor never gets the mass.
+//
+// Fix: the client records its SIGNED INTENT (donor → recipient) here,
+// BEFORE sending the transaction. That's free and executes nothing. A
+// 5-min cron then reconciles the chain against D1: any on-chain burn
+// with a matching stored intent is merged server-side even if the
+// client vanished; any burn WITHOUT an intent is recorded as a wild
+// burn (someone burned via Etherscan/OpenSea, bypassing the Lab) and
+// surfaced honestly in the activity feed.
+// ============================================================
+async function handleBurnIntent(req, env, origin) {
+  if (!env.CONTRACT_ADDRESS || env.CONTRACT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+    return error('contract_not_deployed', 503, origin);
+  }
+  let body;
+  try { body = await req.json(); } catch { return error('invalid_json', 400, origin); }
+  const { donorId, recipientId, nonce, deadline, address, signature } = body || {};
+  if (typeof donorId !== 'number' || typeof recipientId !== 'number') return error('bad_ids', 400, origin);
+  if (donorId === recipientId) return error('same_token', 400, origin);
+  const maxId = maxTokenId(env);
+  if (donorId < 1 || donorId > maxId || recipientId < 1 || recipientId > maxId) return error('bad_ids', 400, origin);
+  if (typeof nonce !== 'number' || typeof deadline !== 'number') return error('bad_nonce_or_deadline', 400, origin);
+  if (Date.now() > deadline) return error('signature_expired', 400, origin);
+  if (!isAddress(address)) return error('bad_address', 400, origin);
+  if (typeof signature !== 'string' || !signature.startsWith('0x')) return error('bad_signature', 400, origin);
+
+  // Verify the EIP-712 signature — identical to handleBurn, so a stored
+  // intent is as trustworthy as a live burn's signature.
+  let recovered;
+  try {
+    recovered = await recoverTypedDataAddress({
+      domain: eip712Domain(env), types: BURN_TYPES, primaryType: 'Burn',
+      message: {
+        donorId: BigInt(donorId), recipientId: BigInt(recipientId),
+        nonce: BigInt(nonce), deadline: BigInt(deadline),
+      },
+      signature,
+    });
+  } catch { return error('signature_recovery_failed', 400, origin); }
+  if (getAddress(recovered) !== getAddress(address)) return error('signer_mismatch', 401, origin);
+
+  // Already merged? Nothing to record.
+  const done = await env.DB.prepare('SELECT 1 FROM burns WHERE burned_token_id = ?').bind(donorId).first();
+  if (done) return json({ ok: true, alreadyBurned: true }, {}, origin);
+
+  // Upsert by donor: a re-signed intent (user retried) overwrites the old.
+  await env.DB.prepare(`
+    INSERT INTO burn_intents (donor_token_id, recipient_token_id, signer, nonce, deadline, signature, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(donor_token_id) DO UPDATE SET
+      recipient_token_id = excluded.recipient_token_id,
+      signer = excluded.signer, nonce = excluded.nonce,
+      deadline = excluded.deadline, signature = excluded.signature,
+      created_at = excluded.created_at
+  `).bind(donorId, recipientId, address.toLowerCase(), nonce, deadline, signature, Date.now()).run();
+
+  return json({ ok: true, recorded: true }, {}, origin);
+}
+
+// Scan the chain for burns (Transfer → 0) not yet in `burns`, and
+// reconcile. Runs on the 5-min tick. Cheap: tracks last-swept block in
+// bot_state so each run only reads new blocks via one eth_getLogs.
+async function _sweepChainBurns(env, ctx) {
+  if (!env.ALCHEMY_KEY || !env.CONTRACT_ADDRESS) return;
+  const rpcUrl = `https://eth-mainnet.g.alchemy.com/v2/${env.ALCHEMY_KEY}`;
+
+  // Current head.
+  let head;
+  try {
+    const r = await fetchWithTimeout(rpcUrl, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_blockNumber', params: [] }),
+    });
+    head = parseInt((await r.json()).result, 16);
+  } catch { return; }
+  if (!Number.isFinite(head)) return;
+
+  // Start block: stored cursor, else head-7200 (~1 day) on first run so
+  // we don't rescan all of history.
+  let from = parseInt(await _botStateGet(env, 'burn_sweep_block') || '0', 10);
+  if (!from) from = Math.max(0, head - 7200);
+  if (from > head) return;
+  // Alchemy caps getLogs ranges; chunk to 2000 blocks per sweep so a
+  // long gap (worker idle) catches up over several ticks instead of erroring.
+  const to = Math.min(head, from + 2000);
+
+  let logs = [];
+  try {
+    const r = await fetchWithTimeout(rpcUrl, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'eth_getLogs',
+        params: [{
+          fromBlock: '0x' + from.toString(16), toBlock: '0x' + to.toString(16),
+          address: env.CONTRACT_ADDRESS,
+          // Transfer with to == zero address (burn). topics[2] = to.
+          topics: [TRANSFER_TOPIC, null, '0x' + '0'.repeat(64)],
+        }],
+      }),
+    });
+    logs = (await r.json()).result || [];
+  } catch { return; }
+
+  for (const log of logs) {
+    const tokenId = parseInt(log.topics?.[3], 16);
+    const signerLc = ('0x' + (log.topics?.[1] || '').slice(-40)).toLowerCase();
+    const txHash = log.transactionHash;
+    if (!Number.isFinite(tokenId) || tokenId < 1) continue;
+
+    // Already registered (live path or a previous sweep)? skip.
+    const known = await env.DB.prepare('SELECT 1 FROM burns WHERE burned_token_id = ?').bind(tokenId).first();
+    if (known) continue;
+    const wild = await env.DB.prepare('SELECT 1 FROM wild_burns WHERE burned_token_id = ?').bind(tokenId).first();
+    if (wild) continue;
+
+    const intent = await env.DB.prepare(
+      'SELECT recipient_token_id, signer FROM burn_intents WHERE donor_token_id = ?'
+    ).bind(tokenId).first();
+
+    if (intent && intent.signer === signerLc) {
+      // Recover the burn the Lab intended but never got to register.
+      const recipientId = intent.recipient_token_id;
+      const recOwner = await ownerOf(env, recipientId);
+      if (recOwner && recOwner === signerLc) {
+        // Burn timestamp from the block (best-effort; falls back to now).
+        let ts = Date.now();
+        try {
+          const br = await fetchWithTimeout(rpcUrl, {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getBlockByNumber', params: [log.blockNumber, false] }),
+          });
+          const bt = parseInt((await br.json()).result?.timestamp, 16);
+          if (Number.isFinite(bt)) ts = bt * 1000;
+        } catch {}
+        const merge = await _persistBurnMerge(env, ctx, tokenId, recipientId, signerLc, txHash, { ts });
+        if (merge.ok) {
+          await env.DB.prepare('DELETE FROM burn_intents WHERE donor_token_id = ?').bind(tokenId).run();
+          console.log(`[sweep] recovered burn ${tokenId} -> ${recipientId} (intent)`);
+          continue;
+        }
+      }
+    }
+    // No usable intent → wild burn (burned outside the Lab). Record it so
+    // the activity feed and alive-counts stay honest.
+    await env.DB.prepare(
+      'INSERT OR IGNORE INTO wild_burns (burned_token_id, signer, tx_hash, burned_at) VALUES (?, ?, ?, ?)'
+    ).bind(tokenId, signerLc, txHash, Date.now()).run();
+    console.log(`[sweep] wild burn recorded: ${tokenId}`);
+  }
+
+  await _botStateSet(env, 'burn_sweep_block', to + 1);
+}
+
 // ----- Route handlers -----
 async function handleOwned(env, address, origin, url) {
   if (!isAddress(address)) return error('bad_address', 400, origin);
@@ -1838,11 +1997,31 @@ async function handleActivity(env, url, origin) {
       rank,                            // 1..6
       tier: _tierForRank(rank),        // Genesis..Biome
       tierUp: rank > rankBefore,       // this burn crossed a tier boundary
+      wild: false,
     };
   });
 
+  // Wild burns — tokens burned outside the Lab (Etherscan/OpenSea), so
+  // no mass transferred. Surfaced honestly: the donor is simply gone.
+  let wildEvents = [];
+  try {
+    const { results: wilds } = await env.DB.prepare(
+      'SELECT burned_token_id, signer, tx_hash, burned_at FROM wild_burns ORDER BY burned_at ASC'
+    ).all();
+    wildEvents = (wilds || []).map((r) => ({
+      burnedTokenId: r.burned_token_id,
+      recipientTokenId: null,
+      signer: r.signer,
+      txHash: r.tx_hash,
+      burnedAt: r.burned_at,
+      wild: true,
+    }));
+  } catch (_) { /* table may not exist yet */ }
+
+  const all = [...events, ...wildEvents].sort((a, b) => a.burnedAt - b.burnedAt);
+
   return json(
-    { total: events.length, events: events.slice(-limit).reverse() },
+    { total: all.length, events: all.slice(-limit).reverse() },
     { headers: { 'Cache-Control': 'public, max-age=30, must-revalidate' } },
     origin
   );
@@ -3264,6 +3443,11 @@ export default {
       if (path === '/api/burn' && req.method === 'POST') {
         return await handleBurn(req, env, ctx, origin);
       }
+      if (path === '/api/burn-intent' && req.method === 'POST') {
+        // Record a signed burn intent BEFORE the tx, so the 5-min sweeper
+        // can recover the merge if the client dies after the burn lands.
+        return await handleBurnIntent(req, env, origin);
+      }
       if (path.startsWith('/api/admin/refresh-video/') && req.method === 'POST') {
         // POST /api/admin/refresh-video/<tokenId>   x-admin-token: <secret>
         // Manually kick the survivor-video GitHub Action (same dispatch the
@@ -3373,7 +3557,12 @@ export default {
     } else if (event.cron === '0 1,11,19 * * *') {
       ctx.waitUntil(_postTraitFact(env).catch(e => console.warn('[x] trait crash:', e?.message || e)));
     } else {
-      ctx.waitUntil(_tweetNewBurns(env).catch(e => console.warn('[x] burns crash:', e?.message || e)));
+      // Reconcile chain burns FIRST so recovered/wild burns exist in D1
+      // before the burn-tweeter reads the table this same tick.
+      ctx.waitUntil((async () => {
+        try { await _sweepChainBurns(env, ctx); } catch (e) { console.warn('[sweep] crash:', e?.message || e); }
+        try { await _tweetNewBurns(env); } catch (e) { console.warn('[x] burns crash:', e?.message || e); }
+      })());
       ctx.waitUntil(_tweetNewSales(env).catch(e => console.warn('[x] sales crash:', e?.message || e)));
     }
   },
