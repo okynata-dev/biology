@@ -198,10 +198,13 @@
   }
 
   function updateCount(){
+    // No absolute collection-size claims — the on-chain supply is dynamic
+    // (burn-only). Unfiltered, the grid is simply "the full archive";
+    // filtered, the match count is useful search feedback.
     const n = results.length;
     countEl.textContent = n === ALL.length
-      ? `${n.toLocaleString('en-US')} Bioms`
-      : `${n.toLocaleString('en-US')} of ${ALL.length.toLocaleString('en-US')}`;
+      ? 'the full archive'
+      : `${n.toLocaleString('en-US')} ${n === 1 ? 'match' : 'matches'}`;
   }
 
   function makeTile(t){

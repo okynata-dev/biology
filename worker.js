@@ -2313,13 +2313,14 @@ const GM_LINES = [
 
 // Monthly post-budget guard. X bills $0.015 per POST /2/tweets request
 // (success, duplicate, or failure alike), so every attempt passes
-// through here. Cap default 150/month (~$2.25); override via
+// through here. Cap default 250/month (~$3.75); override via
 // env.X_MONTHLY_POST_CAP. When the cap is hit the bot goes silent until
-// the calendar month rolls over.
+// the calendar month rolls over. (5 scheduled posts/day + burns/sales
+// ~= 170-210/month, so 250 leaves headroom without runaway risk.)
 async function _postBudgetOk(env) {
   const key = 'x_posts_' + new Date().toISOString().slice(0, 7);  // x_posts_2026-06
   const used = parseInt(await _botStateGet(env, key) || '0', 10);
-  const cap = parseInt(env.X_MONTHLY_POST_CAP || '150', 10);
+  const cap = parseInt(env.X_MONTHLY_POST_CAP || '250', 10);
   if (used >= cap) {
     console.warn(`[x] monthly post cap reached (${used}/${cap}) — staying silent`);
     return false;
@@ -2394,7 +2395,7 @@ async function _postGm(env, force = false) {
 const FEATURE_LINES = [
   'Burn one Biom to feed another. The survivor inherits everything —\npalette, organelles, the body itself. The Lab is open, demo included.',
   'Every Biom makes a banner. One organism or a full colony collage —\ndrag, zoom, rotate, export. The Banner maker is on the site.',
-  'All 8,000 organisms, searchable by species, stain, or number.\nThe gallery is open.',
+  'Every organism in the archive, searchable by species, stain, or number.\nThe gallery is open.',
   '11 morphologies, 21 stains, 10 organelles, and a few anomalies almost\nno one has seen. Every trait, isolated, in the Trait explorer.',
   'Every burn is recorded — who was fed to whom, and what survived.\nThe activity feed never forgets.',
   'Every Biom ships as a seamless 16-second loop. Open one, save the MP4,\nkeep it.',
@@ -2425,6 +2426,112 @@ async function _postFeature(env, force = false) {
   await _botStateSet(env, 'feature_idx', (idx + 1) % FEATURE_LINES.length);
   console.log(`[x] feature ${idx} tweeted: ${r.body?.data?.id}`);
   return { ok: true, tweetId: r.body?.data?.id, idx };
+}
+
+// ============================================================
+// TRAIT FACTS — three a day (01:00 / 11:00 / 19:00 UTC). One
+// microbiology fact per post, cycling sequentially through the trait
+// catalogue (same content as /explore). Media: the trait's example
+// Biom loop if it's alive and rendered, else a random living Biom.
+// ============================================================
+const TRAIT_FACTS = [
+  {"label": "Coccus", "cat": "morphology", "weight": "13%", "desc": "Spherical cells, the most ancient and widespread bacterial form. Streptococcus, Staphylococcus.", "seed": 0},
+  {"label": "Bacillus", "cat": "morphology", "weight": "13%", "desc": "Rod-shaped cells. The genus Bacillus alone contains soil bacteria, anthrax, and the source of yogurt cultures.", "seed": 1},
+  {"label": "Vibrio", "cat": "morphology", "weight": "12%", "desc": "Comma-shaped curved rods. Vibrio cholerae caused millennia of pandemics; most vibrios are harmless marine bacteria.", "seed": 11},
+  {"label": "Spirillum", "cat": "morphology", "weight": "12%", "desc": "Rigid helical cells. Distinct from spirochetes (which have flexible bodies) — the spiral here is structural.", "seed": 47},
+  {"label": "Filament", "cat": "morphology", "weight": "10%", "desc": "Cells aligned end-to-end into thin chains. Cyanobacteria and certain Actinomyces grow this way.", "seed": 28},
+  {"label": "Cluster", "cat": "morphology", "weight": "10%", "desc": "Irregular grape-like grouping. Staphylococci form clusters because cell division proceeds in random planes.", "seed": 18},
+  {"label": "Diplo", "cat": "morphology", "weight": "10%", "desc": "Pairs of cells held together after division. Diplococcus pneumoniae presents this way in clinical samples.", "seed": 7},
+  {"label": "Streptobacillus", "cat": "morphology", "weight": "8%", "desc": "Long chain of rods, end-to-end. Bacillus anthracis appears as streptobacilli in tissue smears.", "seed": 33},
+  {"label": "Tetrad", "cat": "morphology", "weight": "7%", "desc": "Four cells in a square — result of division along two perpendicular planes. Micrococcus luteus.", "seed": 91},
+  {"label": "Sarcina", "cat": "morphology", "weight": "3%", "desc": "Eight cells stacked in a cuboidal packet of 2×2×2. Sarcina ventriculi inhabits the human stomach.", "seed": 145},
+  {"label": "Mycelium", "cat": "morphology", "weight": "2%", "desc": "Branching hyphal network. Actinomyces and Streptomyces form myceloid colonies; they are bacteria, not fungi.", "seed": 312},
+  {"label": "Gram-positive", "cat": "stain", "weight": "13%", "desc": "Crystal violet retained by the thick peptidoglycan wall. Streptococcus, Bacillus, Clostridium.", "seed": 0},
+  {"label": "Gram-negative", "cat": "stain", "weight": "11%", "desc": "Pink counter-stain. Thin peptidoglycan, outer membrane. E. coli, Salmonella, Pseudomonas.", "seed": 2},
+  {"label": "Fluorescent", "cat": "stain", "weight": "10%", "desc": "Immunofluorescent labels conjugated to antibodies. Used to identify specific bacterial antigens.", "seed": 11},
+  {"label": "Methylene blue", "cat": "stain", "weight": "9%", "desc": "Simple basic stain. Useful for general bacterial morphology under light microscopy.", "seed": 8},
+  {"label": "Dark-field", "cat": "stain", "weight": "6%", "desc": "Cells appear silver against a black background. Indispensable for spirochetes, which take stains poorly.", "seed": 5},
+  {"label": "Acid-fast", "cat": "stain", "weight": "5%", "desc": "A carmine primary that resists acid-alcohol decoloration. Diagnostic for Mycobacterium tuberculosis.", "seed": 64},
+  {"label": "Giemsa", "cat": "stain", "weight": "4%", "desc": "Eosin–methylene blue mix. Standard for blood smears, intracellular pathogens, and parasites.", "seed": 38},
+  {"label": "Malachite green", "cat": "stain", "weight": "4%", "desc": "The Schaeffer–Fulton spore stain. Heat-driven into endospores, the deep emerald resists washing where the body does not.", "seed": 7},
+  {"label": "Carbol fuchsin", "cat": "stain", "weight": "4%", "desc": "The hot-magenta primary of acid-fast protocols, phenol-driven into waxy mycolic cell walls.", "seed": 21},
+  {"label": "Bismarck brown", "cat": "stain", "weight": "4%", "desc": "A warm sepia counter-stain — one of the earliest synthetic dyes, used for mucin and cartilage in histology.", "seed": 33},
+  {"label": "Nile blue", "cat": "stain", "weight": "4%", "desc": "A lipophilic oxazine. Stains intracellular lipid droplets and poly-β-hydroxybutyrate a deep petrol blue.", "seed": 44},
+  {"label": "Congo red", "cat": "stain", "weight": "3%", "desc": "An amyloid and capsule stain. A brick-scarlet azo dye that binds β-sheet structure and polysaccharide capsules.", "seed": 13},
+  {"label": "Toluidine blue", "cat": "stain", "weight": "3%", "desc": "A metachromatic thiazine — shifts blue to violet where it meets cartilage, mast-cell granules, and mucin.", "seed": 70},
+  {"label": "Eosin", "cat": "stain", "weight": "2%", "desc": "The pink half of H&E. An acidic dye with affinity for cytoplasmic proteins; coral against a basophilic core.", "seed": 52},
+  {"label": "Aurora", "cat": "stain", "weight": "5%", "desc": "A rare iridescent metabolic pigment — not a stain in the literal sense, but a structural color emerging from light interference in the cell wall.", "seed": 0},
+  {"label": "Ghost", "cat": "stain", "weight": "4%", "desc": "An unstained or freshly lysed Biom. Cell outlines are barely visible — only the inner core retains contrast.", "seed": 0},
+  {"label": "Safranin", "cat": "stain", "weight": "3%", "desc": "A soft pink dye used as a counter-stain in Gram protocol, or alone for tissue preparations.", "seed": 109},
+  {"label": "India ink", "cat": "stain", "weight": "3%", "desc": "A negative stain: ink coats the background, revealing the unstained body as a silhouette with bright internal granules.", "seed": 156},
+  {"label": "Ziehl–Neelsen", "cat": "stain", "weight": "1%", "desc": "A dual stain — carbol-fuchsin magenta against a methylene-blue counter-stain. Two dyes alternate across the cell body.", "seed": 88},
+  {"label": "Schaeffer–Fulton", "cat": "stain", "weight": "1%", "desc": "A dual stain — malachite-green spores set against safranin-rose cell bodies. The classic two-tone spore protocol.", "seed": 91},
+  {"label": "Gram-variable", "cat": "stain", "weight": "1%", "desc": "A clinically observed phenomenon — some cells stain Gram-positive, others Gram-negative. Mixed walls in transition.", "seed": 0},
+  {"label": "Nucleoid", "cat": "organelle", "weight": "85%", "desc": "A dense region where the bacterial chromosome is packaged. No nuclear membrane — chromosomes are bare.", "seed": 14},
+  {"label": "Pili", "cat": "organelle", "weight": "55%", "desc": "Hair-like filaments on the cell surface. Used for adhesion to host tissue, surface motility, and conjugation.", "seed": 22},
+  {"label": "Ribosomes", "cat": "organelle", "weight": "45%", "desc": "Protein-synthesis machines. Bacterial 70S ribosomes are the targets of many antibiotics — tetracyclines, aminoglycosides.", "seed": 6},
+  {"label": "Plasmid", "cat": "organelle", "weight": "40%", "desc": "A small circular DNA molecule separate from the chromosome. Carries antibiotic-resistance and virulence genes.", "seed": 71},
+  {"label": "Flagellum", "cat": "organelle", "weight": "30%", "desc": "A rotating whip-like appendage. Powers bacterial swimming through fluid.", "seed": 88},
+  {"label": "Eye-spot", "cat": "organelle", "weight": "20%", "desc": "A photoreceptor patch enabling phototaxis. Found in cyanobacteria and certain protists — a primitive light-sensing organelle.", "seed": 27},
+  {"label": "Inclusion body", "cat": "organelle", "weight": "20%", "desc": "A region of densely packed proteins or metabolites — sometimes a result of overexpression, sometimes a storage compartment.", "seed": 41},
+  {"label": "Endospore", "cat": "organelle", "weight": "15%", "desc": "A dormant, heat-resistant survival capsule. Endospores of Bacillus anthracis can remain viable in soil for decades.", "seed": 130},
+  {"label": "Axial filament", "cat": "organelle", "weight": "15%", "desc": "Internal flagellum running along the cell's length. Characteristic of spirochetes — Treponema, Borrelia, Leptospira.", "seed": 196},
+  {"label": "Capsule", "cat": "organelle", "weight": "100%", "desc": "A polysaccharide envelope around the cell wall — protection against drying, phagocytosis, and immune attack. Always present in Bioms.", "seed": 4},
+  {"label": "PHB granules", "cat": "reserve granule", "weight": "12%", "desc": "Poly-β-hydroxybutyrate — a carbon and energy reserve resembling biological plastic. Common in Pseudomonas and Bacillus.", "seed": 56},
+  {"label": "Volutin", "cat": "reserve granule", "weight": "10%", "desc": "Metachromatic polyphosphate granules. Storage form of phosphorus; pH buffer; diagnostic for Corynebacterium diphtheriae.", "seed": 73},
+  {"label": "Magnetosomes", "cat": "reserve granule", "weight": "7%", "desc": "Membrane-bound magnetite crystals arranged in a chain along the cell axis. Used by Magnetospirillum to navigate Earth's magnetic field.", "seed": 211},
+  {"label": "Sulfur globules", "cat": "reserve granule", "weight": "4%", "desc": "Bright yellow sulfur droplets — the intermediate of sulfide oxidation. Stored by Beggiatoa and Thiomargarita namibiensis.", "seed": 287},
+  {"label": "Crystalline body", "cat": "reserve granule", "weight": "3%", "desc": "A parasporal protein crystal. Bacillus thuringiensis Cry toxins crystallize alongside the endospore — used as biopesticides.", "seed": 425},
+  {"label": "Vegetative", "cat": "lifecycle state", "weight": "78%", "desc": "The default growing, dividing state. Active metabolism, nutrient uptake, biomass production.", "seed": 4},
+  {"label": "Binary fission", "cat": "lifecycle state", "weight": "10%", "desc": "Cell division in progress. A constriction forms at the equator, eventually pinching the cell into two daughters.", "seed": 89},
+  {"label": "Sporulating", "cat": "lifecycle state", "weight": "6%", "desc": "Forming an endospore. Triggered by starvation. The spore inside the mother cell survives heat, desiccation, even radiation.", "seed": 154},
+  {"label": "Heterocyst", "cat": "lifecycle state", "weight": "0.5%", "desc": "A specialized nitrogen-fixing cell within a filament. Larger, thicker-walled, anaerobic interior. Found only in filamentous cyanobacteria.", "seed": 1247},
+  {"label": "Phage attached", "cat": "anomaly", "weight": "1.5%", "desc": "A bacteriophage docked on the cell surface — icosahedral head, contractile tail. Moments before injecting its DNA into the host.", "seed": 89},
+  {"label": "Endosymbiont", "cat": "anomaly", "weight": "1.0%", "desc": "A smaller cell living inside the larger one. The deep ancestor of mitochondria and chloroplasts. Endosymbiosis built the eukaryotic cell.", "seed": 412},
+  {"label": "Biofilm halo", "cat": "anomaly", "weight": "2.0%", "desc": "A wide extracellular polysaccharide matrix — the foundation of biofilms, dental plaque, and chronic infections.", "seed": 277}
+];
+
+async function _postTraitFact(env, force = false) {
+  if (!_xConfigured(env)) return { ok: false, reason: 'not_configured' };
+  // One per slot — 9h guard absorbs cron retries without blocking the
+  // next scheduled fact (slots are 8-10h apart).
+  if (!force) {
+    const last = parseInt(await _botStateGet(env, 'last_trait_at') || '0', 10);
+    if (Date.now() - last < 9 * 3600000) return { ok: false, reason: 'too_soon' };
+  }
+  if (!(await _postBudgetOk(env))) return { ok: false, reason: 'monthly_cap' };
+  const idx = parseInt(await _botStateGet(env, 'trait_idx') || '0', 10) % TRAIT_FACTS.length;
+  const f = TRAIT_FACTS[idx];
+
+  // Prefer the trait's showcase Biom; fall back to any living one.
+  let video = null, seed = f.seed;
+  const burnedRows = (await env.DB.prepare('SELECT burned_token_id AS id FROM burns').all()).results || [];
+  const burned = new Set(burnedRows.map(r => r.id));
+  if (seed && seed >= 1 && seed <= maxTokenId(env) && !burned.has(seed)) {
+    const obj = await env.PNGS.get('video/' + String(seed).padStart(5, '0') + '.mp4');
+    if (obj) video = obj;
+  }
+  if (!video) {
+    const pick = await _randomAliveBiomVideo(env);
+    if (!pick) return { ok: false, reason: 'no_video_found' };
+    seed = pick.seed; video = pick.video;
+  }
+
+  const text = f.label + ' — ' + f.cat + ', ' + f.weight + ' of the colony.\n\n' + f.desc;
+  const mediaId = await _xUploadMedia(env, await video.arrayBuffer(), 'video/mp4', 'tweet_video');
+  if (!mediaId) return { ok: false, reason: 'media_upload_failed' };
+
+  const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', {
+    json: { text, media: { media_ids: [mediaId] } },
+  });
+  if (r.status !== 201) {
+    console.warn('[x] trait fact failed: ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 200));
+    return { ok: false, reason: 'post_' + r.status };
+  }
+  await _botStateSet(env, 'last_trait_at', Date.now());
+  await _botStateSet(env, 'trait_idx', (idx + 1) % TRAIT_FACTS.length);
+  console.log('[x] trait fact ' + idx + ' (' + f.label + ') tweeted: ' + (r.body && r.body.data && r.body.data.id));
+  return { ok: true, tweetId: r.body && r.body.data && r.body.data.id, idx, label: f.label };
 }
 
 // ============================================================
@@ -3171,6 +3278,13 @@ export default {
         const ghStatus = await _dispatchSurvivorVideoRefresh(env, id);
         return json({ ok: ghStatus === 204, ghStatus, tokenId: id }, {}, origin);
       }
+      if (path === '/api/admin/post-trait' && req.method === 'POST') {
+        // Manually fire one trait fact (admin-gated) — for testing copy.
+        const gate = _adminGate(req, env, origin);
+        if (gate) return gate;
+        const result = await _postTraitFact(env, true);
+        return json(result, {}, origin);
+      }
       if (path === '/api/admin/post-gm' && req.method === 'POST') {
         // Manually fire one gm post (admin-gated). The unauthenticated
         // _tmp test route this replaces was a leftover from the media
@@ -3246,6 +3360,7 @@ export default {
   //                  16:00 — the single biggest engagement window
   //   0 9 * * *    — gm @ 09:00 UTC (16:00 GMT+7): Indonesia evening +
   //                  India midday + the weekend-afternoon hot zone
+  //   0 1,11,19 * * * — three trait facts a day, spread across the clock
   //   0 10 * * 1   — Monday colony report (an hour after gm so the two
   //                  never collide), skipped if quiet
   async scheduled(event, env, ctx) {
@@ -3255,6 +3370,8 @@ export default {
       ctx.waitUntil(_postGm(env).catch(e => console.warn('[x] gm crash:', e?.message || e)));
     } else if (event.cron === '0 21 * * *') {
       ctx.waitUntil(_postFeature(env).catch(e => console.warn('[x] feature crash:', e?.message || e)));
+    } else if (event.cron === '0 1,11,19 * * *') {
+      ctx.waitUntil(_postTraitFact(env).catch(e => console.warn('[x] trait crash:', e?.message || e)));
     } else {
       ctx.waitUntil(_tweetNewBurns(env).catch(e => console.warn('[x] burns crash:', e?.message || e)));
       ctx.waitUntil(_tweetNewSales(env).catch(e => console.warn('[x] sales crash:', e?.message || e)));
