@@ -2199,6 +2199,20 @@ async function _tweetNewBurns(env) {
   for (const row of (results || [])) {
     const ev = await _burnEventStats(env, row.id);
     if (!ev) continue;
+    // Retry cap: every POST attempt costs $0.015 whether it lands or
+    // not, so a permanently-failing tweet must not retry every 5 min
+    // forever. Three strikes → recorded as gave_up, never retried.
+    const tryKey = `burn_tw_try_${row.id}`;
+    const tries = parseInt(await _botStateGet(env, tryKey) || '0', 10);
+    if (tries >= 3) {
+      await env.DB.prepare(
+        'INSERT OR IGNORE INTO tweeted_burns (burned_token_id, tweeted_at, tweet_id) VALUES (?, ?, ?)'
+      ).bind(row.id, Date.now(), 'gave_up').run();
+      console.warn(`[x] burn ${row.id}: gave up after ${tries} attempts`);
+      continue;
+    }
+    if (!(await _postBudgetOk(env))) return;
+    await _botStateSet(env, tryKey, tries + 1);
     // Attach the composed donor→survivor card natively (no URL in the
     // text — X bills $0.20 for posts with links vs $0.015 without, and
     // the card carries everything anyway). Falls back to text-only if
@@ -2246,6 +2260,7 @@ async function _tweetWeeklySummary(env) {
     console.log('[x] weekly summary skipped — no burns this week');
     return;
   }
+  if (!(await _postBudgetOk(env))) return;
   const top = await env.DB.prepare(
     'SELECT token_id, mass FROM token_state WHERE mass IS NOT NULL ORDER BY mass DESC LIMIT 1'
   ).first();
@@ -2276,10 +2291,11 @@ async function _tweetWeeklySummary(env) {
 }
 
 // ============================================================
-// GM POSTS — every 8h (00/08/16 UTC = 07/15/23 GMT+7), one line
-// from the audited pool + the 16s looping MP4 of a random Biom
-// that is still alive (never burned). bot_state guards against
-// double-posting if a cron tick retries.
+// GM POSTS — once a day at 14:00 UTC (21:00 GMT+7 — the single slot
+// that covers US morning + EU evening), one line from the audited
+// pool + the 16s looping MP4 of a random Biom that is still alive
+// (never burned). bot_state guards against double-posting; the
+// monthly budget guard caps total spend.
 // ============================================================
 const GM_LINES = [
   'GBioms.',
@@ -2294,6 +2310,23 @@ const GM_LINES = [
   'GBioms.\n\nLife at 400× magnification.',
 ];
 
+// Monthly post-budget guard. X bills $0.015 per POST /2/tweets request
+// (success, duplicate, or failure alike), so every attempt passes
+// through here. Cap default 120/month (~$1.80); override via
+// env.X_MONTHLY_POST_CAP. When the cap is hit the bot goes silent until
+// the calendar month rolls over.
+async function _postBudgetOk(env) {
+  const key = 'x_posts_' + new Date().toISOString().slice(0, 7);  // x_posts_2026-06
+  const used = parseInt(await _botStateGet(env, key) || '0', 10);
+  const cap = parseInt(env.X_MONTHLY_POST_CAP || '120', 10);
+  if (used >= cap) {
+    console.warn(`[x] monthly post cap reached (${used}/${cap}) — staying silent`);
+    return false;
+  }
+  await _botStateSet(env, key, used + 1);
+  return true;
+}
+
 async function _botStateGet(env, key) {
   const row = await env.DB.prepare('SELECT value FROM bot_state WHERE key = ?').bind(key).first();
   return row ? row.value : null;
@@ -2306,11 +2339,13 @@ async function _botStateSet(env, key, value) {
 
 async function _postGm(env, force = false) {
   if (!_xConfigured(env)) return { ok: false, reason: 'not_configured' };
-  // Idempotency: skip if a gm went out in the last 7 hours (cron is 8h).
+  // Idempotency: one gm per day (cron fires daily; 20h guard absorbs
+  // any cron retry or clock skew).
   if (!force) {
     const last = parseInt(await _botStateGet(env, 'last_gm_at') || '0', 10);
-    if (Date.now() - last < 7 * 3600000) return { ok: false, reason: 'too_soon' };
+    if (Date.now() - last < 20 * 3600000) return { ok: false, reason: 'too_soon' };
   }
+  if (!(await _postBudgetOk(env))) return { ok: false, reason: 'monthly_cap' };
   // Random living Biom whose loop exists in R2. Burned ids are few —
   // load once, then roll.
   const { results } = await env.DB.prepare('SELECT burned_token_id AS id FROM burns').all();
@@ -3076,13 +3111,13 @@ export default {
   },
 
   // Cron triggers (see wrangler.toml [triggers]):
-  //   */5 * * * *     — tweet any burns not yet posted
-  //   0 0,8,16 * * *  — gm with a random living Biom's loop (07/15/23 GMT+7)
-  //   0 9 * * 1       — Monday colony report (16:00 GMT+7), skipped if quiet
+  //   */5 * * * *  — tweet any burns not yet posted
+  //   0 14 * * *   — daily gm with a random living Biom's loop (21:00 GMT+7)
+  //   0 9 * * 1    — Monday colony report (16:00 GMT+7), skipped if quiet
   async scheduled(event, env, ctx) {
     if (event.cron === '0 9 * * 1') {
       ctx.waitUntil(_tweetWeeklySummary(env).catch(e => console.warn('[x] weekly crash:', e?.message || e)));
-    } else if (event.cron === '0 0,8,16 * * *') {
+    } else if (event.cron === '0 14 * * *') {
       ctx.waitUntil(_postGm(env).catch(e => console.warn('[x] gm crash:', e?.message || e)));
     } else {
       ctx.waitUntil(_tweetNewBurns(env).catch(e => console.warn('[x] burns crash:', e?.message || e)));
