@@ -93,15 +93,16 @@ binding = "BROWSER"
 #   Mon 09:00 UTC — weekly colony report (skipped when 0 burns/week)
 # Needs the four X_* secrets; without them scheduled() is a no-op.
 # ------------------------------------------------------------
-# Cron triggers — see worker.js scheduled():
-#   */5        — burn-tweet drip (retry-capped) + OpenSea sale posts (max 2/day)
-#   0 2 * * *  — daily feature post (09:00 GMT+7)
-#   0 14 * * * — daily gm (21:00 GMT+7)
-#   0 9 * * 1  — Monday colony report, skipped on quiet weeks
+# Cron triggers — see worker.js scheduled(). Slots match the X
+# Active-times heatmap + audience geo (Nigeria 39% / Indonesia 12% / US 11%):
+#   */5         — burn-tweet drip (retry-capped) + OpenSea sales (max 2/day)
+#   0 21 * * *  — feature post: Nigeria evening + US-East afternoon peak
+#   0 9 * * *   — daily gm: Indonesia evening + weekend-afternoon hot zone
+#   0 10 * * 1  — Monday colony report, skipped on quiet weeks
 # Spend guard: every POST attempt passes _postBudgetOk (default cap
 # 150 posts/month ≈ $2.25 at $0.015; override via X_MONTHLY_POST_CAP).
 [triggers]
-crons = ["*/5 * * * *", "0 2 * * *", "0 14 * * *", "0 9 * * 1"]
+crons = ["*/5 * * * *", "0 21 * * *", "0 9 * * *", "0 10 * * 1"]
 
 [vars]
 # Public config — fine to commit. Secrets go via `wrangler secret put`.

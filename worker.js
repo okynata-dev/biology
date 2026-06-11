@@ -2291,8 +2291,9 @@ async function _tweetWeeklySummary(env) {
 }
 
 // ============================================================
-// GM POSTS — once a day at 14:00 UTC (21:00 GMT+7 — the single slot
-// that covers US morning + EU evening), one line from the audited
+// GM POSTS — once a day at 09:00 UTC (16:00 GMT+7), the audience's
+// afternoon hot zone per the X Active-times heatmap (Indonesia
+// evening + India midday + weekend peak). One line from the audited
 // pool + the 16s looping MP4 of a random Biom that is still alive
 // (never burned). bot_state guards against double-posting; the
 // monthly budget guard caps total spend.
@@ -3237,17 +3238,22 @@ export default {
     }
   },
 
-  // Cron triggers (see wrangler.toml [triggers]):
+  // Cron triggers (see wrangler.toml [triggers]). Times picked from the
+  // account's Active-times heatmap + audience geography (Nigeria 39%,
+  // Indonesia 12%, US 11%):
   //   */5 * * * *  — tweet any burns not yet posted + new OpenSea sales
-  //   0 2 * * *    — daily feature post (09:00 GMT+7)
-  //   0 14 * * *   — daily gm with a random living Biom's loop (21:00 GMT+7)
-  //   0 9 * * 1    — Monday colony report (16:00 GMT+7), skipped if quiet
+  //   0 21 * * *   — feature post @ 21:00 UTC: Nigeria 22:00 + US-East
+  //                  16:00 — the single biggest engagement window
+  //   0 9 * * *    — gm @ 09:00 UTC (16:00 GMT+7): Indonesia evening +
+  //                  India midday + the weekend-afternoon hot zone
+  //   0 10 * * 1   — Monday colony report (an hour after gm so the two
+  //                  never collide), skipped if quiet
   async scheduled(event, env, ctx) {
-    if (event.cron === '0 9 * * 1') {
+    if (event.cron === '0 10 * * 1') {
       ctx.waitUntil(_tweetWeeklySummary(env).catch(e => console.warn('[x] weekly crash:', e?.message || e)));
-    } else if (event.cron === '0 14 * * *') {
+    } else if (event.cron === '0 9 * * *') {
       ctx.waitUntil(_postGm(env).catch(e => console.warn('[x] gm crash:', e?.message || e)));
-    } else if (event.cron === '0 2 * * *') {
+    } else if (event.cron === '0 21 * * *') {
       ctx.waitUntil(_postFeature(env).catch(e => console.warn('[x] feature crash:', e?.message || e)));
     } else {
       ctx.waitUntil(_tweetNewBurns(env).catch(e => console.warn('[x] burns crash:', e?.message || e)));
