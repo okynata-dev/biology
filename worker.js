@@ -3008,15 +3008,13 @@ export default {
         const ghStatus = await _dispatchSurvivorVideoRefresh(env, id);
         return json({ ok: ghStatus === 204, ghStatus, tokenId: id }, {}, origin);
       }
-      if (path === '/api/_tmp-gm-test-r8d2' && req.method === 'POST') {
-        // TEMPORARY — fire one gm post to verify the media pipeline, removed after.
-        if (url.searchParams.get('diag') === '1') {
-          // Raw initialize probe — surface X's actual error body.
-          const r = await _xRequest(env, 'POST', 'https://api.x.com/2/media/upload/initialize', {
-            json: { media_type: 'video/mp4', total_bytes: 1000000, media_category: 'tweet_video' },
-          });
-          return json({ initStatus: r.status, initBody: r.body }, {}, origin);
-        }
+      if (path === '/api/admin/post-gm' && req.method === 'POST') {
+        // Manually fire one gm post (admin-gated). The unauthenticated
+        // _tmp test route this replaces was a leftover from the media
+        // pipeline bring-up — anyone guessing the path could post from
+        // @theBioms and burn API credits.
+        const gate = _adminGate(req, env, origin);
+        if (gate) return gate;
         const result = await _postGm(env, true);
         return json(result, {}, origin);
       }
