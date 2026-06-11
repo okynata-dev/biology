@@ -94,13 +94,14 @@ binding = "BROWSER"
 # Needs the four X_* secrets; without them scheduled() is a no-op.
 # ------------------------------------------------------------
 # Cron triggers — see worker.js scheduled():
-#   */5        — burn-tweet drip (untweeted burns from D1, retry-capped)
-#   0 14 * * * — daily gm (21:00 GMT+7), one per day
+#   */5        — burn-tweet drip (retry-capped) + OpenSea sale posts (max 2/day)
+#   0 2 * * *  — daily feature post (09:00 GMT+7)
+#   0 14 * * * — daily gm (21:00 GMT+7)
 #   0 9 * * 1  — Monday colony report, skipped on quiet weeks
 # Spend guard: every POST attempt passes _postBudgetOk (default cap
-# 120 posts/month ≈ $1.80 at $0.015; override via X_MONTHLY_POST_CAP).
+# 150 posts/month ≈ $2.25 at $0.015; override via X_MONTHLY_POST_CAP).
 [triggers]
-crons = ["*/5 * * * *", "0 14 * * *", "0 9 * * 1"]
+crons = ["*/5 * * * *", "0 2 * * *", "0 14 * * *", "0 9 * * 1"]
 
 [vars]
 # Public config — fine to commit. Secrets go via `wrangler secret put`.

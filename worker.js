@@ -2312,13 +2312,13 @@ const GM_LINES = [
 
 // Monthly post-budget guard. X bills $0.015 per POST /2/tweets request
 // (success, duplicate, or failure alike), so every attempt passes
-// through here. Cap default 120/month (~$1.80); override via
+// through here. Cap default 150/month (~$2.25); override via
 // env.X_MONTHLY_POST_CAP. When the cap is hit the bot goes silent until
 // the calendar month rolls over.
 async function _postBudgetOk(env) {
   const key = 'x_posts_' + new Date().toISOString().slice(0, 7);  // x_posts_2026-06
   const used = parseInt(await _botStateGet(env, key) || '0', 10);
-  const cap = parseInt(env.X_MONTHLY_POST_CAP || '120', 10);
+  const cap = parseInt(env.X_MONTHLY_POST_CAP || '150', 10);
   if (used >= cap) {
     console.warn(`[x] monthly post cap reached (${used}/${cap}) — staying silent`);
     return false;
@@ -2337,6 +2337,21 @@ async function _botStateSet(env, key, value) {
   ).bind(key, String(value)).run();
 }
 
+// Random living Biom whose loop exists in R2. Burned ids are few —
+// load once, then roll. Shared by the gm and feature posts.
+async function _randomAliveBiomVideo(env) {
+  const { results } = await env.DB.prepare('SELECT burned_token_id AS id FROM burns').all();
+  const burned = new Set((results || []).map(r => r.id));
+  const maxId = maxTokenId(env);
+  for (let tries = 0; tries < 6; tries++) {
+    const cand = 1 + Math.floor(Math.random() * maxId);
+    if (burned.has(cand)) continue;
+    const obj = await env.PNGS.get(`video/${String(cand).padStart(5, '0')}.mp4`);
+    if (obj) return { seed: cand, video: obj };
+  }
+  return null;
+}
+
 async function _postGm(env, force = false) {
   if (!_xConfigured(env)) return { ok: false, reason: 'not_configured' };
   // Idempotency: one gm per day (cron fires daily; 20h guard absorbs
@@ -2346,19 +2361,9 @@ async function _postGm(env, force = false) {
     if (Date.now() - last < 20 * 3600000) return { ok: false, reason: 'too_soon' };
   }
   if (!(await _postBudgetOk(env))) return { ok: false, reason: 'monthly_cap' };
-  // Random living Biom whose loop exists in R2. Burned ids are few —
-  // load once, then roll.
-  const { results } = await env.DB.prepare('SELECT burned_token_id AS id FROM burns').all();
-  const burned = new Set((results || []).map(r => r.id));
-  const maxId = maxTokenId(env);
-  let seed = null, video = null;
-  for (let tries = 0; tries < 6 && !video; tries++) {
-    const cand = 1 + Math.floor(Math.random() * maxId);
-    if (burned.has(cand)) continue;
-    const obj = await env.PNGS.get(`video/${String(cand).padStart(5, '0')}.mp4`);
-    if (obj) { seed = cand; video = obj; }
-  }
-  if (!video) return { ok: false, reason: 'no_video_found' };
+  const pick = await _randomAliveBiomVideo(env);
+  if (!pick) return { ok: false, reason: 'no_video_found' };
+  const { seed, video } = pick;
 
   const line = GM_LINES[Math.floor(Math.random() * GM_LINES.length)]
     .replace('{S}', _pickName(seed))
@@ -2377,6 +2382,128 @@ async function _postGm(env, force = false) {
   await _botStateSet(env, 'last_gm_at', Date.now());
   console.log(`[x] gm tweeted: ${r.body?.data?.id} (Biom #${seed})`);
   return { ok: true, tweetId: r.body?.data?.id, seed, line };
+}
+
+// ============================================================
+// FEATURE POSTS — once a day at 02:00 UTC (09:00 GMT+7, the morning
+// slot opposite the evening gm). Sequential rotation through the
+// audited pool; media is a random living Biom's loop — the product
+// demonstrates itself, no promo-asset pipeline needed.
+// ============================================================
+const FEATURE_LINES = [
+  'Burn one Biom to feed another. The survivor inherits everything —\npalette, organelles, the body itself. The Lab is open, demo included.',
+  'Every Biom makes a banner. One organism or a full colony collage —\ndrag, zoom, rotate, export. The Banner maker is on the site.',
+  'All 8,000 organisms, searchable by species, stain, or number.\nThe gallery is open.',
+  '11 morphologies, 21 stains, 10 organelles, and a few anomalies almost\nno one has seen. Every trait, isolated, in the Trait explorer.',
+  'Every burn is recorded — who was fed to whom, and what survived.\nThe activity feed never forgets.',
+  'Every Biom ships as a seamless 16-second loop. Open one, save the MP4,\nkeep it.',
+];
+
+async function _postFeature(env, force = false) {
+  if (!_xConfigured(env)) return { ok: false, reason: 'not_configured' };
+  if (!force) {
+    const last = parseInt(await _botStateGet(env, 'last_feature_at') || '0', 10);
+    if (Date.now() - last < 20 * 3600000) return { ok: false, reason: 'too_soon' };
+  }
+  if (!(await _postBudgetOk(env))) return { ok: false, reason: 'monthly_cap' };
+  const idx = parseInt(await _botStateGet(env, 'feature_idx') || '0', 10) % FEATURE_LINES.length;
+  const pick = await _randomAliveBiomVideo(env);
+  if (!pick) return { ok: false, reason: 'no_video_found' };
+
+  const mediaId = await _xUploadMedia(env, await pick.video.arrayBuffer(), 'video/mp4', 'tweet_video');
+  if (!mediaId) return { ok: false, reason: 'media_upload_failed' };
+
+  const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', {
+    json: { text: FEATURE_LINES[idx], media: { media_ids: [mediaId] } },
+  });
+  if (r.status !== 201) {
+    console.warn(`[x] feature failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+    return { ok: false, reason: `post_${r.status}` };
+  }
+  await _botStateSet(env, 'last_feature_at', Date.now());
+  await _botStateSet(env, 'feature_idx', (idx + 1) % FEATURE_LINES.length);
+  console.log(`[x] feature ${idx} tweeted: ${r.body?.data?.id}`);
+  return { ok: true, tweetId: r.body?.data?.id, idx };
+}
+
+// ============================================================
+// SALE POSTS — piggybacks on the 5-min tick. Polls OpenSea's events
+// API (free) for collection sales newer than the stored cursor; tweets
+// the ones at or above X_SALE_MIN_ETH (default 0.01), at most 2 a day.
+// Cursor initializes to "now" on first run so history is never tweeted.
+// ============================================================
+async function _tweetNewSales(env) {
+  if (!_xConfigured(env)) return;
+  const osKey = openseaKey(env);
+  if (!osKey) return;
+
+  const cursorKey = 'sale_cursor';
+  let cursor = parseInt(await _botStateGet(env, cursorKey) || '0', 10);
+  if (!cursor) {
+    await _botStateSet(env, cursorKey, Math.floor(Date.now() / 1000));
+    return;  // first run: arm the cursor, tweet nothing retroactively
+  }
+
+  let events = [];
+  try {
+    const r = await fetchWithTimeout(
+      `https://api.opensea.io/api/v2/events/collection/bioms?event_type=sale&limit=50&after=${cursor}`,
+      { headers: { 'X-API-KEY': osKey, 'accept': 'application/json' } }
+    );
+    if (!r.ok) return;
+    events = (await r.json())?.asset_events || [];
+  } catch (_) { return; }
+  if (!events.length) return;
+
+  const minEth = parseFloat(env.X_SALE_MIN_ETH || '0.01');
+  const dayKey = 'sales_tweeted_' + new Date().toISOString().slice(0, 10);
+  let tweetedToday = parseInt(await _botStateGet(env, dayKey) || '0', 10);
+  let newCursor = cursor;
+
+  // Oldest first so the cursor only ever moves forward past handled events.
+  events.sort((a, b) => (a.event_timestamp || 0) - (b.event_timestamp || 0));
+  for (const ev of events) {
+    const ts = ev.event_timestamp || 0;
+    if (ts > newCursor) newCursor = ts;
+    const tokenId = parseInt(ev?.nft?.identifier, 10);
+    const pay = ev?.payment;
+    if (!Number.isFinite(tokenId) || !pay) continue;
+    const sym = (pay.symbol || '').toUpperCase();
+    if (sym !== 'ETH' && sym !== 'WETH') continue;
+    const eth = Number(pay.quantity || 0) / Math.pow(10, pay.decimals || 18);
+    if (eth < minEth) continue;
+    if (tweetedToday >= 2) break;
+    if (!(await _postBudgetOk(env))) break;
+
+    let line = `${_pickName(tokenId)} — #${tokenId} changed hands. ${eth.toFixed(eth < 0.1 ? 3 : 2)} ETH on OpenSea.`;
+    try {
+      const st = await loadTokenState(env, tokenId);
+      const mass = st.mass != null ? st.mass : _premintMass(tokenId);
+      if (mass > 1) {
+        const rank = _rankForMass(mass);
+        line += `\n\nA ${_tierForRank(rank)} — rank ${rank}, ${mass - 1} ${mass - 1 === 1 ? 'burn' : 'burns'} folded in.`;
+      }
+    } catch (_) {}
+
+    let mediaId = null;
+    try {
+      const obj = await env.PNGS.get(`preview/${String(tokenId).padStart(5, '0')}.webp`);
+      if (obj) mediaId = await _xUploadMedia(env, await obj.arrayBuffer(), 'image/webp', 'tweet_image');
+    } catch (_) {}
+
+    const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', {
+      json: { text: line, ...(mediaId ? { media: { media_ids: [mediaId] } } : {}) },
+    });
+    if (r.status === 201) {
+      tweetedToday += 1;
+      await _botStateSet(env, dayKey, tweetedToday);
+      console.log(`[x] sale tweeted: #${tokenId} ${eth} ETH -> ${r.body?.data?.id}`);
+    } else {
+      console.warn(`[x] sale post failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+      break;
+    }
+  }
+  if (newCursor > cursor) await _botStateSet(env, cursorKey, newCursor);
 }
 
 // ============================================================
@@ -3111,7 +3238,8 @@ export default {
   },
 
   // Cron triggers (see wrangler.toml [triggers]):
-  //   */5 * * * *  — tweet any burns not yet posted
+  //   */5 * * * *  — tweet any burns not yet posted + new OpenSea sales
+  //   0 2 * * *    — daily feature post (09:00 GMT+7)
   //   0 14 * * *   — daily gm with a random living Biom's loop (21:00 GMT+7)
   //   0 9 * * 1    — Monday colony report (16:00 GMT+7), skipped if quiet
   async scheduled(event, env, ctx) {
@@ -3119,8 +3247,11 @@ export default {
       ctx.waitUntil(_tweetWeeklySummary(env).catch(e => console.warn('[x] weekly crash:', e?.message || e)));
     } else if (event.cron === '0 14 * * *') {
       ctx.waitUntil(_postGm(env).catch(e => console.warn('[x] gm crash:', e?.message || e)));
+    } else if (event.cron === '0 2 * * *') {
+      ctx.waitUntil(_postFeature(env).catch(e => console.warn('[x] feature crash:', e?.message || e)));
     } else {
       ctx.waitUntil(_tweetNewBurns(env).catch(e => console.warn('[x] burns crash:', e?.message || e)));
+      ctx.waitUntil(_tweetNewSales(env).catch(e => console.warn('[x] sales crash:', e?.message || e)));
     }
   },
 };
