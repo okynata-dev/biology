@@ -80,12 +80,18 @@
   const TIERS = ['Genesis', 'Hybrid', 'Chimera', 'Phoenix', 'Superorganism', 'Biome'];
   const tierOf = r => TIERS[Math.min(Math.max(r, 1), 6) - 1];
 
-  // Candidate body density tied to the NEW tier (rank+1). Tasteful cap so
-  // the layout never turns to mush. Tune freely.
+  // A "+1 tier" in Bioms means absorbing another organism — the survivor
+  // gains the donor's stain (blended), its organelles, and bulk. So the
+  // candidate SIMULATES that absorption (not just +cells on the same
+  // token, which is why the first attempt looked identical).
   const CELL_CAP = 9;
   function candCells(curCells, newRank) {
-    return Math.min(CELL_CAP, Math.max(curCells + 1, 2 + newRank * 2));
+    return Math.min(CELL_CAP, Math.max(curCells + 2, 2 + newRank * 2));
   }
+  // Vivid donor stains to blend in — deterministic by seed so a token's
+  // candidate is stable each view.
+  const DONOR_STAINS = ['iridescent_aurora', 'fluorescent', 'congo_red', 'nile_blue', 'malachite'];
+  const EXTRA_ORGS = ['flagellum', 'eyespot', 'pili', 'plasmid', 'inclusion'];
 
   let seed = 1;
   const $ = id => document.getElementById(id);
@@ -130,7 +136,26 @@
     const newCells = candCells(cells, newRank);
     const base = forceParamsFromMutations(mut);
     const nowUrl = `/preview.html?seed=${seed}&static=1&fit=1&lite=1${base}`;
-    const candUrl = `${nowUrl}&forceCells=${newCells}`;
+
+    // Candidate = simulate absorbing another organism (what a real tier-up
+    // does): blend in a donor stain, union extra organelles, add a biofilm
+    // halo, scale density. Built from the token's effective traits.
+    let effPalette = mut && mut.palette ? mut.palette : null;
+    const effOrgs = new Set();
+    try {
+      const bs = E.applyPremint(E.generateState(seed));
+      if (!effPalette) effPalette = bs.palette;
+      (bs.organelles || []).forEach(o => effOrgs.add(o));
+    } catch (_) {}
+    if (mut && Array.isArray(mut.organelles)) mut.organelles.forEach(o => effOrgs.add(o));
+    const donor = DONOR_STAINS[seed % DONOR_STAINS.length];
+    const candStain = (effPalette ? effPalette + '+' : '') + donor;
+    for (const o of EXTRA_ORGS) { if (!effOrgs.has(o)) { effOrgs.add(o); if (effOrgs.size >= 6) break; } }
+    const candParams =
+      `&forceStain=${encodeURIComponent(candStain)}` +
+      `&forceOrganelles=${encodeURIComponent([...effOrgs].join(','))}` +
+      `&forceBiofilm=1&forceCells=${newCells}`;
+    const candUrl = `/preview.html?seed=${seed}&static=1&fit=1&lite=1${candParams}`;
 
     $('nowV').textContent = `${tierOf(rank)} · rank ${rank} · ${cells} cells`;
     $('candV').textContent = `${tierOf(newRank)} · rank ${newRank} · ${newCells} cells`;
