@@ -8,176 +8,154 @@
 <title>Bioms — render compare (internal)</title>
 <link rel="stylesheet" href="/design.css?v=4">
 <style>
-  /* INTERNAL TOOL — not linked from nav, not for production. Renders all
-     165 tokens current-vs-candidate so the owner can judge a visual
-     refresh before any engine change ships. Both columns are plain
-     preview.html iframes driven by URL params (forceCells etc.), so this
-     page changes NOTHING live. Iframes lazy-mount near the viewport and
-     unmount off-screen (165×2 live frames would otherwise melt the tab). */
+  /* INTERNAL TOOL — not linked, not indexed. One token at a time:
+     current vs a "+1 tier" candidate (rank bumped AND body density tied
+     to the new tier, since rank alone is invisible in the art). Both
+     sides are preview.html iframes via URL params — nothing live is
+     touched. Only two frames mounted at once, so the PC stays smooth. */
   body { margin: 0; background: var(--bg); color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  header { padding: 22px clamp(14px,3vw,34px); border-bottom: 1px solid var(--rule);
-    position: sticky; top: 0; background: var(--bg); z-index: 5; }
-  header h1 { margin: 0 0 4px; font-size: 19px; font-weight: 650; }
-  header p { margin: 0; font-size: 13px; color: var(--ink-3); }
-  header code { background: var(--paper); padding: 1px 6px; border-radius: 6px; }
-  .rule { margin-top: 10px; font-size: 12.5px; color: var(--ink-2); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 18px; padding: 18px clamp(14px,3vw,34px) 120px; }
-  .row { background: var(--paper); border: 1px solid var(--rule); border-radius: 16px;
-    overflow: hidden; }
-  .row-head { display: flex; align-items: baseline; gap: 8px; padding: 9px 12px;
-    border-bottom: 1px solid var(--rule); }
-  .row-head .id { font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; }
-  .row-head .sp { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--ink-3); }
-  .row-head .badge { margin-left: auto; font-size: 10px; letter-spacing: 0.04em;
-    text-transform: uppercase; color: var(--burn); }
-  .pair { display: grid; grid-template-columns: 1fr 1fr; }
-  .cell { position: relative; aspect-ratio: 1/1; background: var(--paper);
-    border-right: 1px solid var(--rule); content-visibility: auto; contain-intrinsic-size: 150px; }
-  .cell:last-child { border-right: 0; }
-  .cell .tag { position: absolute; top: 6px; left: 8px; z-index: 2; font-size: 9px;
-    letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3);
-    background: color-mix(in srgb, var(--paper) 80%, transparent); padding: 1px 6px; border-radius: 5px; }
-  .cell .delta { position: absolute; top: 6px; right: 8px; z-index: 2; font-size: 9px;
-    color: var(--burn); background: color-mix(in srgb, var(--paper) 80%, transparent);
-    padding: 1px 6px; border-radius: 5px; }
-  .cell iframe { width: 100%; height: 100%; border: 0; display: block; }
-  .cell .ph { position: absolute; inset: 0; display: flex; align-items: center;
-    justify-content: center; color: var(--ink-3); font-size: 11px; }
+  header { padding: 18px clamp(14px,3vw,34px) 14px; border-bottom: 1px solid var(--rule); }
+  header h1 { margin: 0 0 4px; font-size: 18px; font-weight: 650; }
+  header p { margin: 0; font-size: 12.5px; color: var(--ink-3); }
+  .controls { display: flex; align-items: center; gap: 12px; justify-content: center;
+    padding: 16px; flex-wrap: wrap; }
+  .controls button { font: inherit; font-size: 14px; padding: 9px 18px; border-radius: 999px;
+    border: 1px solid var(--rule); background: var(--paper); color: var(--ink); cursor: pointer; }
+  .controls button:hover { border-color: var(--ink); }
+  .controls .jump { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-3); }
+  .controls input { width: 64px; font: inherit; padding: 7px 10px; border-radius: 10px;
+    border: 1px solid var(--rule); background: var(--paper); color: var(--ink); text-align: center; }
+  .stage { max-width: 1000px; margin: 0 auto; padding: 0 16px 60px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .side { background: var(--paper); border: 1px solid var(--rule); border-radius: 18px; overflow: hidden; }
+  .side.cand { border-color: color-mix(in srgb, var(--burn) 40%, var(--rule)); }
+  .side-head { padding: 11px 14px; border-bottom: 1px solid var(--rule); }
+  .side-head .k { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+  .side.cand .side-head .k { color: var(--burn); }
+  .side-head .v { font-size: 13.5px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .frame { position: relative; aspect-ratio: 1/1; background: var(--paper); }
+  .frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .frame .ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--ink-3); font-size: 12px; }
+  .title { text-align: center; padding: 10px 0 2px; }
+  .title .id { font-size: 22px; font-weight: 650; }
+  .title .sp { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-top: 2px; }
+  @media (max-width: 680px) { .pair { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>Render compare — all tokens, current vs candidate</h1>
-  <p>Internal preview. Both sides are <code>preview.html</code> with URL params — nothing live is touched. Left = now. Right = candidate refresh.</p>
-  <p class="rule" id="ruleLine"></p>
+  <h1>Render compare — current vs +1 tier candidate</h1>
+  <p>Internal preview. Both sides are <code>preview.html</code> via URL params — nothing live is touched. Rank alone doesn't change the art, so the candidate also scales body density to the new tier.</p>
 </header>
-<div class="grid" id="grid"></div>
+
+<div class="controls">
+  <button id="prev">← Prev</button>
+  <span class="jump">token <input id="jump" type="number" min="1" max="165" value="1"> / 165</span>
+  <button id="next">Next →</button>
+</div>
+
+<div class="stage">
+  <div class="title"><div class="id" id="tId">#1</div><div class="sp" id="tSp"></div></div>
+  <div class="pair">
+    <div class="side">
+      <div class="side-head"><div class="k">now</div><div class="v" id="nowV">—</div></div>
+      <div class="frame" id="nowF"><span class="ph">…</span></div>
+    </div>
+    <div class="side cand">
+      <div class="side-head"><div class="k">candidate · +1 tier</div><div class="v" id="candV">—</div></div>
+      <div class="frame" id="candF"><span class="ph">…</span></div>
+    </div>
+  </div>
+</div>
 
 <script src="/specimen-engine.js?v=2"></script>
 <script>
 (function () {
   'use strict';
   const API = 'https://api.thebioms.com';
-  const MAX = 165;            // currently minted
+  const MAX = 165;
   const E = window.BiomEngine;
+  const TIERS = ['Genesis', 'Hybrid', 'Chimera', 'Phoenix', 'Superorganism', 'Biome'];
+  const tierOf = r => TIERS[Math.min(Math.max(r, 1), 6) - 1];
 
-  // ---- CANDIDATE RULE (the single knob we tune together) ----
-  // Density: every token gains cells so the body reads richer. Survivors
-  // (mass > 1) scale further with mass. Cap keeps the layout sane.
-  const ADD_BASE = 2;        // +cells for every token
-  const ADD_PER_MASS = 1;    // +cells per extra mass on survivors
+  // Candidate body density tied to the NEW tier (rank+1). Tasteful cap so
+  // the layout never turns to mush. Tune freely.
   const CELL_CAP = 9;
-  function proposedCells(baseCells, mass) {
-    return Math.min(CELL_CAP, baseCells + ADD_BASE + Math.max(0, (mass - 1)) * ADD_PER_MASS);
-  }
-  document.getElementById('ruleLine').textContent =
-    `candidate rule: cells = base + ${ADD_BASE} (+${ADD_PER_MASS}/mass on survivors), capped at ${CELL_CAP}. base art otherwise unchanged.`;
-
-  const grid = document.getElementById('grid');
-  const speciesOf = s => { try { return E.species(s); } catch (_) { return ''; } };
-
-  // Pull survivor mutations once so the "current" side shows their real
-  // post-burn state, and the candidate keeps those traits + new density.
-  let states = {};
-  function buildAll() {
-    for (let seed = 1; seed <= MAX; seed++) {
-      const base = E.applyPremint(E.generateState(seed));
-      const st = states[seed];                 // {mass, mutations} if mutated
-      const mass = st && st.mass != null ? st.mass : 1;
-      const curCells = base.cellCount;
-      const newCells = proposedCells(curCells, mass);
-
-      // Shared mutation params (palette/organelles) for survivors so both
-      // columns reflect their real identity; candidate adds density on top.
-      let mut = '';
-      if (st && st.mutations) {
-        if (st.mutations.palette) mut += '&forceStain=' + encodeURIComponent(st.mutations.palette);
-        const orgs = st.mutations.organelles || [];
-        if (orgs.length) mut += '&forceOrganelles=' + encodeURIComponent(orgs.join(','));
-        const an = st.mutations.anomalies || [];
-        if (an.includes('phageAttached')) mut += '&forcePhage=1';
-        if (an.includes('endosymbiont')) mut += '&forceEndo=1';
-        if (an.includes('biofilmHalo')) mut += '&forceBiofilm=1';
-      }
-      const curUrl = `/preview.html?seed=${seed}&lite=2&static=1&fit=1${mut}`;
-      const newUrl = `/preview.html?seed=${seed}&lite=2&static=1&fit=1&forceCells=${newCells}${mut}`;
-
-      const row = document.createElement('div');
-      row.className = 'row';
-      const burned = st && st.mass != null;
-      row.innerHTML =
-        `<div class="row-head"><span class="id">#${seed}</span>` +
-        `<span class="sp">${speciesOf(seed)}</span>` +
-        (burned ? `<span class="badge">survivor · mass ${mass}</span>` : '') + `</div>` +
-        `<div class="pair">` +
-        `<div class="cell" data-src="${curUrl}"><span class="tag">now</span><span class="ph">…</span></div>` +
-        `<div class="cell" data-src="${newUrl}"><span class="tag">candidate</span>` +
-        (newCells !== curCells ? `<span class="delta">${curCells}→${newCells} cells</span>` : '') +
-        `<span class="ph">…</span></div>` +
-        `</div>`;
-      grid.appendChild(row);
-    }
-    mountObserver();
+  function candCells(curCells, newRank) {
+    return Math.min(CELL_CAP, Math.max(curCells + 1, 2 + newRank * 2));
   }
 
-  // Scroll-driven mount: any cell within viewport + margin gets an iframe;
-  // far-off cells drop theirs to keep the live-frame count bounded. Plain
-  // rect math — more reliable across browsers than IntersectionObserver
-  // for this many frames.
-  function mountObserver() {
-    const cells = Array.from(document.querySelectorAll('.cell'));
-    const MARGIN = 800;
-    let raf = 0;
-    function sweep() {
-      raf = 0;
-      // Some embedded/headless viewports report innerHeight 0 — fall back
-      // so the near-viewport check never collapses to "nothing".
-      const h = window.innerHeight || document.documentElement.clientHeight || 900;
-      for (const cell of cells) {
-        const r = cell.getBoundingClientRect();
-        const near = r.bottom > -MARGIN && r.top < h + MARGIN;
-        const has = cell.querySelector('iframe');
-        if (near && !has) {
-          const f = document.createElement('iframe');
-          f.scrolling = 'no'; f.src = cell.dataset.src;
-          f.addEventListener('load', () => { const p = cell.querySelector('.ph'); if (p) p.remove(); });
-          cell.appendChild(f);
-        } else if (!near && has) {
-          has.remove();
-          if (!cell.querySelector('.ph')) {
-            const p = document.createElement('span'); p.className = 'ph'; p.textContent = '…';
-            cell.appendChild(p);
-          }
-        }
-      }
-    }
-    const schedule = () => { if (!raf) raf = requestAnimationFrame(sweep); };
-    window.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule, { passive: true });
-    sweep();
+  let seed = 1;
+  const $ = id => document.getElementById(id);
+
+  function forceParamsFromMutations(m) {
+    let s = '';
+    if (!m) return s;
+    if (m.palette) s += '&forceStain=' + encodeURIComponent(m.palette);
+    if (Array.isArray(m.organelles) && m.organelles.length) s += '&forceOrganelles=' + encodeURIComponent(m.organelles.join(','));
+    const a = m.anomalies || [];
+    if (a.includes('phageAttached')) s += '&forcePhage=1';
+    if (a.includes('endosymbiont')) s += '&forceEndo=1';
+    if (a.includes('biofilmHalo')) s += '&forceBiofilm=1';
+    return s;
   }
 
-  // Fetch survivor states (only burned tokens have rows in token_state).
-  fetch(`${API}/api/activity?limit=200`)
-    .then(r => r.json())
-    .then(d => {
-      // Reconstruct current mass per survivor from the activity replay.
-      for (const ev of (d.events || [])) {
-        if (ev.wild || ev.recipientTokenId == null) continue;
-        states[ev.recipientTokenId] = { mass: ev.mass };
+  async function show(n) {
+    seed = Math.max(1, Math.min(MAX, n));
+    $('jump').value = seed;
+    $('tId').textContent = '#' + seed;
+    try { $('tSp').textContent = E.species(seed); } catch (_) { $('tSp').textContent = ''; }
+    $('nowF').innerHTML = '<span class="ph">…</span>';
+    $('candF').innerHTML = '<span class="ph">…</span>';
+    $('nowV').textContent = '—'; $('candV').textContent = '—';
+
+    // Pull this token's real state: rank + cells from metadata, raw
+    // mutation keys from state (for accurate force-params).
+    let rank = 1, cells = 0, mut = null;
+    try {
+      const [meta, st] = await Promise.all([
+        fetch(`${API}/api/metadata/${seed}`).then(r => r.json()),
+        fetch(`${API}/api/state/${seed}`).then(r => r.json()).catch(() => ({})),
+      ]);
+      for (const a of (meta.attributes || [])) {
+        if (a.trait_type === 'Rank') rank = a.value;
+        if (a.trait_type === 'Cell count') cells = a.value;
       }
-      // Pull exact mutations for each survivor for accurate render.
-      const ids = Object.keys(states);
-      return Promise.all(ids.map(id =>
-        fetch(`${API}/api/state/${id}`).then(r => r.json())
-          .then(s => { states[id].mutations = s.mutations || {}; }).catch(() => {})
-      ));
-    })
-    .catch(() => {})
-    .finally(buildAll);
+      mut = st.mutations || null;
+    } catch (_) {}
+
+    const newRank = Math.min(6, rank + 1);
+    const newCells = candCells(cells, newRank);
+    const base = forceParamsFromMutations(mut);
+    const nowUrl = `/preview.html?seed=${seed}&static=1&fit=1&lite=1${base}`;
+    const candUrl = `${nowUrl}&forceCells=${newCells}`;
+
+    $('nowV').textContent = `${tierOf(rank)} · rank ${rank} · ${cells} cells`;
+    $('candV').textContent = `${tierOf(newRank)} · rank ${newRank} · ${newCells} cells`;
+
+    mountFrame('nowF', nowUrl);
+    mountFrame('candF', candUrl);
+  }
+
+  function mountFrame(id, url) {
+    const host = $(id);
+    const f = document.createElement('iframe');
+    f.scrolling = 'no'; f.src = url;
+    f.addEventListener('load', () => { const p = host.querySelector('.ph'); if (p) p.remove(); });
+    host.appendChild(f);
+  }
+
+  $('prev').addEventListener('click', () => show(seed - 1));
+  $('next').addEventListener('click', () => show(seed + 1));
+  $('jump').addEventListener('change', () => show(parseInt($('jump').value, 10) || 1));
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') show(seed - 1);
+    else if (e.key === 'ArrowRight') show(seed + 1);
+  });
+
+  show(1);
 })();
 </script>
 </body>
