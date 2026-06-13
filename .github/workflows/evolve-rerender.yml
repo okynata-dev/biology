@@ -1,0 +1,49 @@
+# Re-render every master after the one-time evolution event.
+#
+# Fires on repository_dispatch (event_type: evolve-rerender) sent by the
+# worker's /api/admin/evolve apply step, or manually via workflow_dispatch.
+# Loops the existing admin regen endpoint for every minted token — which
+# re-renders the master from the now-evolved token_state and refreshes
+# OpenSea metadata. Sequential with a small gap so Browser Rendering and
+# the OpenSea refresh aren't hammered.
+#
+# Requires repo secret ADMIN_TOKEN (same value as the worker's ADMIN_TOKEN
+# secret). Add it before firing: Settings -> Secrets and variables ->
+# Actions -> New repository secret.
+
+name: Evolve re-render
+
+on:
+  repository_dispatch:
+    types: [evolve-rerender]
+  workflow_dispatch:
+    inputs:
+      ceiling:
+        description: 'Highest token id to re-render (minted count).'
+        default: '165'
+        type: string
+
+concurrency:
+  group: evolve-rerender
+  cancel-in-progress: false
+
+jobs:
+  rerender:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Re-render all masters via admin regen
+        env:
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          ceiling="${{ github.event.client_payload.ceiling || github.event.inputs.ceiling || '165' }}"
+          if [ -z "$ADMIN_TOKEN" ]; then echo "ADMIN_TOKEN secret not set"; exit 1; fi
+          echo "Re-rendering masters 1..$ceiling"
+          ok=0; fail=0
+          for id in $(seq 1 "$ceiling"); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+              "https://api.thebioms.com/api/admin/regen/$id" \
+              -H "x-admin-token: $ADMIN_TOKEN")
+            if [ "$code" = "200" ]; then ok=$((ok+1)); else fail=$((fail+1)); echo "  #$id -> $code"; fi
+            sleep 1.5
+          done
+          echo "Done. ok=$ok fail=$fail"

@@ -20,6 +20,15 @@ CREATE TABLE IF NOT EXISTS token_state (
   updated_at            INTEGER  -- unix seconds
 );
 -- Existing databases: ALTER TABLE token_state ADD COLUMN mass INTEGER;  (run once, before deploying the binary worker)
+-- received_cells / tier_bonus — the one-time EVOLUTION EVENT columns
+-- (worker.js handleAdminEvolve). received_cells overrides the rendered
+-- cell density; tier_bonus lifts the displayed Tier/Rank WITHOUT touching
+-- mass, so "Burns absorbed" (mass-1) stays truthful. Both NULL/0 until
+-- the event fires; the apply step creates them lazily (ALTER ADD COLUMN),
+-- and loadTokenState reads token_state via SELECT * so their absence
+-- pre-event never throws. Add manually only if pre-creating:
+--   ALTER TABLE token_state ADD COLUMN received_cells INTEGER;
+--   ALTER TABLE token_state ADD COLUMN tier_bonus INTEGER;
 
 -- Permanent record of on-chain burns. Primary key on burned_token_id
 -- enforces "a token can only be burned once" at the schema level —

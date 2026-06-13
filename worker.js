@@ -213,8 +213,12 @@ function tokenHasTrait(base, mutations, depletionsActive, traitId) {
 async function loadTokenState(env, tokenId) {
   // Mutations row + absorbed lineage + image_version (cache-bust counter,
   // bumped each time renderTokenMaster() re-uploads the master to R2).
+  // SELECT * (not an explicit column list) so the evolution-event columns
+  // (received_cells, tier_bonus) are read when present but their absence
+  // pre-migration doesn't throw — keeps the code deploy-safe before the
+  // event ever fires (the apply step creates the columns lazily).
   const m = await env.DB.prepare(
-    'SELECT received_palette, received_organelles, received_anomalies, absorbed_seeds, image_version, mass FROM token_state WHERE token_id = ?'
+    'SELECT * FROM token_state WHERE token_id = ?'
   ).bind(tokenId).first();
 
   const mutations = {
@@ -223,6 +227,9 @@ async function loadTokenState(env, tokenId) {
     anomalies: m?.received_anomalies ? JSON.parse(m.received_anomalies) : [],
   };
   const imageVersion = m?.image_version || 1;
+  // Evolution-event overrides (null/0 until the event fires).
+  const receivedCells = (m && m.received_cells != null) ? m.received_cells : null;
+  const tierBonus = (m && m.tier_bonus != null) ? m.tier_bonus : 0;
 
   let absorbedSeeds = [];
   try { if (m?.absorbed_seeds) absorbedSeeds = JSON.parse(m.absorbed_seeds); } catch (_) {}
@@ -258,7 +265,7 @@ async function loadTokenState(env, tokenId) {
   // then 1 for a base Genesis).
   const mass = (m && m.mass != null) ? m.mass : null;
 
-  return { mutations, depletions, absorbedSeeds, burned: burnedInfo, imageVersion, mass };
+  return { mutations, depletions, absorbedSeeds, burned: burnedInfo, imageVersion, mass, receivedCells, tierBonus };
 }
 
 // ----- viem client factory -----
@@ -1181,6 +1188,172 @@ async function handleAdminReplayBurn(req, env, ctx, origin) {
 }
 
 // ============================================================
+// EVOLUTION EVENT — one-time, declared, owner-triggered.
+//
+// Elevates the whole SURVIVING colony by one tier and gives each token
+// the look of an absorption (donor-stain blend + extra organelles +
+// biofilm halo + denser body). Honest by design:
+//   - mass is NOT touched, so the "Burns absorbed" trait stays truthful
+//     (it counts real on-chain burns only). The tier lift rides on a
+//     separate tier_bonus column.
+//   - no fake burn records, no fabricated tx hashes.
+// The transform here is identical to the /compare preview the owner
+// approved, so what shipped == what was seen.
+//
+// DORMANT until fired: POST /api/admin/evolve needs the admin token AND
+// ?apply=1 AND ?confirm=EVOLVE-COLONY. Without apply it's a read-only
+// dry run that returns the full plan. Idempotent (bot_state guard) and
+// reversible (snapshots prior token_state before writing).
+// ============================================================
+const EVOLVE_DONOR_STAINS = ['iridescent_aurora', 'fluorescent', 'congo_red', 'nile_blue', 'malachite'];
+const EVOLVE_EXTRA_ORGS = ['flagellum', 'eyespot', 'pili', 'plasmid', 'inclusion'];
+
+// Per-token transform — pure, deterministic by seed. Mirrors compare.html.
+function _evolveTokenPlan(env, tokenId, loaded) {
+  const base = _generateState(tokenId);  // seed/premint effective base
+  const mut = (loaded && loaded.mutations) || {};
+  const effPalette = mut.palette || base.palette;
+  const orgs = new Set(base.organelles || []);
+  if (Array.isArray(mut.organelles)) mut.organelles.forEach(o => orgs.add(o));
+  const donor = EVOLVE_DONOR_STAINS[tokenId % EVOLVE_DONOR_STAINS.length];
+  const palette = (effPalette ? effPalette + '+' : '') + donor;
+  for (const o of EVOLVE_EXTRA_ORGS) { if (!orgs.has(o)) { orgs.add(o); if (orgs.size >= 6) break; } }
+  const anomalies = new Set(Array.isArray(mut.anomalies) ? mut.anomalies : []);
+  anomalies.add('biofilmHalo');
+  const mass = (loaded && loaded.mass != null) ? loaded.mass : _premintMass(tokenId);
+  const curRank = _rankForMass(mass);
+  const newRank = Math.min(6, curRank + 1);
+  const curCells = (base.cellCount != null) ? base.cellCount : 4;
+  const cells = Math.min(9, Math.max(curCells + 2, 2 + newRank * 2));
+  return {
+    tokenId,
+    palette,
+    organelles: Array.from(orgs),
+    anomalies: Array.from(anomalies),
+    cells,
+    tierBonus: 1,
+    fromTier: _tierForRank(curRank),
+    toTier: _tierForRank(newRank),
+  };
+}
+
+async function handleAdminEvolve(req, env, ctx, origin) {
+  if (!env.ADMIN_TOKEN) return error('admin_token_not_set', 503, origin);
+  const token = req.headers.get('x-admin-token') || '';
+  if (!_constantTimeEquals(token, env.ADMIN_TOKEN)) return error('unauthorized', 401, origin);
+
+  const url = new URL(req.url);
+  const apply = url.searchParams.get('apply') === '1';
+  const confirm = url.searchParams.get('confirm') === 'EVOLVE-COLONY';
+  const rollback = url.searchParams.get('rollback') === '1';
+  const maxId = maxTokenId(env);
+
+  // Which tokens are eligible: minted, not burned, not wild-burned.
+  const burnedRows = (await env.DB.prepare('SELECT burned_token_id AS id FROM burns').all()).results || [];
+  const wildRows = (await env.DB.prepare('SELECT burned_token_id AS id FROM wild_burns').all().catch(() => ({ results: [] }))).results || [];
+  const gone = new Set([...burnedRows, ...wildRows].map(r => r.id));
+  // Minted ceiling: highest token that exists. Use current max minted (165)
+  // via metadata bound — here, all ids 1..maxMinted. We approximate with the
+  // contract's minted count from owned scans is overkill; use 1..maxId but
+  // skip ids that have never had any on-chain presence by checking ownerOf
+  // is too slow for 8000. Instead bound by the live minted count tracked in
+  // bot_state if present, else default to a safe explicit cap.
+  const mintedCap = parseInt(await _botStateGet(env, 'minted_count') || '165', 10);
+  const ceiling = Math.min(maxId, mintedCap);
+
+  // ---- Rollback ----
+  if (rollback) {
+    if (!confirm) return error('confirm_required', 400, origin);
+    const backupRaw = await _botStateGet(env, 'evolution_backup');
+    if (!backupRaw) return error('no_backup', 404, origin);
+    const backup = JSON.parse(backupRaw);
+    const stmts = backup.map(r => env.DB.prepare(`
+      INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, received_cells, tier_bonus, mass, image_version, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(token_id) DO UPDATE SET
+        received_palette=excluded.received_palette, received_organelles=excluded.received_organelles,
+        received_anomalies=excluded.received_anomalies, received_cells=excluded.received_cells,
+        tier_bonus=excluded.tier_bonus, image_version=excluded.image_version, updated_at=excluded.updated_at
+    `).bind(r.token_id, r.received_palette, r.received_organelles, r.received_anomalies,
+            r.received_cells ?? null, r.tier_bonus ?? null, r.mass ?? null,
+            (r.image_version || 1) + 1, Math.floor(Date.now() / 1000)));
+    // batch in chunks
+    for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
+    await _botStateSet(env, 'evolution_applied', '');
+    return json({ ok: true, rolledBack: backup.length }, {}, origin);
+  }
+
+  // ---- Build the plan ----
+  const plan = [];
+  for (let id = 1; id <= ceiling; id++) {
+    if (gone.has(id)) continue;
+    const loaded = await loadTokenState(env, id).catch(() => null);
+    plan.push(_evolveTokenPlan(env, id, loaded));
+  }
+
+  // ---- Dry run (default) ----
+  if (!apply) {
+    return json({
+      ok: true, dryRun: true, eligible: plan.length, burnedSkipped: gone.size,
+      sample: plan.slice(0, 5),
+      note: 'No changes written. To apply: add ?apply=1&confirm=EVOLVE-COLONY',
+    }, {}, origin);
+  }
+
+  // ---- Apply (gated) ----
+  if (!confirm) return error('confirm_required:add &confirm=EVOLVE-COLONY', 400, origin);
+  if (await _botStateGet(env, 'evolution_applied') === '1') {
+    return error('already_applied (use ?rollback=1&confirm=EVOLVE-COLONY to revert first)', 409, origin);
+  }
+
+  // Lazy-create the event columns (no-op if they already exist).
+  for (const ddl of [
+    'ALTER TABLE token_state ADD COLUMN received_cells INTEGER',
+    'ALTER TABLE token_state ADD COLUMN tier_bonus INTEGER',
+  ]) { try { await env.DB.prepare(ddl).run(); } catch (_) { /* exists */ } }
+
+  // Snapshot current rows for rollback.
+  const cur = (await env.DB.prepare('SELECT * FROM token_state').all()).results || [];
+  await _botStateSet(env, 'evolution_backup', JSON.stringify(cur));
+
+  // Write the plan in chunks.
+  const ts = Math.floor(Date.now() / 1000);
+  const stmts = plan.map(p => env.DB.prepare(`
+    INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, received_cells, tier_bonus, image_version, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, COALESCE((SELECT image_version FROM token_state WHERE token_id = ?), 1) + 1, ?)
+    ON CONFLICT(token_id) DO UPDATE SET
+      received_palette=excluded.received_palette, received_organelles=excluded.received_organelles,
+      received_anomalies=excluded.received_anomalies, received_cells=excluded.received_cells,
+      tier_bonus=excluded.tier_bonus, image_version=excluded.image_version, updated_at=excluded.updated_at
+  `).bind(p.tokenId, p.palette, JSON.stringify(p.organelles), JSON.stringify(p.anomalies),
+          p.cells, p.tierBonus, p.tokenId, ts));
+  for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
+
+  await _botStateSet(env, 'evolution_applied', '1');
+
+  // Kick the CI re-render of all masters (GitHub Action loops regen).
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(_dispatchEvent(env, 'evolve-rerender', { ceiling }).catch(() => {}));
+  }
+  return json({ ok: true, applied: plan.length, rerenderDispatched: !!env.GH_DISPATCH_TOKEN }, {}, origin);
+}
+
+// Generic repository_dispatch (the survivor-video helper specialized this).
+async function _dispatchEvent(env, eventType, payload) {
+  if (!env.GH_DISPATCH_TOKEN) return;
+  const repo = env.GH_REPO || 'okynata-dev/biology';
+  await fetchWithTimeout(`https://api.github.com/repos/${repo}/dispatches`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.GH_DISPATCH_TOKEN}`,
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'bioms-api-worker', 'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ event_type: eventType, client_payload: payload || {} }),
+  });
+}
+
+// ============================================================
 // INTENT-FIRST BURN PROTECTION
 //
 // The failure that lost bubbs.eth's mass: the Lab burns on-chain FIRST,
@@ -1577,12 +1750,16 @@ async function buildMetadata(env, tokenId) {
   let imageVersion = 1;
   let absorbedSeeds = [];
   let storedMass = null;
+  let receivedCells = null;
+  let tierBonus = 0;
   try {
     const loaded = await loadTokenState(env, tokenId);
     mutations = loaded.mutations || {};
     imageVersion = loaded.imageVersion || 1;
     absorbedSeeds = loaded.absorbedSeeds || [];
     storedMass = (loaded.mass != null) ? loaded.mass : null;
+    receivedCells = loaded.receivedCells;
+    tierBonus = loaded.tierBonus || 0;
   } catch (_) { /* ignore */ }
 
   // Effective state after mutations.
@@ -1614,9 +1791,15 @@ async function buildMetadata(env, tokenId) {
   // (base Genesis). Tier (rank) is derived from mass — mirrors lab.html exactly.
   // 32 organisms = one Biome.
   const mass = (storedMass != null ? storedMass : _premintMass(tokenId));
-  const rank = _rankForMass(mass);
+  // tier_bonus is the one-time evolution-event elevation. It lifts the
+  // displayed Tier/Rank WITHOUT touching mass — so "Burns absorbed"
+  // (mass-1) stays truthful: the event grants a tier, it does not fake
+  // burns. 0 for every token until the event fires.
+  const rank = Math.min(6, Math.max(1, _rankForMass(mass) + (tierBonus || 0)));
   const tier = _tierForRank(rank);
-  const totalAbsorbed = mass - 1;  // organisms folded in (excludes the survivor)
+  const totalAbsorbed = mass - 1;  // real organisms folded in (excludes the survivor)
+  // Evolution event can set a denser body; otherwise the seed/premint value.
+  if (receivedCells != null) eff.cellCount = receivedCells;
 
   // Attributes — order matters for OpenSea grouping
   const attributes = [
@@ -1740,7 +1923,7 @@ async function handleMetadata(env, tokenIdStr, origin) {
 // Build the preview.html URL for a given mutation state. Mirrors the
 // animation_url construction in buildMetadata so the screenshot
 // matches what marketplaces show as the live preview.
-function _previewUrlForTokenState(tokenId, mutations) {
+function _previewUrlForTokenState(tokenId, mutations, receivedCells) {
   const params = new URLSearchParams({ seed: String(tokenId), static: '1' });
   if (mutations.palette) params.set('forceStain', mutations.palette);
   if (Array.isArray(mutations.organelles) && mutations.organelles.length) {
@@ -1750,6 +1933,7 @@ function _previewUrlForTokenState(tokenId, mutations) {
   if (anomList.includes('phageAttached')) params.set('forcePhage',   '1');
   if (anomList.includes('endosymbiont'))  params.set('forceEndo',    '1');
   if (anomList.includes('biofilmHalo'))   params.set('forceBiofilm', '1');
+  if (receivedCells != null) params.set('forceCells', String(receivedCells));
   return `https://thebioms.com/preview.html?${params.toString()}`;
 }
 
@@ -1794,8 +1978,8 @@ async function renderTokenMaster(env, tokenId) {
   const padded = String(tokenId).padStart(5, '0');
   let browser = null;
   try {
-    const { mutations } = await loadTokenState(env, tokenId);
-    const url = _previewUrlForTokenState(tokenId, mutations);
+    const { mutations, receivedCells } = await loadTokenState(env, tokenId);
+    const url = _previewUrlForTokenState(tokenId, mutations, receivedCells);
     browser = await puppeteer.launch(env.BROWSER);
     const page = await browser.newPage();
     await page.setViewport({ width: 3000, height: 3000, deviceScaleFactor: 1 });
@@ -3478,6 +3662,11 @@ export default {
         if (gate) return gate;
         const result = await _postGm(env, true);
         return json(result, {}, origin);
+      }
+      if (path === '/api/admin/evolve' && req.method === 'POST') {
+        // One-time evolution event. DORMANT: dry-run unless
+        // ?apply=1&confirm=EVOLVE-COLONY. See handleAdminEvolve.
+        return await handleAdminEvolve(req, env, ctx, origin);
       }
       if (path === '/api/admin/replay-burn' && req.method === 'POST') {
         // Register a burn that happened on-chain but never reached the
