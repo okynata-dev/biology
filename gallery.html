@@ -271,11 +271,18 @@
   let to;
   qEl.addEventListener('input', ()=>{ clearTimeout(to); to = setTimeout(()=> applySearch(qEl.value), 120); });
 
-  // Boot
-  fetch('/gallery-data.json')
-    .then(r => r.json())
-    .then(d => {
-      ALL = d.tokens || [];
+  // Boot. The manifest holds all 8,000 generated seeds, but only a small
+  // fraction actually minted — showing 8k for a 165-mint collection reads
+  // as vaporware. Cap to the minted range and drop tokens burned out of
+  // existence, so the gallery shows the real living colony.
+  const MINTED = 165;  // bump if more mint
+  Promise.all([
+    fetch('/gallery-data.json').then(r => r.json()),
+    fetch('https://api.thebioms.com/api/activity?limit=200').then(r => r.json()).catch(() => ({ events: [] })),
+  ])
+    .then(([d, act]) => {
+      const burned = new Set((act.events || []).map(e => e.burnedTokenId));
+      ALL = (d.tokens || []).filter(t => t.i >= 1 && t.i <= MINTED && !burned.has(t.i));
       results = ALL;
       updateCount();
       renderMore();
