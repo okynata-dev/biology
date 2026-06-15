@@ -22,6 +22,10 @@ on:
         description: 'Highest token id to re-render (minted count).'
         default: '165'
         type: string
+      ids:
+        description: 'Optional comma-separated id list — re-render only these (overrides ceiling).'
+        default: ''
+        type: string
 
 concurrency:
   group: evolve-rerender
@@ -31,15 +35,22 @@ jobs:
   rerender:
     runs-on: ubuntu-latest
     steps:
-      - name: Re-render all masters via admin regen
+      - name: Re-render masters via admin regen
         env:
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
         run: |
+          ids="${{ github.event.client_payload.ids || github.event.inputs.ids || '' }}"
           ceiling="${{ github.event.client_payload.ceiling || github.event.inputs.ceiling || '165' }}"
           if [ -z "$ADMIN_TOKEN" ]; then echo "ADMIN_TOKEN secret not set"; exit 1; fi
-          echo "Re-rendering masters 1..$ceiling"
+          if [ -n "$ids" ]; then
+            list=$(echo "$ids" | tr ',' ' ')
+            echo "Re-rendering specific ids: $list"
+          else
+            list=$(seq 1 "$ceiling")
+            echo "Re-rendering masters 1..$ceiling"
+          fi
           ok=0; fail=0
-          for id in $(seq 1 "$ceiling"); do
+          for id in $list; do
             code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
               "https://api.thebioms.com/api/admin/regen/$id" \
               -H "x-admin-token: $ADMIN_TOKEN")

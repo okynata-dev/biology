@@ -1215,7 +1215,11 @@ function _evolveTokenPlan(env, tokenId, loaded) {
   const effPalette = mut.palette || base.palette;
   const orgs = new Set(base.organelles || []);
   if (Array.isArray(mut.organelles)) mut.organelles.forEach(o => orgs.add(o));
-  const donor = EVOLVE_DONOR_STAINS[tokenId % EVOLVE_DONOR_STAINS.length];
+  // Pick a donor stain that differs from the base, else the blend would be
+  // "X+X" (no colour shift). The list has distinct entries, so the next
+  // index is always different.
+  let donor = EVOLVE_DONOR_STAINS[tokenId % EVOLVE_DONOR_STAINS.length];
+  if (donor === effPalette) donor = EVOLVE_DONOR_STAINS[(tokenId + 1) % EVOLVE_DONOR_STAINS.length];
   const palette = (effPalette ? effPalette + '+' : '') + donor;
   for (const o of EVOLVE_EXTRA_ORGS) { if (!orgs.has(o)) { orgs.add(o); if (orgs.size >= 6) break; } }
   const anomalies = new Set(Array.isArray(mut.anomalies) ? mut.anomalies : []);
@@ -1260,6 +1264,32 @@ async function handleAdminEvolve(req, env, ctx, origin) {
   // bot_state if present, else default to a safe explicit cap.
   const mintedCap = parseInt(await _botStateGet(env, 'minted_count') || '165', 10);
   const ceiling = Math.min(maxId, mintedCap);
+
+  // ---- Fix donor-collision palettes (self-blend "X+X") ----
+  // A handful of tokens whose base stain matched the deterministic donor
+  // got a no-shift blend. Rewrite those with a different donor and
+  // re-render just them.
+  if (url.searchParams.get('fix') === 'collisions') {
+    if (!confirm) return error('confirm_required:add &confirm=EVOLVE-COLONY', 400, origin);
+    const rows = (await env.DB.prepare('SELECT token_id, received_palette, image_version FROM token_state WHERE tier_bonus = 1').all()).results || [];
+    const tsSec = Math.floor(Date.now() / 1000);
+    const fixed = [];
+    for (const r of rows) {
+      const parts = String(r.received_palette || '').split('+');
+      if (parts.length < 2 || new Set(parts).size !== 1) continue;  // not a self-blend
+      const X = parts[0];
+      let donor = EVOLVE_DONOR_STAINS[(r.token_id + 1) % EVOLVE_DONOR_STAINS.length];
+      if (donor === X) donor = EVOLVE_DONOR_STAINS[(r.token_id + 2) % EVOLVE_DONOR_STAINS.length];
+      await env.DB.prepare(
+        'UPDATE token_state SET received_palette = ?, image_version = COALESCE(image_version,1)+1, updated_at = ? WHERE token_id = ?'
+      ).bind(`${X}+${donor}`, tsSec, r.token_id).run();
+      fixed.push(r.token_id);
+    }
+    if (fixed.length && ctx && typeof ctx.waitUntil === 'function') {
+      ctx.waitUntil(_dispatchEvent(env, 'evolve-rerender', { ids: fixed.join(',') }).catch(() => {}));
+    }
+    return json({ ok: true, fixedCollisions: fixed.length, ids: fixed, rerenderDispatched: !!env.GH_DISPATCH_TOKEN }, {}, origin);
+  }
 
   // ---- Rollback ----
   if (rollback) {
@@ -1529,8 +1559,8 @@ async function handleState(env, tokenIdStr, origin) {
   const tokenId = parseInt(tokenIdStr, 10);
   const maxId = maxTokenId(env);
   if (!Number.isFinite(tokenId) || tokenId < 0 || tokenId > maxId) return error('bad_token_id', 400, origin);
-  const { mutations, depletions } = await loadTokenState(env, tokenId);
-  return json({ tokenId, mutations, depletions }, {
+  const { mutations, depletions, receivedCells } = await loadTokenState(env, tokenId);
+  return json({ tokenId, mutations, depletions, receivedCells }, {
     headers: { 'Cache-Control': 'public, max-age=10, s-maxage=10' },
   }, origin);
 }

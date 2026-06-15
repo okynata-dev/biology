@@ -148,7 +148,8 @@
       (bs.organelles || []).forEach(o => effOrgs.add(o));
     } catch (_) {}
     if (mut && Array.isArray(mut.organelles)) mut.organelles.forEach(o => effOrgs.add(o));
-    const donor = DONOR_STAINS[seed % DONOR_STAINS.length];
+    let donor = DONOR_STAINS[seed % DONOR_STAINS.length];
+    if (donor === effPalette) donor = DONOR_STAINS[(seed + 1) % DONOR_STAINS.length];
     const candStain = (effPalette ? effPalette + '+' : '') + donor;
     for (const o of EXTRA_ORGS) { if (!effOrgs.has(o)) { effOrgs.add(o); if (effOrgs.size >= 6) break; } }
     const candParams =

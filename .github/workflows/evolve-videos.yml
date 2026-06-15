@@ -1,0 +1,86 @@
+# Re-render the looping MP4s for the evolved colony.
+#
+# After the evolution event, each surviving token's video should show its
+# evolved form. make-videos.py --mutated pulls each seed's state from
+# /api/state (now the evolved palette/organelles/halo/cells) and bakes it
+# into the render. Chunked like render-videos.yml; uploads to R2.
+#
+# Reuses CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID repo secrets.
+
+name: Evolve videos
+
+on:
+  repository_dispatch:
+    types: [evolve-videos]
+  workflow_dispatch:
+    inputs:
+      chunks:
+        description: 'Parallel chunks (1-20).'
+        default: '12'
+        type: string
+      ceiling:
+        description: 'Highest token id (minted count).'
+        default: '165'
+        type: string
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        run: |
+          n="${{ github.event.inputs.chunks || '12' }}"
+          matrix=$(python3 -c "import json; n=int('$n'); print(json.dumps({'include':[{'chunk':i,'total':n} for i in range(n)]}))")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  render:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Install Playwright + certifi
+        run: |
+          pip install playwright certifi
+          python -m playwright install --with-deps chromium
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install wrangler
+        run: npm install -g wrangler@4
+      - name: Compute seeds for this chunk
+        id: seeds
+        run: |
+          chunk=${{ matrix.chunk }}; total=${{ matrix.total }}
+          ceiling="${{ github.event.client_payload.ceiling || github.event.inputs.ceiling || '165' }}"
+          read seeds <<< "$(python3 -c "
+          chunk, total, hi = $chunk, $total, $ceiling + 1
+          n = hi - 1
+          per = (n + total - 1) // total
+          s = 1 + chunk * per
+          e = min(s + per, hi)
+          print(','.join(str(i) for i in range(s, e)))
+          ")"
+          echo "seeds=$seeds" >> "$GITHUB_OUTPUT"
+      - name: Render mutated videos
+        run: |
+          mkdir -p pngs/video
+          [ -z "${{ steps.seeds.outputs.seeds }}" ] && { echo "empty chunk"; exit 0; }
+          python scripts/make-videos.py --only "${{ steps.seeds.outputs.seeds }}" --mutated --workers 3
+          ls pngs/video/ | wc -l
+      - name: Upload to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          for f in pngs/video/*.mp4; do
+            [ -e "$f" ] || continue
+            id=$(basename "$f" .mp4)
+            wrangler r2 object put "bioms-pngs/video/${id}.mp4" --file "$f" --content-type video/mp4 --remote >/dev/null 2>&1 || echo "  ${id} upload failed"
+          done
+          echo "chunk uploaded"

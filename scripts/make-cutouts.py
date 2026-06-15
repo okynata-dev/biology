@@ -109,9 +109,38 @@ def crop_to_bbox(img: Image.Image, pad_pct: float = 0.05) -> Image.Image:
     return out
 
 
+def mutation_params(seed: int) -> str:
+    """Fetch the seed's Lab/evolution state from the live API and translate
+    it into preview.html force-* params (post-evolution cutouts)."""
+    import json as _json, ssl, urllib.request
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        ctx = ssl.create_default_context()
+    req = urllib.request.Request(
+        f"https://api.thebioms.com/api/state/{seed}",
+        headers={"User-Agent": "Mozilla/5.0 (bioms make-cutouts script)"},
+    )
+    with urllib.request.urlopen(req, timeout=15, context=ctx) as r:
+        body = _json.load(r)
+    m = body.get("mutations") or {}
+    parts = []
+    if m.get("palette"):     parts.append(("forceStain", m["palette"]))
+    if m.get("organelles"):  parts.append(("forceOrganelles", ",".join(m["organelles"])))
+    anomalies = m.get("anomalies") or []
+    if "phageAttached" in anomalies: parts.append(("forcePhage", "1"))
+    if "endosymbiont" in anomalies:  parts.append(("forceEndo", "1"))
+    if "biofilmHalo" in anomalies:   parts.append(("forceBiofilm", "1"))
+    if body.get("receivedCells") is not None:
+        parts.append(("forceCells", str(body["receivedCells"])))
+    from urllib.parse import urlencode
+    return ("&" + urlencode(parts)) if parts else ""
+
+
 def render_one(playwright_ctx, port: int, seed: int, render_size: int,
                webp_quality: int, settle_ms: int, write_png: bool, do_crop: bool,
-               max_attempts: int = 3):
+               max_attempts: int = 3, extra: str = ""):
     """Open the preview page for `seed`, screenshot transparent, save.
     Returns (seed, ok, error_msg).
 
@@ -136,7 +165,7 @@ def render_one(playwright_ctx, port: int, seed: int, render_size: int,
     # workflow tune breathing room without code changes.
     cs = os.environ.get("BIOMS_CUTOUT_CS", "").strip()
     url = (f"http://127.0.0.1:{port}/preview.html?seed={seed}&cutout=1&static=1&fit=1"
-           + (f"&cs={cs}" if cs else ""))
+           + (f"&cs={cs}" if cs else "") + (extra or ""))
     last_err = None
     for attempt in range(1, max_attempts + 1):
         try:
@@ -168,7 +197,7 @@ def render_one(playwright_ctx, port: int, seed: int, render_size: int,
 
 def worker_run(worker_idx: int, seeds_chunk, port: int, render_size: int,
                webp_quality: int, settle_ms: int, write_png: bool, chrome_path,
-               do_crop: bool):
+               do_crop: bool, extras=None):
     results = []
     with sync_playwright() as p:
         launch_args = {"headless": True}
@@ -180,7 +209,8 @@ def worker_run(worker_idx: int, seeds_chunk, port: int, render_size: int,
             page = ctx.new_page()
             for i, seed in enumerate(seeds_chunk):
                 r = render_one((browser, page), port, seed, render_size,
-                               webp_quality, settle_ms, write_png, do_crop)
+                               webp_quality, settle_ms, write_png, do_crop,
+                               extra=(extras or {}).get(seed, ""))
                 results.append(r)
                 if (i + 1) % 25 == 0:
                     ok_so_far = sum(1 for _, ok, _ in results if ok)
@@ -206,6 +236,9 @@ def main():
     ap.add_argument("--out-dir", default=None,
                     help="Output directory (default: pngs/cutout). Used by the SM variant "
                          "to write to pngs/cutout-sm/ without colliding with the full bake.")
+    ap.add_argument("--mutated", action="store_true",
+                    help="Bake each seed's Lab/evolution state into the cutout "
+                         "(fetches /api/state per seed).")
     args = ap.parse_args()
 
     # Resolve output dir, allowing CLI flag → env var → default.
@@ -218,6 +251,12 @@ def main():
         seeds = [int(s) for s in args.only.split(",")]
     else:
         seeds = list(range(3000))
+
+    extras = {}
+    if args.mutated:
+        for s in seeds:
+            try: extras[s] = mutation_params(s)
+            except Exception: extras[s] = ""
 
     DST.mkdir(parents=True, exist_ok=True)
     chrome = find_chrome()
@@ -239,7 +278,7 @@ def main():
         futures = [
             pool.submit(worker_run, i, chunk, args.port, args.size,
                         args.webp_quality, args.settle, not args.skip_png, chrome,
-                        args.crop)
+                        args.crop, extras)
             for i, chunk in enumerate(chunks) if chunk
         ]
         for f in as_completed(futures):

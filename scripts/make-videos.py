@@ -160,7 +160,8 @@ def mutation_params(seed: int) -> str:
         headers={"User-Agent": "Mozilla/5.0 (bioms make-videos script)"},
     )
     with urllib.request.urlopen(req, timeout=15, context=ctx) as r:
-        m = _json.load(r).get("mutations") or {}
+        body = _json.load(r)
+    m = body.get("mutations") or {}
     parts = []
     if m.get("palette"):
         parts.append(("forceStain", m["palette"]))
@@ -170,6 +171,8 @@ def mutation_params(seed: int) -> str:
     if "phageAttached" in anomalies: parts.append(("forcePhage", "1"))
     if "endosymbiont" in anomalies:  parts.append(("forceEndo", "1"))
     if "biofilmHalo" in anomalies:   parts.append(("forceBiofilm", "1"))
+    if body.get("receivedCells") is not None:
+        parts.append(("forceCells", str(body["receivedCells"])))
     from urllib.parse import urlencode
     return ("&" + urlencode(parts)) if parts else ""
 
