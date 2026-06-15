@@ -45,15 +45,20 @@ jobs:
           ceiling="${{ github.event.inputs.ceiling || '165' }}"
           size="${{ github.event.inputs.size || '600' }}"
           mkdir -p out
-          python3 - "$ceiling" "$size" <<'PY'
+          python3 - "$ceiling" "$size" "${{ github.run_id }}" <<'PY'
           import sys, urllib.request, io
           from PIL import Image
           ceiling = int(sys.argv[1]); size = int(sys.argv[2])
+          runbust = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else "evolve"
           ok = 0; miss = 0
           for i in range(1, ceiling + 1):
               p = f"{i:05d}"
-              # cache-bust so we pull the freshly re-rendered master
-              url = f"https://pngs.thebioms.com/preview/{p}.webp?v=evolve"
+              # cache-bust so we pull the freshly re-rendered master. MUST be
+              # unique per run — a fixed string (e.g. ?v=evolve) gets edge-
+              # cached, so a later run after a re-render silently re-derives
+              # the thumb from the STALE master. This bit the 5 collision-fix
+              # tokens on 2026-06-15. github.run_id is unique per dispatch.
+              url = f"https://pngs.thebioms.com/preview/{p}.webp?v={runbust}"
               try:
                   data = urllib.request.urlopen(url, timeout=30).read()
                   im = Image.open(io.BytesIO(data)).convert("RGBA")
