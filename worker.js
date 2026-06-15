@@ -3767,14 +3767,13 @@ export default {
   //   0 10 * * 1   — Monday colony report (an hour after gm so the two
   //                  never collide), skipped if quiet
   async scheduled(event, env, ctx) {
+    // Filler posts (gm / feature / trait facts) were retired 2026-06-15 —
+    // daily content into a near-zero audience read as noise. The bot now
+    // only speaks on REAL events (burns, sales) + a weekly report that
+    // skips quiet weeks. _postGm/_postFeature/_postTraitFact remain
+    // callable via the admin routes if ever wanted.
     if (event.cron === '0 10 * * 1') {
       ctx.waitUntil(_tweetWeeklySummary(env).catch(e => console.warn('[x] weekly crash:', e?.message || e)));
-    } else if (event.cron === '0 9 * * *') {
-      ctx.waitUntil(_postGm(env).catch(e => console.warn('[x] gm crash:', e?.message || e)));
-    } else if (event.cron === '0 21 * * *') {
-      ctx.waitUntil(_postFeature(env).catch(e => console.warn('[x] feature crash:', e?.message || e)));
-    } else if (event.cron === '0 1,11,19 * * *') {
-      ctx.waitUntil(_postTraitFact(env).catch(e => console.warn('[x] trait crash:', e?.message || e)));
     } else {
       // Reconcile chain burns FIRST so recovered/wild burns exist in D1
       // before the burn-tweeter reads the table this same tick.
