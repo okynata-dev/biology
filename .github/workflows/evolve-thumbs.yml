@@ -1,0 +1,75 @@
+# Re-derive thumbnails from the evolved masters.
+#
+# Thumbs are just downsized masters (pngs/thumb/<id>.webp ← pngs/preview/
+# <id>.webp). After the evolution event re-renders the masters in R2
+# (evolve-rerender.yml), run this to pull each evolved master, resize it,
+# and re-upload the thumb — so the gallery, activity feed, and Lab picker
+# show the evolved art, not the pre-event thumbs.
+#
+# Run AFTER evolve-rerender finishes. Reuses the CLOUDFLARE_API_TOKEN /
+# CLOUDFLARE_ACCOUNT_ID repo secrets (same ones render-videos.yml uses).
+
+name: Evolve thumbs
+
+on:
+  workflow_dispatch:
+    inputs:
+      ceiling:
+        description: 'Highest token id to re-thumb (minted count).'
+        default: '165'
+        type: string
+      size:
+        description: 'Thumb size px (square).'
+        default: '600'
+        type: string
+
+concurrency:
+  group: evolve-thumbs
+  cancel-in-progress: false
+
+jobs:
+  thumbs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Python + Pillow
+        run: pip install pillow
+
+      - name: Install wrangler
+        run: npm install -g wrangler@4
+
+      - name: Re-derive and upload thumbs from evolved masters
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          ceiling="${{ github.event.inputs.ceiling || '165' }}"
+          size="${{ github.event.inputs.size || '600' }}"
+          mkdir -p out
+          python3 - "$ceiling" "$size" <<'PY'
+          import sys, urllib.request, io
+          from PIL import Image
+          ceiling = int(sys.argv[1]); size = int(sys.argv[2])
+          ok = 0; miss = 0
+          for i in range(1, ceiling + 1):
+              p = f"{i:05d}"
+              # cache-bust so we pull the freshly re-rendered master
+              url = f"https://pngs.thebioms.com/preview/{p}.webp?v=evolve"
+              try:
+                  data = urllib.request.urlopen(url, timeout=30).read()
+                  im = Image.open(io.BytesIO(data)).convert("RGBA")
+                  im.thumbnail((size, size), Image.LANCZOS)
+                  im.save(f"out/{p}.webp", "WEBP", quality=82, method=6)
+                  im.convert("RGB").save(f"out/{p}.png", "PNG")
+                  ok += 1
+              except Exception as e:
+                  miss += 1
+                  print(f"  #{i}: {e}")
+          print(f"derived ok={ok} miss={miss}")
+          PY
+          echo "Uploading thumbs to R2…"
+          for f in out/*.webp; do
+            id=$(basename "$f" .webp)
+            wrangler r2 object put "bioms-pngs/thumb/${id}.webp" --file "$f" --content-type image/webp --remote >/dev/null 2>&1 || echo "  webp ${id} upload failed"
+            wrangler r2 object put "bioms-pngs/thumb/${id}.png" --file "out/${id}.png" --content-type image/png --remote >/dev/null 2>&1 || echo "  png ${id} upload failed"
+          done
+          echo "Done."
