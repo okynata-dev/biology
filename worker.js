@@ -2692,16 +2692,16 @@ async function _tweetWeeklySummary(env) {
 // monthly budget guard caps total spend.
 // ============================================================
 const GM_LINES = [
-  'GBioms.',
-  'GBioms.\n\nThe colony persists.',
-  'GBioms.\n\n{S} — #{N}.',
-  'GBioms.\n\n{S} — #{N} — is awake.',
-  'GBioms.\n\nThe dish is warm.',
-  'GBioms.\n\nCells divide, time passes.',
-  'GBioms.\n\nAnother rotation of the dish.',
-  'GBioms.\n\n{S} survived the night.',
-  'GBioms.\n\nMicroscopy hour.',
-  'GBioms.\n\nLife at 400× magnification.',
+  'GM.',
+  'GM.\n\nThe colony persists.',
+  'GM.\n\n{S} — #{N}.',
+  'GM.\n\n{S} — #{N} — is awake.',
+  'GM.\n\nThe dish is warm.',
+  'GM.\n\nCells divide, time passes.',
+  'GM.\n\nAnother rotation of the dish.',
+  'GM.\n\n{S} survived the night.',
+  'GM.\n\nMicroscopy hour.',
+  'GM.\n\nLife at 400× magnification.',
 ];
 
 // Monthly post-budget guard. X bills $0.015 per POST /2/tweets request
@@ -2750,11 +2750,13 @@ async function _randomAliveBiomVideo(env, exclude) {
 
 async function _postGm(env, force = false) {
   if (!_xConfigured(env)) return { ok: false, reason: 'not_configured' };
-  // Idempotency: one gm per day (cron fires daily; 20h guard absorbs
-  // any cron retry or clock skew).
+  // Idempotency: absorb a cron retry / clock skew without blocking the
+  // second scheduled GM of the day. The two GM crons run ~7h apart
+  // (13:00 and 20:00 Bangkok), so a 4h guard catches same-slot retries
+  // yet lets both legitimate posts through.
   if (!force) {
     const last = parseInt(await _botStateGet(env, 'last_gm_at') || '0', 10);
-    if (Date.now() - last < 20 * 3600000) return { ok: false, reason: 'too_soon' };
+    if (Date.now() - last < 4 * 3600000) return { ok: false, reason: 'too_soon' };
   }
   if (!(await _postBudgetOk(env))) return { ok: false, reason: 'monthly_cap' };
   const pick = await _randomAliveBiomVideo(env);
@@ -3806,22 +3808,24 @@ export default {
   //   0 10 * * 1   — Monday colony report (an hour after gm so the two
   //                  never collide), skipped if quiet
   async scheduled(event, env, ctx) {
-    // Daily cadence is anchored to New York (US is the active audience).
-    // Cron is UTC and fixed, so these map to EDT (UTC-4); in EST winter
-    // they land one hour earlier NY time — acceptable drift, not worth a
-    // TZ library in a cron.
-    //   0 13 * * *  — 09:00 NY  · GBioms (morning) + a living Biom loop
-    //   0 17 * * *  — 13:00 NY  · random Biom, no caption
-    //   0 21 * * *  — 17:00 NY  · random Biom, no caption
-    //   0 1  * * *  — 21:00 NY  · random Biom, no caption (West-coast prime)
+    // Daily cadence is set in Bangkok time (the owner's clock) but the US
+    // is the audience, so the loops land during US daytime. Cron is fixed
+    // UTC; Bangkok = UTC+7 (no DST), so these slots are stable year-round.
+    //   0 6  * * *  — 13:00 BKK · GM + a living Biom loop
+    //   0 9  * * *  — 16:00 BKK · random Biom, no caption
+    //   0 11 * * *  — 18:00 BKK · random Biom, no caption
+    //   0 13 * * *  — 20:00 BKK · GM + a living Biom loop (US morning)
+    //   0 17 * * *  — 00:00 BKK · random Biom, no caption (US midday)
+    //   0 21 * * *  — 04:00 BKK · random Biom, no caption (US evening)
     //   */5 * * * * — burns sweep + tweet + new OpenSea sales (event-driven)
     //   0 10 * * 1  — Monday colony report, skipped on quiet weeks
     // The Lab posts itself: real burns/sales go out on the */5 tick. Feature
     // and trait-fact filler stay retired; _postFeature/_postTraitFact remain
     // callable via admin routes if ever wanted.
-    if (event.cron === '0 13 * * *') {
+    if (event.cron === '0 6 * * *' || event.cron === '0 13 * * *') {
       ctx.waitUntil(_postGm(env).catch(e => console.warn('[x] gm crash:', e?.message || e)));
-    } else if (event.cron === '0 17 * * *' || event.cron === '0 21 * * *' || event.cron === '0 1 * * *') {
+    } else if (event.cron === '0 9 * * *' || event.cron === '0 11 * * *'
+            || event.cron === '0 17 * * *' || event.cron === '0 21 * * *') {
       ctx.waitUntil(_postRandomBiom(env).catch(e => console.warn('[x] biom crash:', e?.message || e)));
     } else if (event.cron === '0 10 * * 1') {
       ctx.waitUntil(_tweetWeeklySummary(env).catch(e => console.warn('[x] weekly crash:', e?.message || e)));
