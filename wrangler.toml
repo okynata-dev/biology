@@ -93,15 +93,18 @@ binding = "BROWSER"
 #   Mon 09:00 UTC — weekly colony report (skipped when 0 burns/week)
 # Needs the four X_* secrets; without them scheduled() is a no-op.
 # ------------------------------------------------------------
-# Cron triggers — see worker.js scheduled(). EVENT-DRIVEN ONLY (the daily
-# gm / feature / trait-fact filler was retired 2026-06-15 — daily content
-# into a near-zero audience read as noise):
-#   */5        — burn-tweet drip (retry-capped) + OpenSea sales (max 2/day)
-#   0 10 * * 1 — Monday colony report, skipped on quiet weeks
-# Spend guard: every POST attempt passes _postBudgetOk (cap via
-# X_MONTHLY_POST_CAP).
+# Cron triggers — see worker.js scheduled(). Daily cadence anchored to
+# New York (US is the active audience); UTC slots map to EDT (UTC-4):
+#   0 13 * * *  — 09:00 NY · GBioms (morning) + a living Biom loop
+#   0 17 * * *  — 13:00 NY · random Biom, no caption
+#   0 21 * * *  — 17:00 NY · random Biom, no caption
+#   0 1  * * *  — 21:00 NY · random Biom, no caption (West-coast prime)
+#   */5         — burn-tweet drip (retry-capped) + OpenSea sales (max 2/day)
+#   0 10 * * 1  — Monday colony report, skipped on quiet weeks
+# Feature/trait-fact filler stays retired. Spend guard: every POST attempt
+# passes _postBudgetOk (cap via X_MONTHLY_POST_CAP).
 [triggers]
-crons = ["*/5 * * * *", "0 10 * * 1"]
+crons = ["0 13 * * *", "0 17 * * *", "0 21 * * *", "0 1 * * *", "*/5 * * * *", "0 10 * * 1"]
 
 [vars]
 # Public config — fine to commit. Secrets go via `wrangler secret put`.

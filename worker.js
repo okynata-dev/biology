@@ -2734,13 +2734,14 @@ async function _botStateSet(env, key, value) {
 
 // Random living Biom whose loop exists in R2. Burned ids are few —
 // load once, then roll. Shared by the gm and feature posts.
-async function _randomAliveBiomVideo(env) {
+async function _randomAliveBiomVideo(env, exclude) {
   const { results } = await env.DB.prepare('SELECT burned_token_id AS id FROM burns').all();
   const burned = new Set((results || []).map(r => r.id));
+  const skip = exclude instanceof Set ? exclude : new Set(exclude ? [exclude] : []);
   const maxId = maxTokenId(env);
-  for (let tries = 0; tries < 6; tries++) {
+  for (let tries = 0; tries < 10; tries++) {
     const cand = 1 + Math.floor(Math.random() * maxId);
-    if (burned.has(cand)) continue;
+    if (burned.has(cand) || skip.has(cand)) continue;
     const obj = await env.PNGS.get(`video/${String(cand).padStart(5, '0')}.mp4`);
     if (obj) return { seed: cand, video: obj };
   }
@@ -2777,6 +2778,36 @@ async function _postGm(env, force = false) {
   await _botStateSet(env, 'last_gm_at', Date.now());
   console.log(`[x] gm tweeted: ${r.body?.data?.id} (Biom #${seed})`);
   return { ok: true, tweetId: r.body?.data?.id, seed, line };
+}
+
+// ============================================================
+// BIOM POST — a random living organism's loop, NO caption. The art
+// carries it; the timeline fills with motion, not words. Runs 3×/day
+// on the US-active crons (see scheduled()). Skips the immediately
+// previous seed so the same Biom never posts twice in a row.
+// ============================================================
+async function _postRandomBiom(env) {
+  if (!_xConfigured(env)) return { ok: false, reason: 'not_configured' };
+  if (!(await _postBudgetOk(env))) return { ok: false, reason: 'monthly_cap' };
+  const last = parseInt(await _botStateGet(env, 'last_biom_seed') || '0', 10);
+  const pick = await _randomAliveBiomVideo(env, last || undefined);
+  if (!pick) return { ok: false, reason: 'no_video_found' };
+  const { seed, video } = pick;
+
+  const mediaId = await _xUploadMedia(env, await video.arrayBuffer(), 'video/mp4', 'tweet_video');
+  if (!mediaId) return { ok: false, reason: 'media_upload_failed' };
+
+  // Media-only tweet — text omitted on purpose (no caption).
+  const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', {
+    json: { media: { media_ids: [mediaId] } },
+  });
+  if (r.status !== 201) {
+    console.warn(`[x] biom failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+    return { ok: false, reason: `post_${r.status}` };
+  }
+  await _botStateSet(env, 'last_biom_seed', seed);
+  console.log(`[x] biom tweeted: ${r.body?.data?.id} (#${seed})`);
+  return { ok: true, tweetId: r.body?.data?.id, seed };
 }
 
 // ============================================================
@@ -3693,6 +3724,14 @@ export default {
         const result = await _postGm(env, true);
         return json(result, {}, origin);
       }
+      if (path === '/api/admin/post-biom' && req.method === 'POST') {
+        // Manually fire one no-caption random-Biom post (admin-gated) —
+        // for verifying the media-only timeline post before the crons run.
+        const gate = _adminGate(req, env, origin);
+        if (gate) return gate;
+        const result = await _postRandomBiom(env);
+        return json(result, {}, origin);
+      }
       if (path === '/api/admin/evolve' && req.method === 'POST') {
         // One-time evolution event. DORMANT: dry-run unless
         // ?apply=1&confirm=EVOLVE-COLONY. See handleAdminEvolve.
@@ -3767,12 +3806,24 @@ export default {
   //   0 10 * * 1   — Monday colony report (an hour after gm so the two
   //                  never collide), skipped if quiet
   async scheduled(event, env, ctx) {
-    // Filler posts (gm / feature / trait facts) were retired 2026-06-15 —
-    // daily content into a near-zero audience read as noise. The bot now
-    // only speaks on REAL events (burns, sales) + a weekly report that
-    // skips quiet weeks. _postGm/_postFeature/_postTraitFact remain
-    // callable via the admin routes if ever wanted.
-    if (event.cron === '0 10 * * 1') {
+    // Daily cadence is anchored to New York (US is the active audience).
+    // Cron is UTC and fixed, so these map to EDT (UTC-4); in EST winter
+    // they land one hour earlier NY time — acceptable drift, not worth a
+    // TZ library in a cron.
+    //   0 13 * * *  — 09:00 NY  · GBioms (morning) + a living Biom loop
+    //   0 17 * * *  — 13:00 NY  · random Biom, no caption
+    //   0 21 * * *  — 17:00 NY  · random Biom, no caption
+    //   0 1  * * *  — 21:00 NY  · random Biom, no caption (West-coast prime)
+    //   */5 * * * * — burns sweep + tweet + new OpenSea sales (event-driven)
+    //   0 10 * * 1  — Monday colony report, skipped on quiet weeks
+    // The Lab posts itself: real burns/sales go out on the */5 tick. Feature
+    // and trait-fact filler stay retired; _postFeature/_postTraitFact remain
+    // callable via admin routes if ever wanted.
+    if (event.cron === '0 13 * * *') {
+      ctx.waitUntil(_postGm(env).catch(e => console.warn('[x] gm crash:', e?.message || e)));
+    } else if (event.cron === '0 17 * * *' || event.cron === '0 21 * * *' || event.cron === '0 1 * * *') {
+      ctx.waitUntil(_postRandomBiom(env).catch(e => console.warn('[x] biom crash:', e?.message || e)));
+    } else if (event.cron === '0 10 * * 1') {
       ctx.waitUntil(_tweetWeeklySummary(env).catch(e => console.warn('[x] weekly crash:', e?.message || e)));
     } else {
       // Reconcile chain burns FIRST so recovered/wild burns exist in D1
