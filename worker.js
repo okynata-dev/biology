@@ -881,6 +881,39 @@ async function refreshOpenSeaMetadata(env, ...tokenIds) {
   }
 }
 
+// POST /api/admin/refresh-opensea?from=1&to=165   x-admin-token: <secret>
+// Bulk OpenSea metadata-refresh for the living colony, THROTTLED. The
+// mass evolution re-render fired refreshOpenSeaMetadata per token, but a
+// 154-wide fan-out trips OpenSea's refresh rate limit and most pings get
+// dropped — so the new art never showed there. This walks the range in
+// small batches with a gap between them. Re-runnable; pass from/to to
+// split if a single call runs long. Does NOT re-render anything.
+async function handleAdminRefreshOpenSea(req, env, origin) {
+  const gate = _adminGate(req, env, origin);
+  if (gate) return gate;
+  if (!openseaKey(env)) return error('opensea_key_not_set', 503, origin);
+  const url = new URL(req.url);
+  const minted = parseInt(await _botStateGet(env, 'minted_count') || '165', 10);
+  const from = Math.max(1, parseInt(url.searchParams.get('from') || '1', 10));
+  const to = Math.min(maxTokenId(env), parseInt(url.searchParams.get('to') || String(minted), 10));
+  const burnedRows = (await env.DB.prepare('SELECT burned_token_id AS id FROM burns').all()).results || [];
+  const wildRows = (await env.DB.prepare('SELECT burned_token_id AS id FROM wild_burns').all().catch(() => ({ results: [] }))).results || [];
+  const gone = new Set([...burnedRows, ...wildRows].map(r => r.id));
+  const ids = [];
+  for (let i = from; i <= to; i++) if (!gone.has(i)) ids.push(i);
+
+  const BATCH = 6, GAP_MS = 350;
+  let attempted = 0;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const chunk = ids.slice(i, i + BATCH);
+    await refreshOpenSeaMetadata(env, ...chunk);   // logs its own failures to D1
+    attempted += chunk.length;
+    if (i + BATCH < ids.length) await new Promise(r => setTimeout(r, GAP_MS));
+  }
+  return json({ ok: true, attempted, from, to, skippedBurned: gone.size,
+    note: 'OpenSea processes refreshes async; allow a few minutes to surface' }, {}, origin);
+}
+
 // ============================================================
 // BURN handler — permanent on-chain sacrifice
 //
@@ -3733,6 +3766,10 @@ export default {
         if (gate) return gate;
         const result = await _postRandomBiom(env);
         return json(result, {}, origin);
+      }
+      if (path === '/api/admin/refresh-opensea' && req.method === 'POST') {
+        // Throttled bulk OpenSea metadata-refresh for the living colony.
+        return await handleAdminRefreshOpenSea(req, env, origin);
       }
       if (path === '/api/admin/evolve' && req.method === 'POST') {
         // One-time evolution event. DORMANT: dry-run unless
