@@ -3845,25 +3845,17 @@ export default {
   //   0 10 * * 1   — Monday colony report (an hour after gm so the two
   //                  never collide), skipped if quiet
   async scheduled(event, env, ctx) {
-    // Daily cadence is set in Bangkok time (the owner's clock) but the US
-    // is the audience, so the loops land during US daytime. Cron is fixed
-    // UTC; Bangkok = UTC+7 (no DST), so these slots are stable year-round.
+    // Bangkok-anchored (owner's clock); cron is fixed UTC, Bangkok = UTC+7
+    // (no DST), so slots are stable year-round. No-caption random-Biom
+    // posts were retired 2026-06-20 at the owner's request — only GM,
+    // burns and sales remain. _postRandomBiom stays callable via
+    // /api/admin/post-biom for manual one-offs.
     //   0 6  * * *  — 13:00 BKK · GM + a living Biom loop
-    //   0 9  * * *  — 16:00 BKK · random Biom, no caption
-    //   0 11 * * *  — 18:00 BKK · random Biom, no caption
     //   0 13 * * *  — 20:00 BKK · GM + a living Biom loop (US morning)
-    //   0 17 * * *  — 00:00 BKK · random Biom, no caption (US midday)
-    //   0 21 * * *  — 04:00 BKK · random Biom, no caption (US evening)
     //   */5 * * * * — burns sweep + tweet + new OpenSea sales (event-driven)
     //   0 10 * * 1  — Monday colony report, skipped on quiet weeks
-    // The Lab posts itself: real burns/sales go out on the */5 tick. Feature
-    // and trait-fact filler stay retired; _postFeature/_postTraitFact remain
-    // callable via admin routes if ever wanted.
     if (event.cron === '0 6 * * *' || event.cron === '0 13 * * *') {
       ctx.waitUntil(_postGm(env).catch(e => console.warn('[x] gm crash:', e?.message || e)));
-    } else if (event.cron === '0 9 * * *' || event.cron === '0 11 * * *'
-            || event.cron === '0 17 * * *' || event.cron === '0 21 * * *') {
-      ctx.waitUntil(_postRandomBiom(env).catch(e => console.warn('[x] biom crash:', e?.message || e)));
     } else if (event.cron === '0 10 * * 1') {
       ctx.waitUntil(_tweetWeeklySummary(env).catch(e => console.warn('[x] weekly crash:', e?.message || e)));
     } else {
