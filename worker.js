@@ -1099,7 +1099,9 @@ async function _persistBurnMerge(env, ctx, donorId, recipientId, signerLc, txHas
   const recipientMass = (recipientData.mass != null ? recipientData.mass : _premintMass(recipientId));
   const donorMass     = (donorData.mass     != null ? donorData.mass     : _premintMass(donorId));
   const newMass = recipientMass + donorMass;
-  const newRank = _rankForMass(newMass);
+  // +1 to mirror the evolution bonus the survivor carries (guaranteed by the
+  // tier_bonus upsert below). This is the rank shown to the burner right away.
+  const newRank = Math.min(6, _rankForMass(newMass) + 1);
 
   const ts = opts.ts || Date.now();
   const tsSec = Math.floor(ts / 1000);
@@ -1119,15 +1121,20 @@ async function _persistBurnMerge(env, ctx, donorId, recipientId, signerLc, txHas
       env.DB.prepare(
         'INSERT INTO log (ts, donor, recipient, trait, result, signer, roll_hex) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind(ts, donorId, recipientId, '*burn*', 'burn', signerLc, null),
+      // tier_bonus = MAX(existing, 1): every burn survivor keeps (or gains)
+      // the evolution's +1, so a burn always lands one rank above the
+      // mass-only baseline — consistent with OpenSea metadata and with the
+      // evolved colony. Never lowers an existing bonus.
       env.DB.prepare(`
-        INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, absorbed_seeds, mass, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO token_state (token_id, received_palette, received_organelles, received_anomalies, absorbed_seeds, mass, tier_bonus, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?)
         ON CONFLICT(token_id) DO UPDATE SET
           received_palette = excluded.received_palette,
           received_organelles = excluded.received_organelles,
           received_anomalies = excluded.received_anomalies,
           absorbed_seeds = excluded.absorbed_seeds,
           mass = excluded.mass,
+          tier_bonus = MAX(COALESCE(tier_bonus, 0), 1),
           updated_at = excluded.updated_at
       `).bind(
         recipientId,
@@ -2250,6 +2257,11 @@ async function handleActivity(env, url, origin) {
   // Replay: every token starts at its pre-mint mass (1 for base tokens);
   // each burn folds the donor's accumulated mass into the recipient.
   // Mirrors handleBurn's additive-mass model exactly.
+  // tier_bonus = the one-time +1 from the 2026-06 evolution event. It must
+  // be added to the mass-derived rank everywhere the rank is shown, or the
+  // activity feed under-reports vs OpenSea metadata (which already adds it)
+  // — a burn would read one rank lower than the token actually is.
+  const bonusOf = await _tierBonusMap(env);
   const massOf = new Map();
   const currentMass = (id) => (massOf.has(id) ? massOf.get(id) : _premintMass(id));
   const events = rows.map((r) => {
@@ -2257,8 +2269,9 @@ async function handleActivity(env, url, origin) {
     const recipientMassBefore = currentMass(r.recipient_token_id);
     const mass = recipientMassBefore + donorMass;
     massOf.set(r.recipient_token_id, mass);
-    const rankBefore = _rankForMass(recipientMassBefore);
-    const rank = _rankForMass(mass);
+    const bonus = bonusOf.get(r.recipient_token_id) || 0;
+    const rankBefore = Math.min(6, _rankForMass(recipientMassBefore) + bonus);
+    const rank = Math.min(6, _rankForMass(mass) + bonus);
     return {
       burnedTokenId: r.burned_token_id,
       recipientTokenId: r.recipient_token_id,
@@ -2327,6 +2340,22 @@ function _escHtml(s) {
 // Mass/tier of the survivor AS OF a given burn event — same replay as
 // handleActivity (token_state only stores the current mass). Returns
 // null if the token was never burned.
+// tier_bonus = the one-time +1 every surviving token got in the 2026-06
+// evolution event. buildMetadata adds it to the displayed rank, so anything
+// that shows a rank (tweets, /activity, share cards) must add it too — else
+// a burn reads one rank below what OpenSea shows and below the evolved
+// baseline, which is exactly the "I burned but got nothing" complaint.
+async function _tierBonusMap(env) {
+  const m = new Map();
+  try {
+    const { results } = await env.DB.prepare(
+      'SELECT token_id, tier_bonus FROM token_state WHERE tier_bonus IS NOT NULL AND tier_bonus > 0'
+    ).all();
+    for (const r of (results || [])) m.set(r.token_id, r.tier_bonus);
+  } catch (_) {}
+  return m;
+}
+
 async function _burnEventStats(env, burnedId) {
   const { results } = await env.DB.prepare(
     'SELECT burned_token_id, recipient_token_id, burned_at FROM burns ORDER BY burned_at ASC, burned_token_id ASC'
@@ -2338,7 +2367,11 @@ async function _burnEventStats(env, burnedId) {
     const mass = cur(r.recipient_token_id) + cur(r.burned_token_id);
     massOf.set(r.recipient_token_id, mass);
     if (r.burned_token_id === burnedId) {
-      const rank = _rankForMass(mass);
+      const bonusRow = await env.DB.prepare(
+        'SELECT tier_bonus FROM token_state WHERE token_id = ?'
+      ).bind(r.recipient_token_id).first();
+      const bonus = (bonusRow && bonusRow.tier_bonus) || 0;
+      const rank = Math.min(6, _rankForMass(mass) + bonus);
       return {
         recipientId: r.recipient_token_id,
         burnedAt: r.burned_at,
@@ -2637,65 +2670,105 @@ function _burnTweetText(burnedId, ev) {
     `The survivor is now ${ev.tier}, rank ${ev.rank}.`;
 }
 
+// Batch caption when several Bioms were fed into the SAME survivor inside
+// the debounce window — one tweet instead of N near-identical ones.
+function _burnBatchText(count, ev) {
+  return `${count} Bioms were fed into ${_pickName(ev.recipientId)} #${ev.recipientId}.\n` +
+    `\n` +
+    `The survivor is now ${ev.tier}, rank ${ev.rank}.`;
+}
+
 async function _tweetNewBurns(env) {
   if (!_xConfigured(env)) return;
-  // Oldest first, two per tick — a burst of burns drips out in order
-  // instead of flooding the timeline in one cron run.
+  // People usually burn several tokens into one survivor back-to-back, which
+  // used to fire 3 near-identical tweets. Hold each survivor's burns for a
+  // 1h window; once no new burn has landed for an hour, post ONE tweet —
+  // single-burn text + donor→survivor card, or a batch caption + the
+  // survivor's current master if several folded in.
+  const BATCH_WINDOW_MS = 60 * 60 * 1000;
+  const now = Date.now();
   const { results } = await env.DB.prepare(
-    `SELECT b.burned_token_id AS id FROM burns b
+    `SELECT b.burned_token_id AS id, b.recipient_token_id AS rid, b.burned_at AS at
+       FROM burns b
        LEFT JOIN tweeted_burns t ON t.burned_token_id = b.burned_token_id
       WHERE t.burned_token_id IS NULL
-      ORDER BY b.burned_at ASC LIMIT 2`
+      ORDER BY b.burned_at ASC`
   ).all();
-  for (const row of (results || [])) {
-    const ev = await _burnEventStats(env, row.id);
-    if (!ev) continue;
-    // Retry cap: every POST attempt costs $0.015 whether it lands or
-    // not, so a permanently-failing tweet must not retry every 5 min
-    // forever. Three strikes → recorded as gave_up, never retried.
-    const tryKey = `burn_tw_try_${row.id}`;
+  const rows = results || [];
+  if (!rows.length) return;
+
+  // Group untweeted burns by survivor, preserving chronological order.
+  const groups = new Map();
+  for (const r of rows) {
+    if (!groups.has(r.rid)) groups.set(r.rid, []);
+    groups.get(r.rid).push(r);
+  }
+
+  let posted = 0;
+  for (const [rid, group] of groups) {
+    if (posted >= 2) break;  // bound cost: at most 2 survivors per tick
+    const maxAt = group.reduce((m, g) => Math.max(m, g.at), 0);
+    if (now - maxAt < BATCH_WINDOW_MS) continue;  // burst still settling
+
+    // Retry cap per survivor batch — every POST costs $0.015 win or lose.
+    const tryKey = `burn_tw_try_r${rid}`;
     const tries = parseInt(await _botStateGet(env, tryKey) || '0', 10);
     if (tries >= 3) {
-      await env.DB.prepare(
-        'INSERT OR IGNORE INTO tweeted_burns (burned_token_id, tweeted_at, tweet_id) VALUES (?, ?, ?)'
-      ).bind(row.id, Date.now(), 'gave_up').run();
-      console.warn(`[x] burn ${row.id}: gave up after ${tries} attempts`);
+      for (const g of group) {
+        await env.DB.prepare(
+          'INSERT OR IGNORE INTO tweeted_burns (burned_token_id, tweeted_at, tweet_id) VALUES (?, ?, ?)'
+        ).bind(g.id, Date.now(), 'gave_up').run();
+      }
+      await _botStateSet(env, tryKey, 0);
+      console.warn(`[x] burn batch ${rid}: gave up after ${tries} attempts`);
       continue;
     }
+
+    const latest = group[group.length - 1];
+    const ev = await _burnEventStats(env, latest.id);  // current mass/rank (incl. tier bonus)
+    if (!ev) continue;
+
     if (!(await _postBudgetOk(env))) return;
     await _botStateSet(env, tryKey, tries + 1);
-    // Attach the composed donor→survivor card natively (no URL in the
-    // text — X bills $0.20 for posts with links vs $0.015 without, and
-    // the card carries everything anyway). Falls back to text-only if
-    // the card can't be fetched or uploaded.
-    let mediaId = null;
-    try {
-      const card = await ensureBurnOgImage(env, row.id);
-      if (card.ok) {
-        const bytes = card.body instanceof ArrayBuffer
-          ? card.body
-          : await new Response(card.body).arrayBuffer();
-        mediaId = await _xUploadMedia(env, bytes, 'image/png', 'tweet_image');
-      }
-    } catch (e) {
-      console.warn(`[x] burn ${row.id} media prep failed:`, e?.message || e);
+
+    let mediaId = null, text;
+    if (group.length === 1) {
+      // Single burn: donor→survivor composed card (no URL — X bills $0.20
+      // for links vs $0.015 without; the card carries everything).
+      text = _burnTweetText(latest.id, ev);
+      try {
+        const card = await ensureBurnOgImage(env, latest.id);
+        if (card.ok) {
+          const bytes = card.body instanceof ArrayBuffer ? card.body : await new Response(card.body).arrayBuffer();
+          mediaId = await _xUploadMedia(env, bytes, 'image/png', 'tweet_image');
+        }
+      } catch (e) { console.warn(`[x] burn ${latest.id} media prep failed:`, e?.message || e); }
+    } else {
+      // Batch: the survivor's current master shows what it became.
+      text = _burnBatchText(group.length, ev);
+      try {
+        const obj = await env.PNGS.get(`preview/${String(rid).padStart(5, '0')}.webp`);
+        if (obj) mediaId = await _xUploadMedia(env, await obj.arrayBuffer(), 'image/webp', 'tweet_image');
+      } catch (e) { console.warn(`[x] burn batch ${rid} media prep failed:`, e?.message || e); }
     }
+
     const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', {
-      json: {
-        text: _burnTweetText(row.id, ev),
-        ...(mediaId ? { media: { media_ids: [mediaId] } } : {}),
-      },
+      json: { text, ...(mediaId ? { media: { media_ids: [mediaId] } } : {}) },
     });
     const dup = r.status === 403 && /duplicate/i.test(JSON.stringify(r.body));
     if (r.status === 201 || dup) {
-      await env.DB.prepare(
-        'INSERT INTO tweeted_burns (burned_token_id, tweeted_at, tweet_id) VALUES (?, ?, ?)'
-      ).bind(row.id, Date.now(), dup ? 'duplicate' : (r.body?.data?.id || null)).run();
-      console.log(`[x] burn ${row.id} ${dup ? 'was a duplicate' : 'tweeted: ' + r.body?.data?.id}`);
+      const tid = dup ? 'duplicate' : (r.body?.data?.id || null);
+      for (const g of group) {
+        await env.DB.prepare(
+          'INSERT OR IGNORE INTO tweeted_burns (burned_token_id, tweeted_at, tweet_id) VALUES (?, ?, ?)'
+        ).bind(g.id, Date.now(), tid).run();
+      }
+      await _botStateSet(env, tryKey, 0);
+      posted++;
+      console.log(`[x] burn batch ${rid} (${group.length}) ${dup ? 'duplicate' : 'tweeted: ' + tid}`);
     } else {
-      // Auth error / rate limit / outage — log and retry on the next
-      // tick. Do NOT mark as tweeted, do NOT keep hammering this run.
-      console.warn(`[x] burn ${row.id} post failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+      // Auth / rate-limit / outage — keep the batch unmarked and retry next tick.
+      console.warn(`[x] burn batch ${rid} post failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
       break;
     }
   }
