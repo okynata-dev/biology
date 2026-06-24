@@ -1932,7 +1932,15 @@ async function buildMetadata(env, tokenId) {
     // OpenSea grid thumbnails refresh.
     image: imageUrl,
     image_url: imageUrl,  // OpenSea legacy field
-    animation_url: `https://thebioms.com/preview.html?${animParams.toString()}`,
+    // animation_url points at the pre-rendered MP4 loop, NOT the live
+    // preview.html: an HTML animation_url renders as a still poster on
+    // OpenSea, wallets and aggregators, so the breathing never plays
+    // there. The MP4 plays everywhere and is one deterministic file, so
+    // every surface shows the same thing. ?v= bumps with image_version,
+    // so a post-burn re-render busts OpenSea's cache. The site itself
+    // still drives preview.html directly (animParams kept for that path
+    // / quick rollback). /api/video busts its own R2 fetch by version.
+    animation_url: `https://api.thebioms.com/api/video/${tokenId}?v=${imageVersion}`,
     external_url: `https://thebioms.com/lab?seed=${tokenId}`,
     attributes,
     // OpenSea-specific: this lets the collection page show creator + royalty info
@@ -2058,6 +2066,24 @@ async function renderTokenMaster(env, tokenId) {
     await env.PNGS.put(`preview/${padded}.webp`, buffer, {
       httpMetadata: { contentType: 'image/webp' },
     });
+
+    // Re-shoot the thumbnail from the SAME loaded page. A burn re-renders
+    // the master here but the activity feed / gallery / picker read
+    // thumb/<id>, which otherwise stays frozen at the PRE-burn art — that
+    // was the "survivor looks unchanged / different on every surface" bug.
+    // Resize the viewport down and screenshot again (no image lib in the
+    // Worker, so a second screenshot is how we get a small variant).
+    try {
+      await page.setViewport({ width: 600, height: 600, deviceScaleFactor: 1 });
+      await new Promise(r => setTimeout(r, 500));  // let the canvas re-fit
+      const thumbWebp = await page.screenshot({ type: 'webp', quality: 82, omitBackground: false });
+      await env.PNGS.put(`thumb/${padded}.webp`, thumbWebp, { httpMetadata: { contentType: 'image/webp' } });
+      const thumbPng = await page.screenshot({ type: 'png', omitBackground: false });
+      await env.PNGS.put(`thumb/${padded}.png`, thumbPng, { httpMetadata: { contentType: 'image/png' } });
+      console.log(`[render] token ${tokenId} thumb regenerated (${thumbWebp.byteLength} b)`);
+    } catch (te) {
+      console.warn(`[render] token ${tokenId} thumb regen failed:`, te?.message || te);
+    }
 
     // Bump image_version so the metadata URL changes on next fetch
     // (token_state row is upserted to ensure the column exists).
@@ -2338,8 +2364,8 @@ async function handleShareBurn(env, ctx, tokenIdStr) {
   if (ev) {
     const donorSp = _pickName(tokenId);
     const survSp = _pickName(ev.recipientId);
-    const title = `${donorSp} — #${tokenId} → ${survSp} — #${ev.recipientId}`;
-    const desc = `The survivor is now a ${ev.tier} — rank ${ev.rank}. Nothing is reversible.`;
+    const title = `${donorSp} #${tokenId} → ${survSp} #${ev.recipientId}`;
+    const desc = `The survivor is now ${ev.tier}, rank ${ev.rank}.`;
     const img = `https://api.thebioms.com/api/og/burn/${tokenId}.png`;
     // Pre-warm the composed image so the X crawler doesn't eat the
     // first render's 2-5s — by the time the tweet is posted, R2 has it.
@@ -2363,8 +2389,8 @@ async function handleShareBurn(env, ctx, tokenIdStr) {
   // Same URL buildMetadata serves to OpenSea — renderTokenMaster bumps
   // ?v= after each burn, so the card always shows the post-burn render.
   const img = `https://pngs.thebioms.com/preview/${padded}.webp?v=${imageVersion}`;
-  const title = `${species} — Biom #${tokenId}`;
-  const desc = `${tier}, mass ${mass}. Forged in the Bioms Lab — every burn is recorded. Nothing is reversible.`;
+  const title = `${species}, Biom #${tokenId}`;
+  const desc = `${tier}, mass ${mass}. Forged in the Bioms Lab. Every burn is recorded.`;
   return _shareCardHtml({ title, desc, img, url: `https://thebioms.com/b/${tokenId}` });
 }
 
@@ -2392,7 +2418,7 @@ function _shareCardHtml({ title, desc, img, url }) {
 <script>location.replace('/activity');</script>
 </head>
 <body>
-<p><a href="/activity">${t} — see the burn record</a></p>
+<p><a href="/activity">${t} · see the burn record</a></p>
 </body>
 </html>`;
   return new Response(html, {
@@ -2606,10 +2632,9 @@ async function _xUploadMedia(env, bytes, mediaType, category) {
 // NO URL in the text: the composed card is attached as native media,
 // and X prices link-posts at $0.20 vs $0.015 plain.
 function _burnTweetText(burnedId, ev) {
-  return `${_pickName(burnedId)} — #${burnedId} → ${_pickName(ev.recipientId)} — #${ev.recipientId}\n` +
+  return `${_pickName(burnedId)} #${burnedId} → ${_pickName(ev.recipientId)} #${ev.recipientId}\n` +
     `\n` +
-    `The survivor is now a ${ev.tier} — rank ${ev.rank}.\n` +
-    `Nothing is reversible.`;
+    `The survivor is now ${ev.tier}, rank ${ev.rank}.`;
 }
 
 async function _tweetNewBurns(env) {
@@ -2693,11 +2718,11 @@ async function _tweetWeeklySummary(env) {
   let topLine = '';
   if (top && top.mass > 1) {
     const rank = _rankForMass(top.mass);
-    topLine = `The most evolved organism is ${_pickName(top.token_id)} — #${top.token_id}, a ${_tierForRank(rank)} of rank ${rank}.\n`;
+    topLine = `The most evolved organism is ${_pickName(top.token_id)} #${top.token_id}, a ${_tierForRank(rank)} of rank ${rank}.\n`;
   }
   const text =
     `Colony report.\n` +
-    `${wk.n} ${wk.n === 1 ? 'burn' : 'burns'} this week — ${tot.n} ${tot.n === 1 ? 'Biom' : 'Bioms'} gone forever.\n` +
+    `${wk.n} ${wk.n === 1 ? 'burn' : 'burns'} this week. ${tot.n} ${tot.n === 1 ? 'Biom' : 'Bioms'} gone forever.\n` +
     topLine.trimEnd();
   // Media: the most evolved organism's current master render.
   let mediaId = null;
@@ -2727,8 +2752,8 @@ async function _tweetWeeklySummary(env) {
 const GM_LINES = [
   'GM.',
   'GM.\n\nThe colony persists.',
-  'GM.\n\n{S} — #{N}.',
-  'GM.\n\n{S} — #{N} — is awake.',
+  'GM.\n\n{S} #{N}.',
+  'GM.\n\n{S} #{N} is awake.',
   'GM.\n\nThe dish is warm.',
   'GM.\n\nCells divide, time passes.',
   'GM.\n\nAnother rotation of the dish.',
@@ -3042,13 +3067,13 @@ async function _tweetNewSales(env) {
     if (tweetedToday >= 2) break;
     if (!(await _postBudgetOk(env))) break;
 
-    let line = `${_pickName(tokenId)} — #${tokenId} changed hands. ${eth.toFixed(eth < 0.1 ? 3 : 2)} ETH on OpenSea.`;
+    let line = `${_pickName(tokenId)} #${tokenId} changed hands. ${eth.toFixed(eth < 0.1 ? 3 : 2)} ETH on OpenSea.`;
     try {
       const st = await loadTokenState(env, tokenId);
       const mass = st.mass != null ? st.mass : _premintMass(tokenId);
       if (mass > 1) {
         const rank = _rankForMass(mass);
-        line += `\n\nA ${_tierForRank(rank)} — rank ${rank}, ${mass - 1} ${mass - 1 === 1 ? 'burn' : 'burns'} folded in.`;
+        line += `\n\n${_tierForRank(rank)}, rank ${rank}. ${mass - 1} ${mass - 1 === 1 ? 'burn' : 'burns'} folded in.`;
       }
     } catch (_) {}
 

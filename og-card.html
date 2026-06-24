@@ -121,13 +121,13 @@
 
   const cap = document.getElementById('caption');
   if (tier && rank != null) {
-    cap.appendChild(document.createTextNode('The survivor is now a '));
+    cap.appendChild(document.createTextNode('The survivor is now '));
     const t = document.createElement('strong');
     t.textContent = tier;
     cap.appendChild(t);
-    cap.appendChild(document.createTextNode(` — rank ${rank}. Nothing is reversible.`));
+    cap.appendChild(document.createTextNode(`, rank ${rank}.`));
   } else {
-    cap.textContent = 'Nothing is reversible.';
+    cap.textContent = 'A new survivor.';
   }
 
   // Ready flag for the screenshot pipeline — set once both thumbs have
