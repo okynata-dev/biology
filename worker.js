@@ -1947,7 +1947,7 @@ async function buildMetadata(env, tokenId) {
     // so a post-burn re-render busts OpenSea's cache. The site itself
     // still drives preview.html directly (animParams kept for that path
     // / quick rollback). /api/video busts its own R2 fetch by version.
-    animation_url: `https://api.thebioms.com/api/video/${tokenId}?v=${imageVersion}`,
+    animation_url: `https://api.thebioms.com/api/video/${tokenId}.mp4?v=${imageVersion}`,
     external_url: `https://thebioms.com/lab?seed=${tokenId}`,
     attributes,
     // OpenSea-specific: this lets the collection page show creator + royalty info
