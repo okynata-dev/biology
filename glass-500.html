@@ -59,6 +59,8 @@ const T={
   form:[['Coccus',16],['Morula',12],['Bacilli',12],['Staphylo',11],['Strepto',10],['Acanthar',10],['Nassella',9],['Lattice',8],['Coral',7],['Discus',5]],
   surface:[['Smooth',38],['Bumpy',26],['Porous',20],['Ribbed',16]],
   spines:[['None',50],['Few',28],['Crown',16],['Halo',6]],
+  appendage:[['None',42],['Cilia',22],['Flagella',16],['Tendrils',13],['Pods',7]],
+  face:[['Dot',30],['Cute',26],['None',18],['Wide',12],['Sleepy',9],['Smirk',5]],
   shells:[['1',62],['2',28],['3',10]],
   stain:[['nile_blue',15],['congo_red',14],['malachite',13],['eosin',12],['safranin',11],['methylene',10],['fuchsia',8],['gold',6],['plasma',4],['aurora',4],['void',2],['iridescent',1]],
   irid:[['None',26],['Faint',38],['Vivid',26],['Spectral',10]],
@@ -67,17 +69,18 @@ const T={
 };
 // vivid, saturated glass hues
 const TINT={nile_blue:0x1f8ae0,congo_red:0xff4f22,malachite:0x06cf8c,eosin:0xff5f52,safranin:0xff5f97,methylene:0x4458f0,fuchsia:0xff3fd0,gold:0xffba2e,plasma:0xa64bff,aurora:0x2fe6c4,void:0x141d3a,iridescent:0xaee6ee};
-const RARE=new Set(['3','Lattice','Coral','Discus','Crown','Halo','gold','plasma','aurora','void','iridescent','Spectral','Golden','Living']);
+const RARE=new Set(['3','Lattice','Coral','Discus','Crown','Halo','gold','plasma','aurora','void','iridescent','Spectral','Golden','Living','Flagella','Tendrils','Pods']);
 
 function traitsFor(id){
   const r=mb(((id*2654435761)>>>0)^0x9e37);
   const t={form:wpick(r,T.form),surface:wpick(r,T.surface),spines:wpick(r,T.spines),shells:wpick(r,T.shells),
+    appendage:wpick(r,T.appendage),face:wpick(r,T.face),
     stain:wpick(r,T.stain),irid:wpick(r,T.irid),nucleus:wpick(r,T.nucleus),anomaly:wpick(r,T.anomaly),_r:r};
   if(t.form==='Acanthar'&&t.spines==='None')t.spines='Crown';
   if(t.anomaly==='Supernova')t.spines='Halo';
   if(t.anomaly==='Spectral core')t.irid='Spectral';
   if(t.anomaly==='Albino')t.stain='iridescent';
-  let sc=0;for(const k of['shells','spines','stain','irid','nucleus','form'])if(RARE.has(t[k]))sc++;
+  let sc=0;for(const k of['shells','spines','appendage','stain','irid','nucleus','form'])if(RARE.has(t[k]))sc++;
   if(t.anomaly!=='None')sc+=2;
   t.tier=sc>=4?'Mythic':sc===3?'Epic':sc===2?'Rare':sc===1?'Uncommon':'Common';
   return t;
@@ -174,6 +177,68 @@ function addSpines(group,t,mat,count,len){
     cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);group.add(cone);}
 }
 
+// shared raycast helpers: find where a direction meets the built surface
+function surfaceTargets(group){group.updateMatrixWorld(true);const a=[];group.traverse(o=>{if(o.isMesh)a.push(o);});return a;}
+const _ray=new THREE.Raycaster(),_O=new THREE.Vector3();
+function hitSurface(targets,dir){_ray.set(_O,dir);const h=_ray.intersectObjects(targets,false);return h.length?h[h.length-1].point.clone():dir.clone().multiplyScalar(1.3);}
+
+// a soft wavy tube growing from `start` along `dir` — used for flagella/tendrils
+function wavyTube(start,dir,len,rad,curl,segs,seed){
+  const up=Math.abs(dir.y)<0.9?new THREE.Vector3(0,1,0):new THREE.Vector3(1,0,0);
+  const sx=new THREE.Vector3().crossVectors(dir,up).normalize();
+  const sy=new THREE.Vector3().crossVectors(dir,sx).normalize();const pts=[];
+  for(let i=0;i<=segs;i++){const f=i/segs;const p=start.clone().add(dir.clone().multiplyScalar(len*f));
+    p.add(sx.clone().multiplyScalar(Math.sin(f*Math.PI*curl+seed)*len*0.16*f));
+    p.add(sy.clone().multiplyScalar(Math.cos(f*Math.PI*curl*0.7+seed)*len*0.11*f));pts.push(p);}
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),segs*2,rad,8,false);
+}
+
+// extra organic growths beyond the rigid spines
+function addAppendages(G,t,mat){
+  const type=t.appendage;if(type==='None')return;const r=t._r,T=surfaceTargets(G);
+  if(type==='Cilia'){const n=54;for(let i=0;i<n;i++){const dir=fib(i,n),base=hitSurface(T,dir),sl=0.28+r()*0.18;
+    const c=new THREE.Mesh(new THREE.ConeGeometry(0.022,sl,5),mat);c.position.copy(base).add(dir.clone().multiplyScalar(sl*0.42));
+    c.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);G.add(c);}}
+  else if(type==='Flagella'){const n=2+((r()*2)|0);for(let i=0;i<n;i++){
+    const dir=new THREE.Vector3((r()-.5)*0.9,-0.6-r()*0.5,(r()-.5)*0.9).normalize(),base=hitSurface(T,dir);
+    G.add(new THREE.Mesh(wavyTube(base,dir,2.4+r()*0.8,0.05,2.4,40,r()*6),mat));}}
+  else if(type==='Tendrils'){const n=4+((r()*3)|0);for(let i=0;i<n;i++){
+    const dir=fib(i,n).add(new THREE.Vector3((r()-.5)*.5,(r()-.5)*.5,(r()-.5)*.5)).normalize(),base=hitSurface(T,dir);
+    G.add(new THREE.Mesh(wavyTube(base,dir,1.2+r()*0.5,0.06,3.2,34,r()*6),mat));}}
+  else if(type==='Pods'){const n=7+((r()*4)|0);for(let i=0;i<n;i++){
+    const dir=new THREE.Vector3((r()-.5)*1.4,-0.4-r()*0.8,(r()-.5)*1.4).normalize(),base=hitSurface(T,dir),pr=0.16+r()*0.12;
+    const m=new THREE.Mesh(new THREE.SphereGeometry(pr,14,14),mat);m.position.copy(base).add(dir.clone().multiplyScalar(pr*0.4));G.add(m);}}
+}
+
+// the signature: a little face suspended just under the glass surface
+function addFace(G,t){
+  if(t.face==='None')return;const T=surfaceTargets(G);
+  const front=new THREE.Vector3(0,0.06,1).normalize();
+  const right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),front).normalize();
+  const up=new THREE.Vector3().crossVectors(front,right).normalize();
+  const eye=new THREE.MeshStandardMaterial({color:0x0d0a07,roughness:0.25,metalness:0,envMap,envMapIntensity:0.6});
+  const cfg={Dot:{er:0.11,sep:0.42,ey:0.12,mouth:null},
+             Cute:{er:0.14,sep:0.5,ey:0.16,mouth:'smile'},
+             Wide:{er:0.18,sep:0.58,ey:0.18,mouth:'o'},
+             Sleepy:{er:0.14,sep:0.5,ey:0.16,mouth:'smile',sleepy:true},
+             Smirk:{er:0.15,sep:0.5,ey:0.16,mouth:'smirk'}}[t.face];
+  const aim=off=>{const dir=front.clone().add(off).normalize();return {p:hitSurface(T,dir),dir};};
+  for(const s of[-1,1]){const {p,dir}=aim(right.clone().multiplyScalar(s*cfg.sep).add(up.clone().multiplyScalar(cfg.ey)));
+    if(cfg.sleepy){const e=new THREE.Mesh(new THREE.CapsuleGeometry(cfg.er*0.4,cfg.er*1.0,4,8),eye);
+      e.position.copy(p).add(dir.clone().multiplyScalar(cfg.er*0.7));e.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),right);G.add(e);}
+    else{const e=new THREE.Mesh(new THREE.SphereGeometry(cfg.er,18,18),eye);
+      e.position.copy(p).add(dir.clone().multiplyScalar(cfg.er*0.95));e.scale.z=0.82;
+      e.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir);G.add(e);
+      const g=new THREE.Mesh(new THREE.SphereGeometry(cfg.er*0.32,10,10),new THREE.MeshBasicMaterial({color:0xffffff}));
+      g.position.copy(p).add(dir.clone().multiplyScalar(cfg.er*1.55)).add(up.clone().multiplyScalar(cfg.er*0.34)).add(right.clone().multiplyScalar(s*cfg.er*0.22));G.add(g);}}
+  if(cfg.mouth){const {p,dir}=aim(up.clone().multiplyScalar(-0.26));
+    if(cfg.mouth==='o'){const m=new THREE.Mesh(new THREE.SphereGeometry(0.1,14,14),eye);m.scale.set(0.9,1.2,0.7);m.position.copy(p).add(dir.clone().multiplyScalar(0.08));G.add(m);}
+    else{const arc=cfg.mouth==='smirk'?Math.PI*0.55:Math.PI*0.9;
+      const tor=new THREE.Mesh(new THREE.TorusGeometry(0.18,0.032,8,22,arc),eye);
+      tor.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir);tor.rotateZ(-Math.PI/2-arc/2);
+      tor.position.copy(p).add(dir.clone().multiplyScalar(0.08));G.add(tor);}}
+}
+
 let current=null;
 function build(id){
   const t=traitsFor(id),r=t._r;const G=new THREE.Group();
@@ -221,6 +286,10 @@ function build(id){
     if(t.nucleus==='Cluster'||t.nucleus==='Living'){const k=t.nucleus==='Living'?5:3;for(let i=0;i<k;i++){const nn=new THREE.Mesh(new THREE.SphereGeometry(0.26+r()*0.14,16,16),nm);nn.position.set((r()-.5)*0.7,(r()-.5)*0.7,(r()-.5)*0.7);G.add(nn);}}
     else G.add(new THREE.Mesh(new THREE.SphereGeometry(0.55,18,18),nm));
   }
+  // face (the signature) + organic appendages — placed before spines so they
+  // anchor to the body surface, not to spine tips
+  addFace(G,t);
+  addAppendages(G,t,glass(t,{thin:true}));
   // spines add-on
   const spN={None:0,Few:10,Crown:20,Halo:40}[t.spines];
   if(spN){const sm=glass(t,{thin:true});addSpines(G,t,sm,t.anomaly==='Supernova'?56:spN,t.anomaly==='Supernova'?2.0:1.0);}
@@ -243,12 +312,12 @@ function show(id){
   camera.position.set(0,0,(sph.radius/Math.sin(fov/2))*1.18);camera.lookAt(0,0,0);
   document.getElementById('jump').value=state.id;const cap=s=>String(s).replace(/_/g,' ');
   document.getElementById('traits').innerHTML=`<div><b>#</b>${state.id}</div>`+
-    [['Form','form'],['Surface','surface'],['Spines','spines'],['Shells','shells'],['Stain','stain'],['Iridescence','irid'],['Nucleus','nucleus'],['Anomaly','anomaly']]
+    [['Form','form'],['Surface','surface'],['Face','face'],['Appendage','appendage'],['Spines','spines'],['Shells','shells'],['Stain','stain'],['Iridescence','irid'],['Nucleus','nucleus'],['Anomaly','anomaly']]
     .map(([L,k])=>`<div><b>${L}</b>${cap(t[k])}</div>`).join('')+`<div class="tier"><b>tier</b>${t.tier}</div>`;
 }
 
 function buildDist(){
-  const cats=['form','surface','spines','shells','stain','irid','nucleus','anomaly','tier'];const tally={};cats.forEach(c=>tally[c]={});
+  const cats=['form','surface','face','appendage','spines','shells','stain','irid','nucleus','anomaly','tier'];const tally={};cats.forEach(c=>tally[c]={});
   for(let id=1;id<=TOTAL;id++){const t=traitsFor(id);for(const c of cats){const v=String(t[c]);tally[c][v]=(tally[c][v]||0)+1;}}
   const el=document.getElementById('dist');el.innerHTML='';
   for(const c of cats){const h=document.createElement('h2');h.textContent=c;el.appendChild(h);
@@ -270,7 +339,7 @@ document.getElementById('close').onclick=()=>document.getElementById('sheet').cl
 function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 addEventListener('resize',resize);resize();
 let t0=performance.now();
-function loop(){const t=(performance.now()-t0)/1000;if(current){current.rotation.y=t*(current.userData.spin||0.15);current.rotation.x=Math.sin(t*0.3)*0.1;const s=1+Math.sin(t*0.8)*0.012;current.scale.setScalar(s);}renderer.render(scene,camera);requestAnimationFrame(loop);}
+function loop(){const t=(performance.now()-t0)/1000;if(current){const sp=current.userData.spin||0.5;current.rotation.y=Math.sin(t*sp)*0.6;current.rotation.x=Math.sin(t*sp*0.7)*0.12;const s=1+Math.sin(t*0.8)*0.012;current.scale.setScalar(s);}renderer.render(scene,camera);requestAnimationFrame(loop);}
 show(1);document.getElementById('load').style.display='none';loop();
 </script>
 </body>
