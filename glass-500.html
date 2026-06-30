@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Glass · 500</title>
 <style>
-  :root{ --bg:#ECE9E0; --ink:#1a1712; --ink2:#6b645a; }
+  :root{ --bg:#ffffff; --ink:#1a1712; --ink2:#6b645a; }
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:ui-monospace,Menlo,monospace;overflow:hidden;-webkit-user-select:none;user-select:none;}
   #c{display:block;width:100vw;height:100vh;touch-action:none;}
   .tag{position:fixed;top:calc(14px + env(safe-area-inset-top));left:0;right:0;text-align:center;font-size:10px;letter-spacing:.22em;color:var(--ink2);text-transform:uppercase;}
@@ -22,7 +22,7 @@
   .btn{position:fixed;cursor:pointer;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);background:rgba(255,255,255,.4);border:1px solid rgba(26,23,18,.1);border-radius:20px;padding:8px 12px;backdrop-filter:blur(6px);}
   #rand{top:calc(40px + env(safe-area-inset-top));right:16px;}
   #stats{top:calc(82px + env(safe-area-inset-top));right:16px;}
-  .sheet{position:fixed;inset:0;background:rgba(236,233,224,.96);backdrop-filter:blur(4px);overflow:auto;padding:34px 22px 60px;display:none;}
+  .sheet{position:fixed;inset:0;background:rgba(255,255,255,.96);backdrop-filter:blur(4px);overflow:auto;padding:34px 22px 60px;display:none;}
   .sheet.on{display:block;}
   .sheet h2{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2);margin:18px 0 8px;}
   .sheet h1{font-size:13px;letter-spacing:.2em;text-transform:uppercase;}
@@ -57,7 +57,7 @@ function wpick(rng,tab){let s=0;for(const[,w]of tab)s+=w;let r=rng()*s;for(const
 // ---------- TRAITS ----------
 const T={
   form:[['Coccus',16],['Morula',12],['Bacilli',12],['Staphylo',11],['Strepto',10],['Acanthar',10],['Nassella',9],['Lattice',8],['Coral',7],['Discus',5]],
-  surface:[['Smooth',40],['Bumpy',22],['Porous',16],['Ribbed',12],['Faceted',10]],
+  surface:[['Smooth',38],['Bumpy',26],['Porous',20],['Ribbed',16]],
   spines:[['None',50],['Few',28],['Crown',16],['Halo',6]],
   shells:[['1',62],['2',28],['3',10]],
   stain:[['nile_blue',15],['congo_red',14],['malachite',13],['eosin',12],['safranin',11],['methylene',10],['fuchsia',8],['gold',6],['plasma',4],['aurora',4],['void',2],['iridescent',1]],
@@ -88,7 +88,7 @@ const canvas=document.getElementById('c');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;renderer.outputColorSpace=THREE.SRGBColorSpace;
-const scene=new THREE.Scene();scene.background=new THREE.Color('#ECE9E0');
+const scene=new THREE.Scene();scene.background=new THREE.Color('#ffffff');
 const camera=new THREE.PerspectiveCamera(34,1,0.1,100);camera.position.set(0,0,7.6);
 
 function makeEnv(){
@@ -108,7 +108,7 @@ scene.add(new THREE.AmbientLight(0xffffff,0.22));
 // ---------- surface bump textures ----------
 const bumpCache={};
 function bumpTex(type){
-  if(type==='Smooth'||type==='Faceted')return null;
+  if(type==='Smooth')return null;
   if(bumpCache[type])return bumpCache[type];
   const s=512,cv=document.createElement('canvas');cv.width=cv.height=s;const g=cv.getContext('2d');
   g.fillStyle='#808080';g.fillRect(0,0,s,s);
@@ -125,45 +125,64 @@ function glass(t,opts){
   opts=opts||{};
   const iridV={None:0.05,Faint:0.4,Vivid:0.72,Spectral:1.0}[t.irid];
   const tint=new THREE.Color(TINT[t.stain]);
-  const rough=t.anomaly==='Frost'?0.42:(t.surface==='Faceted'?0.12:0.05);
+  const rough=t.anomaly==='Frost'?0.42:0.05;
   const m=new THREE.MeshPhysicalMaterial({
     color:0xffffff,metalness:0,roughness:rough,
     transmission:1,thickness:opts.thin?0.8:1.7,ior:1.5,
     attenuationColor:tint,attenuationDistance:opts.core?0.32:(t.stain==='iridescent'?2.2:0.85),
     iridescence:iridV,iridescenceIOR:1.32,iridescenceThicknessRange:[110,560],
     clearcoat:1,clearcoatRoughness:0.1,envMap,envMapIntensity:1.35,
-    flatShading:t.surface==='Faceted',
   });
   const b=bumpTex(t.surface);
   if(b&&!opts.core){m.bumpMap=b;m.bumpScale=t.surface==='Porous'?0.7:t.surface==='Ribbed'?0.5:0.4;}
   return m;
 }
 
+// IcosahedronGeometry is non-indexed, so computeVertexNormals() yields flat
+// per-face normals → faceted look. Average normals across shared positions to
+// get true smooth shading while keeping the original UVs (bump maps need them).
+function smooth(geo){
+  geo.computeVertexNormals();
+  const p=geo.attributes.position,nrm=geo.attributes.normal,acc=new Map();
+  const key=(x,y,z)=>Math.round(x*800)+','+Math.round(y*800)+','+Math.round(z*800);
+  for(let i=0;i<p.count;i++){const k=key(p.getX(i),p.getY(i),p.getZ(i));let a=acc.get(k);if(!a){a=[0,0,0,[]];acc.set(k,a);}a[0]+=nrm.getX(i);a[1]+=nrm.getY(i);a[2]+=nrm.getZ(i);a[3].push(i);}
+  const v=new THREE.Vector3();
+  acc.forEach(a=>{v.set(a[0],a[1],a[2]).normalize();for(const i of a[3])nrm.setXYZ(i,v.x,v.y,v.z);});
+  nrm.needsUpdate=true;return geo;
+}
 // ---------- a smooth blob geometry ----------
-function blob(r,detail,amp,fq,seed,faceted){
-  const geo=new THREE.IcosahedronGeometry(r,faceted?2:detail);
+function blob(r,detail,amp,fq,seed){
+  const geo=new THREE.IcosahedronGeometry(r,detail);
   const pos=geo.attributes.position,v=new THREE.Vector3();
   for(let i=0;i<pos.count;i++){v.fromBufferAttribute(pos,i);
     const n=Math.sin(v.x*fq*3+seed)*Math.cos(v.y*fq*2.3)*Math.sin(v.z*fq*2.7+1.3);
     v.multiplyScalar(1+amp*n);pos.setXYZ(i,v.x,v.y,v.z);}
-  geo.computeVertexNormals();return geo;
+  return smooth(geo);
 }
-function addSpines(group,t,mat,count,coreR,len){
-  for(let i=0;i<count;i++){const dir=fib(i,count),sl=len*(0.7+t._r()*0.6);
+// spines are raycast onto the actual built surface so they grow OUT of the
+// form (whatever its shape) instead of floating on a fixed-radius sphere.
+function addSpines(group,t,mat,count,len){
+  group.updateMatrixWorld(true);
+  const targets=[];group.traverse(o=>{if(o.isMesh)targets.push(o);});
+  const ray=new THREE.Raycaster();const O=new THREE.Vector3();
+  for(let i=0;i<count;i++){const dir=fib(i,count);
+    ray.set(O,dir);const hit=ray.intersectObjects(targets,false);
+    const base=hit.length?hit[hit.length-1].point.clone():dir.clone().multiplyScalar(1.4);
+    const sl=len*(0.7+t._r()*0.6);
     const cone=new THREE.Mesh(new THREE.ConeGeometry(0.05,sl,6),mat);
-    cone.position.copy(dir.clone().multiplyScalar(coreR+sl*0.46));
+    cone.position.copy(base).add(dir.clone().multiplyScalar(sl*0.42));
     cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);group.add(cone);}
 }
 
 let current=null;
 function build(id){
   const t=traitsFor(id),r=t._r;const G=new THREE.Group();
-  const mat=glass(t);const faceted=t.surface==='Faceted';
+  const mat=glass(t);
   const D=t.form;
 
-  if(D==='Coccus'){ G.add(new THREE.Mesh(blob(1.5,5,0.07,1.6,id,faceted),mat)); }
+  if(D==='Coccus'){ G.add(new THREE.Mesh(blob(1.5,5,0.07,1.6,id),mat)); }
   else if(D==='Morula'){ // round papillae cluster
-    const core=new THREE.Mesh(blob(1.0,4,0.04,1.4,id,faceted),mat);G.add(core);
+    const core=new THREE.Mesh(blob(1.0,4,0.04,1.4,id),mat);G.add(core);
     const k=22+((r()*16)|0);for(let i=0;i<k;i++){const d=fib(i,k);const pr=0.34+r()*0.22;
       const m=new THREE.Mesh(new THREE.SphereGeometry(pr,16,16),mat);m.position.copy(d.multiplyScalar(1.0+pr*0.4));G.add(m);} }
   else if(D==='Bacilli'){ // bundle of rounded rods
@@ -176,12 +195,12 @@ function build(id){
   else if(D==='Strepto'){ // chain of spheres on an arc
     const k=6+((r()*4)|0),rr=0.55;for(let i=0;i<k;i++){const a=(i/(k-1)-0.5)*2.6;const m=new THREE.Mesh(new THREE.SphereGeometry(rr,18,18),mat);
       m.position.set(a*0.9,Math.sin(a)*0.5,0);G.add(m);} }
-  else if(D==='Acanthar'){ G.add(new THREE.Mesh(blob(0.95,5,0.05,1.5,id,faceted),mat)); }
+  else if(D==='Acanthar'){ G.add(new THREE.Mesh(blob(0.95,5,0.05,1.5,id),mat)); }
   else if(D==='Nassella'){ // helmet/cone
-    const geo=blob(1.2,5,0.05,1.4,id,faceted);const p=geo.attributes.position,v=new THREE.Vector3();
+    const geo=blob(1.2,5,0.05,1.4,id);const p=geo.attributes.position,v=new THREE.Vector3();
     for(let i=0;i<p.count;i++){v.fromBufferAttribute(p,i);const yy=(v.y+1.2)/2.4;v.x*=(0.35+yy*0.9);v.z*=(0.35+yy*0.9);v.y*=1.35;p.setXYZ(i,v.x,v.y,v.z);}
-    geo.computeVertexNormals();G.add(new THREE.Mesh(geo,mat)); }
-  else if(D==='Lattice'){ const m2=mat.clone();m2.bumpScale=0.9; G.add(new THREE.Mesh(blob(1.45,5,0.06,1.6,id,faceted),m2)); }
+    smooth(geo);G.add(new THREE.Mesh(geo,mat)); }
+  else if(D==='Lattice'){ G.add(new THREE.Mesh(blob(1.4,5,0.2,0.85,id),mat)); } // smooth deep lobes
   else if(D==='Coral'){ // branching capsules
     const grow=(p,dir,len,depth)=>{if(depth<=0)return;const cap=new THREE.Mesh(new THREE.CapsuleGeometry(0.12*depth,len,6,12),mat);
       const mid=p.clone().add(dir.clone().multiplyScalar(len*0.5));cap.position.copy(mid);cap.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);G.add(cap);
@@ -189,12 +208,12 @@ function build(id){
       for(let i=0;i<br;i++){const nd=dir.clone().add(new THREE.Vector3((r()-.5)*1.4,(r()-.5)*1.4,(r()-.5)*1.4)).normalize();grow(np,nd,len*0.72,depth-1);}};
     for(let i=0;i<4;i++){const d=fib(i,4);grow(new THREE.Vector3(0,0,0),d,1.0,3);}
     G.add(new THREE.Mesh(new THREE.SphereGeometry(0.5,16,16),mat)); }
-  else if(D==='Discus'){ const geo=blob(1.6,5,0.05,1.5,id,faceted);geo.scale(1,0.42,1);geo.computeVertexNormals();
+  else if(D==='Discus'){ const geo=blob(1.6,5,0.05,1.5,id);geo.scale(1,0.42,1);smooth(geo);
     G.add(new THREE.Mesh(geo,mat));const tor=new THREE.Mesh(new THREE.TorusGeometry(1.5,0.18,16,48),mat);tor.rotation.x=Math.PI/2;G.add(tor); }
 
   // shells (extra nested for non-cluster forms)
   if(['Coccus','Acanthar','Lattice','Nassella'].includes(D)){
-    const n=parseInt(t.shells,10);for(let L=1;L<n;L++){const g2=blob(1.5*(1+L*0.16),5,0.05,1.6,id+L*7,faceted);const m2=glass(t,{thin:true});G.add(new THREE.Mesh(g2,m2));}
+    const n=parseInt(t.shells,10);for(let L=1;L<n;L++){const g2=blob(1.5*(1+L*0.16),5,0.05,1.6,id+L*7);const m2=glass(t,{thin:true});G.add(new THREE.Mesh(g2,m2));}
   }
   // nucleus
   if(t.nucleus!=='Hollow'&&!['Staphylo','Strepto','Bacilli','Coral'].includes(D)){
@@ -204,7 +223,7 @@ function build(id){
   }
   // spines add-on
   const spN={None:0,Few:10,Crown:20,Halo:40}[t.spines];
-  if(spN){const sm=glass(t,{thin:true});addSpines(G,t,sm,t.anomaly==='Supernova'?56:spN,1.4,t.anomaly==='Supernova'?2.0:1.0);}
+  if(spN){const sm=glass(t,{thin:true});addSpines(G,t,sm,t.anomaly==='Supernova'?56:spN,t.anomaly==='Supernova'?2.0:1.0);}
 
   // colored rim light for this token (saturation pop)
   tintL.color.set(TINT[t.stain]); tintL.intensity = t.stain==='void'?60:42;
@@ -217,6 +236,11 @@ function show(id){
   state.id=((id-1+TOTAL)%TOTAL)+1;
   if(current){scene.remove(current);current.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());}});}
   const {node,t}=build(state.id);current=node;scene.add(current);
+  // auto-frame so every form (and its shells/spines) fits the viewport
+  current.updateMatrixWorld(true);
+  const sph=new THREE.Box3().setFromObject(current).getBoundingSphere(new THREE.Sphere());
+  const fov=camera.fov*Math.PI/180;
+  camera.position.set(0,0,(sph.radius/Math.sin(fov/2))*1.18);camera.lookAt(0,0,0);
   document.getElementById('jump').value=state.id;const cap=s=>String(s).replace(/_/g,' ');
   document.getElementById('traits').innerHTML=`<div><b>#</b>${state.id}</div>`+
     [['Form','form'],['Surface','surface'],['Spines','spines'],['Shells','shells'],['Stain','stain'],['Iridescence','irid'],['Nucleus','nucleus'],['Anomaly','anomaly']]
