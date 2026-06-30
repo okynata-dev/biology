@@ -155,7 +155,7 @@ function glass(t,opts){
   const m=new THREE.MeshPhysicalMaterial({
     color:0xffffff,metalness:0,roughness:rough,
     transmission:1,thickness:opts.thin?1.0:2.4,ior:opts.core?1.42:1.52,
-    attenuationColor:tint,attenuationDistance:opts.core?0.38:(t.stain==='iridescent'?2.8:1.5),
+    attenuationColor:tint,attenuationDistance:opts.core?0.5:(t.stain==='iridescent'?4.5:2.7),
     iridescence:iridV,iridescenceIOR:1.32,iridescenceThicknessRange:[110,560],
     clearcoat:1,clearcoatRoughness:0.1,envMap,envMapIntensity:1.4,
   });
