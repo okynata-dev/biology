@@ -136,13 +136,47 @@ function bumpTex(type){
 
 function fib(i,n){const phi=Math.acos(1-2*(i+0.5)/n),th=Math.PI*(1+Math.sqrt(5))*(i+0.5);return new THREE.Vector3(Math.sin(phi)*Math.cos(th),Math.cos(phi),Math.sin(phi)*Math.sin(th));}
 
+const uTime={value:0}; // shared clock driving the living motion in every shader
+
+// shift a stain hex within its own colour family (small hue + lightness nudge)
+function hexShift(hex,dh,dl){
+  let r=(hex>>16&255)/255,g=(hex>>8&255)/255,b=(hex&255)/255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,s=0,l=(mx+mn)/2;
+  if(mx!==mn){const d=mx-mn;s=l>0.5?d/(2-mx-mn):d/(mx+mn);
+    h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h/=6;}
+  h=(h+dh+1)%1;l=Math.min(1,Math.max(0,l+dl));
+  const f=(p,q,t)=>{if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;};
+  let R,G,B;if(s===0){R=G=B=l;}else{const q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q;R=f(p,q,h+1/3);G=f(p,q,h);B=f(p,q,h-1/3);}
+  return (Math.round(R*255)<<16)|(Math.round(G*255)<<8)|Math.round(B*255);
+}
+
+// inject: (1) a gentle living wave — surface ripple on bodies + tips that sway,
+// (2) a soft emissive gradient between two near-hues of the same stain.
+function animate(m,colA,colB,emI,thin){
+  m.emissive=new THREE.Color(0x000000);
+  m.onBeforeCompile=(sh)=>{
+    sh.uniforms.uTime=uTime;sh.uniforms.uColA={value:colA};sh.uniforms.uColB={value:colB};
+    sh.uniforms.uEmI={value:emI};sh.uniforms.uBody={value:thin?0.0:1.0};sh.uniforms.uTip={value:thin?0.10:0.05};
+    sh.vertexShader='uniform float uTime;uniform float uBody;uniform float uTip;varying float vGrad;\n'+
+      sh.vertexShader.replace('#include <begin_vertex>',
+        '#include <begin_vertex>\n'+
+        'vGrad=clamp(position.y/3.2+0.5,0.0,1.0);\n'+
+        'float dd=length(position);float ww=smoothstep(0.5,1.8,dd);float ph=uTime*1.2+dd*2.2;\n'+
+        'transformed.x+=sin(ph)*uTip*ww;transformed.z+=cos(ph*0.9)*uTip*ww;\n'+
+        'transformed+=normal*sin(uTime*1.5+position.y*3.0)*0.02*uBody;');
+    sh.fragmentShader='uniform vec3 uColA;uniform vec3 uColB;uniform float uEmI;varying float vGrad;\n'+
+      sh.fragmentShader.replace('#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\ntotalEmissiveRadiance += mix(uColA,uColB,vGrad)*uEmI;');
+  };
+  return m;
+}
+
 // ---------- material ----------
 function glass(t,opts){
   opts=opts||{};
   const iridV={None:0.05,Faint:0.4,Vivid:0.72,Spectral:1.0}[t.irid];
   const tint=new THREE.Color(TINT[t.stain]);
   const rough=t.anomaly==='Frost'?0.42:0.05;
-  // faint self-glow in the stain colour so the body reads against the void
   const emI=opts.thin?0.05:({None:0.07,Faint:0.11,Vivid:0.18,Spectral:0.24}[t.irid]||0.1);
   const m=new THREE.MeshPhysicalMaterial({
     color:0xffffff,metalness:0,roughness:rough,
@@ -150,11 +184,12 @@ function glass(t,opts){
     attenuationColor:tint,attenuationDistance:opts.core?0.32:(t.stain==='iridescent'?2.2:0.85),
     iridescence:iridV,iridescenceIOR:1.32,iridescenceThicknessRange:[110,560],
     clearcoat:1,clearcoatRoughness:0.1,envMap,envMapIntensity:1.5,
-    emissive:tint,emissiveIntensity:emI,
   });
   const b=bumpTex(t.surface);
   if(b&&!opts.core){m.bumpMap=b;m.bumpScale=t.surface==='Porous'?0.7:t.surface==='Ribbed'?0.5:0.4;}
-  return m;
+  const colA=new THREE.Color(hexShift(TINT[t.stain],-0.03,0.07));
+  const colB=new THREE.Color(hexShift(TINT[t.stain],0.03,-0.05));
+  return animate(m,colA,colB,emI,!!opts.thin);
 }
 
 // IcosahedronGeometry is non-indexed, so computeVertexNormals() yields flat
@@ -184,7 +219,7 @@ function addSpines(group,t,mat,count,len){
   const S=bodySamples(group);if(!S.length)return;const used=new Set();
   for(let i=0;i<count;i++){const s=support(S,fib(i,count),used);if(!s)break;const o=outward(s);
     const sl=len*(0.7+t._r()*0.6);
-    const cone=new THREE.Mesh(new THREE.ConeGeometry(0.05,sl,6),mat);
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(0.05,sl,6),mat);cone.userData.thin=true;
     cone.position.copy(s.p).add(o.clone().multiplyScalar(sl*0.42));
     cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),o);group.add(cone);}
 }
@@ -194,7 +229,7 @@ function addSpines(group,t,mat,count,len){
 // no raycast from the centre that can miss a branch and fall to a phantom shell.
 function bodySamples(group){
   group.updateMatrixWorld(true);const out=[];const v=new THREE.Vector3(),nv=new THREE.Vector3(),nm=new THREE.Matrix3();
-  group.traverse(o=>{if(!o.isMesh)return;const g=o.geometry;if(!g.attributes.normal)g.computeVertexNormals();
+  group.traverse(o=>{if(!o.isMesh||o.userData.thin)return;const g=o.geometry;if(!g.attributes.normal)g.computeVertexNormals();
     const pos=g.attributes.position,nor=g.attributes.normal;nm.getNormalMatrix(o.matrixWorld);
     const stride=Math.max(1,Math.floor(pos.count/48));
     for(let i=0;i<pos.count;i+=stride){v.fromBufferAttribute(pos,i).applyMatrix4(o.matrixWorld);
@@ -221,15 +256,16 @@ function wavyTube(start,dir,len,rad,curl,segs,seed){
 function addAppendages(G,t,mat){
   const type=t.appendage;if(type==='None')return;const r=t._r,S=bodySamples(G);if(!S.length)return;const used=new Set();
   const down=()=>new THREE.Vector3((r()-.5)*1.3,-0.5-r()*0.8,(r()-.5)*1.3).normalize();
+  const tag=o=>{o.userData.thin=true;return o;};
   if(type==='Cilia'){const n=Math.min(54,S.length);for(let i=0;i<n;i++){const s=support(S,fib(i,n),used);if(!s)break;const o=outward(s),sl=0.26+r()*0.16;
     const c=new THREE.Mesh(new THREE.ConeGeometry(0.022,sl,5),mat);c.position.copy(s.p).add(o.clone().multiplyScalar(sl*0.42));
-    c.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),o);G.add(c);}}
+    c.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),o);G.add(tag(c));}}
   else if(type==='Flagella'){const n=2+((r()*2)|0);for(let i=0;i<n;i++){const s=support(S,down(),used);if(!s)break;const o=outward(s);
-    G.add(new THREE.Mesh(wavyTube(s.p,o,2.3+r()*0.8,0.05,2.4,40,r()*6),mat));}}
+    G.add(tag(new THREE.Mesh(wavyTube(s.p,o,2.3+r()*0.8,0.05,2.4,40,r()*6),mat)));}}
   else if(type==='Tendrils'){const n=4+((r()*3)|0);for(let i=0;i<n;i++){const s=support(S,fib(i,n),used);if(!s)break;const o=outward(s);
-    G.add(new THREE.Mesh(wavyTube(s.p,o,1.2+r()*0.5,0.06,3.2,34,r()*6),mat));}}
+    G.add(tag(new THREE.Mesh(wavyTube(s.p,o,1.2+r()*0.5,0.06,3.2,34,r()*6),mat)));}}
   else if(type==='Pods'){const n=7+((r()*4)|0);for(let i=0;i<n;i++){const s=support(S,down(),used);if(!s)break;const o=outward(s),pr=0.16+r()*0.12;
-    const m=new THREE.Mesh(new THREE.SphereGeometry(pr,14,14),mat);m.position.copy(s.p).add(o.clone().multiplyScalar(pr*0.4));G.add(m);}}
+    const m=new THREE.Mesh(new THREE.SphereGeometry(pr,14,14),mat);m.position.copy(s.p).add(o.clone().multiplyScalar(pr*0.4));G.add(tag(m));}}
 }
 
 let current=null;
@@ -279,11 +315,12 @@ function build(id){
     if(t.nucleus==='Cluster'||t.nucleus==='Living'){const k=t.nucleus==='Living'?5:3;for(let i=0;i<k;i++){const nn=new THREE.Mesh(new THREE.SphereGeometry(0.26+r()*0.14,16,16),nm);nn.position.set((r()-.5)*0.7,(r()-.5)*0.7,(r()-.5)*0.7);G.add(nn);}}
     else G.add(new THREE.Mesh(new THREE.SphereGeometry(0.55,18,18),nm));
   }
-  // organic appendages — anchored to real surface points (support points)
-  addAppendages(G,t,glass(t,{thin:true}));
-  // spines add-on
+  // spines first — anchored to the main body only (appendages don't exist yet,
+  // so spines can never land on a thin tendril/flagellum)
   const spN={None:0,Few:10,Crown:20,Halo:40}[t.spines];
   if(spN){const sm=glass(t,{thin:true});addSpines(G,t,sm,t.anomaly==='Supernova'?56:spN,t.anomaly==='Supernova'?2.0:1.0);}
+  // then organic appendages — also anchored to the body (spines are tagged thin)
+  addAppendages(G,t,glass(t,{thin:true}));
 
   // colored rim light for this token (saturation pop)
   tintL.color.set(TINT[t.stain]); tintL.intensity = t.stain==='void'?60:42;
@@ -334,7 +371,7 @@ document.getElementById('close').onclick=()=>document.getElementById('sheet').cl
 function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 addEventListener('resize',resize);resize();
 let t0=performance.now();
-function loop(){const t=(performance.now()-t0)/1000;if(current){current.rotation.y=t*(current.userData.spin||0.18);current.rotation.x=Math.sin(t*0.3)*0.1;const s=1+Math.sin(t*0.8)*0.012;current.scale.setScalar(s);}renderer.render(scene,camera);requestAnimationFrame(loop);}
+function loop(){const t=(performance.now()-t0)/1000;uTime.value=t;if(current){current.rotation.y=t*(current.userData.spin||0.18);current.rotation.x=Math.sin(t*0.3)*0.1;const s=1+Math.sin(t*0.8)*0.012;current.scale.setScalar(s);}renderer.render(scene,camera);requestAnimationFrame(loop);}
 show(1);document.getElementById('load').style.display='none';loop();
 </script>
 </body>
