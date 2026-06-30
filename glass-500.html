@@ -149,11 +149,13 @@ function glass(t,opts){
   opts=opts||{};
   const iridV={None:0.05,Faint:0.4,Vivid:0.72,Spectral:1.0}[t.irid];
   const tint=new THREE.Color(TINT[t.stain]);
-  const rough=t.anomaly==='Frost'?0.42:0.12;
+  const rough=t.anomaly==='Frost'?0.42:0.06;
+  // more translucent + thicker, higher-IOR volume → reads as a liquid-filled
+  // cell that magnifies/refracts its own nucleus & shells like a lens
   const m=new THREE.MeshPhysicalMaterial({
     color:0xffffff,metalness:0,roughness:rough,
-    transmission:1,thickness:opts.thin?0.8:1.7,ior:1.5,
-    attenuationColor:tint,attenuationDistance:opts.core?0.32:(t.stain==='iridescent'?2.2:0.85),
+    transmission:1,thickness:opts.thin?1.0:2.4,ior:opts.core?1.42:1.52,
+    attenuationColor:tint,attenuationDistance:opts.core?0.38:(t.stain==='iridescent'?2.8:1.5),
     iridescence:iridV,iridescenceIOR:1.32,iridescenceThicknessRange:[110,560],
     clearcoat:1,clearcoatRoughness:0.1,envMap,envMapIntensity:1.4,
   });
