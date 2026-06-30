@@ -6,28 +6,28 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Glass · 500</title>
 <style>
-  :root{ --bg:#ffffff; --ink:#1a1712; --ink2:#6b645a; }
+  :root{ --bg:#08080b; --ink:#f1efe9; --ink2:#8f8b84; }
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:ui-monospace,Menlo,monospace;overflow:hidden;-webkit-user-select:none;user-select:none;}
   #c{display:block;width:100vw;height:100vh;touch-action:none;}
   .tag{position:fixed;top:calc(14px + env(safe-area-inset-top));left:0;right:0;text-align:center;font-size:10px;letter-spacing:.22em;color:var(--ink2);text-transform:uppercase;}
-  .panel{position:fixed;top:calc(40px + env(safe-area-inset-top));left:16px;font-size:11px;line-height:1.7;color:var(--ink);background:rgba(255,255,255,.4);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid rgba(26,23,18,.1);border-radius:12px;padding:12px 14px;min-width:176px;}
+  .panel{position:fixed;top:calc(40px + env(safe-area-inset-top));left:16px;font-size:11px;line-height:1.7;color:var(--ink);background:rgba(16,16,22,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 14px;min-width:176px;}
   .panel b{color:var(--ink2);font-weight:400;text-transform:uppercase;letter-spacing:.06em;font-size:9px;display:inline-block;width:74px;}
   .panel .tier{font-size:12px;letter-spacing:.1em;margin-top:6px;}
   .hud{position:fixed;left:0;right:0;bottom:0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:14px;}
-  .nav{width:44px;height:44px;border-radius:50%;border:1px solid rgba(26,23,18,.18);background:rgba(255,255,255,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:var(--ink);font-size:19px;line-height:42px;text-align:center;cursor:pointer;}
+  .nav{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:var(--ink);font-size:19px;line-height:42px;text-align:center;cursor:pointer;}
   .nav:active{transform:scale(.9);}
   .meta{min-width:120px;text-align:center;}
-  .meta input{width:64px;background:transparent;border:0;border-bottom:1px solid rgba(26,23,18,.25);color:var(--ink);font:inherit;font-size:14px;text-align:center;}
+  .meta input{width:64px;background:transparent;border:0;border-bottom:1px solid rgba(255,255,255,.25);color:var(--ink);font:inherit;font-size:14px;text-align:center;}
   .meta .of{font-size:11px;color:var(--ink2);}
-  .btn{position:fixed;cursor:pointer;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);background:rgba(255,255,255,.4);border:1px solid rgba(26,23,18,.1);border-radius:20px;padding:8px 12px;backdrop-filter:blur(6px);}
+  .btn{position:fixed;cursor:pointer;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:8px 12px;backdrop-filter:blur(6px);}
   #rand{top:calc(40px + env(safe-area-inset-top));right:16px;}
   #stats{top:calc(82px + env(safe-area-inset-top));right:16px;}
-  .sheet{position:fixed;inset:0;background:rgba(255,255,255,.96);backdrop-filter:blur(4px);overflow:auto;padding:34px 22px 60px;display:none;}
+  .sheet{position:fixed;inset:0;background:rgba(8,8,11,.96);backdrop-filter:blur(4px);overflow:auto;padding:34px 22px 60px;display:none;}
   .sheet.on{display:block;}
   .sheet h2{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2);margin:18px 0 8px;}
   .sheet h1{font-size:13px;letter-spacing:.2em;text-transform:uppercase;}
   .bar{display:flex;align-items:center;gap:8px;font-size:11px;margin:3px 0;}
-  .bar .lbl{width:120px;}.bar .track{flex:1;height:8px;background:rgba(26,23,18,.08);border-radius:5px;overflow:hidden;}
+  .bar .lbl{width:120px;}.bar .track{flex:1;height:8px;background:rgba(255,255,255,.1);border-radius:5px;overflow:hidden;}
   .bar .fill{height:100%;background:var(--ink);opacity:.55;}.bar .n{width:54px;text-align:right;color:var(--ink2);}
   .close{position:fixed;top:18px;right:18px;font-size:22px;cursor:pointer;}
   .load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink2);font-size:12px;letter-spacing:.18em;}
@@ -90,7 +90,14 @@ const canvas=document.getElementById('c');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;renderer.outputColorSpace=THREE.SRGBColorSpace;
-const scene=new THREE.Scene();scene.background=new THREE.Color('#ffffff');
+const scene=new THREE.Scene();
+// the void — near-black with a faint central lift so it reads as deep space, not a flat wall
+function makeBg(){const s=1024,cv=document.createElement('canvas');cv.width=cv.height=s;const g=cv.getContext('2d');
+  g.fillStyle='#050507';g.fillRect(0,0,s,s);
+  const rg=g.createRadialGradient(s/2,s*0.46,0,s/2,s*0.46,s*0.62);
+  rg.addColorStop(0,'#15151d');rg.addColorStop(0.5,'#0c0c12');rg.addColorStop(1,'#050507');
+  g.fillStyle=rg;g.fillRect(0,0,s,s);return new THREE.CanvasTexture(cv);}
+scene.background=makeBg();
 const camera=new THREE.PerspectiveCamera(34,1,0.1,100);camera.position.set(0,0,7.6);
 
 function makeEnv(){
@@ -105,7 +112,14 @@ const envMap=makeEnv();scene.environment=envMap;
 const keyL=new THREE.DirectionalLight(0xffffff,1.0);keyL.position.set(3,4,5);scene.add(keyL);
 const tintL=new THREE.PointLight(0xffffff,40,40);tintL.position.set(-3.5,1,3);scene.add(tintL);   // colored, per-token
 const fillL=new THREE.DirectionalLight(0xffffff,0.5);fillL.position.set(-4,-3,-2);scene.add(fillL);
-scene.add(new THREE.AmbientLight(0xffffff,0.22));
+scene.add(new THREE.AmbientLight(0xffffff,0.18));
+
+// soft additive halo so each biom bleeds a little light into the void
+function makeHalo(){const s=256,cv=document.createElement('canvas');cv.width=cv.height=s;const g=cv.getContext('2d');
+  const rg=g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  rg.addColorStop(0,'rgba(255,255,255,0.9)');rg.addColorStop(0.32,'rgba(255,255,255,0.28)');rg.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=rg;g.fillRect(0,0,s,s);return new THREE.CanvasTexture(cv);}
+const HALO=makeHalo();
 
 // ---------- surface bump textures ----------
 const bumpCache={};
@@ -128,12 +142,15 @@ function glass(t,opts){
   const iridV={None:0.05,Faint:0.4,Vivid:0.72,Spectral:1.0}[t.irid];
   const tint=new THREE.Color(TINT[t.stain]);
   const rough=t.anomaly==='Frost'?0.42:0.05;
+  // faint self-glow in the stain colour so the body reads against the void
+  const emI=opts.thin?0.05:({None:0.07,Faint:0.11,Vivid:0.18,Spectral:0.24}[t.irid]||0.1);
   const m=new THREE.MeshPhysicalMaterial({
     color:0xffffff,metalness:0,roughness:rough,
     transmission:1,thickness:opts.thin?0.8:1.7,ior:1.5,
     attenuationColor:tint,attenuationDistance:opts.core?0.32:(t.stain==='iridescent'?2.2:0.85),
     iridescence:iridV,iridescenceIOR:1.32,iridescenceThicknessRange:[110,560],
-    clearcoat:1,clearcoatRoughness:0.1,envMap,envMapIntensity:1.35,
+    clearcoat:1,clearcoatRoughness:0.1,envMap,envMapIntensity:1.5,
+    emissive:tint,emissiveIntensity:emI,
   });
   const b=bumpTex(t.surface);
   if(b&&!opts.core){m.bumpMap=b;m.bumpScale=t.surface==='Porous'?0.7:t.surface==='Ribbed'?0.5:0.4;}
@@ -279,11 +296,15 @@ function show(id){
   state.id=((id-1+TOTAL)%TOTAL)+1;
   if(current){scene.remove(current);current.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());}});}
   const {node,t}=build(state.id);current=node;scene.add(current);
-  // auto-frame so every form (and its shells/spines) fits the viewport
+  // auto-frame from the solid meshes only (halo sprite excluded)
   current.updateMatrixWorld(true);
-  const sph=new THREE.Box3().setFromObject(current).getBoundingSphere(new THREE.Sphere());
+  const box=new THREE.Box3();current.traverse(o=>{if(o.isMesh)box.expandByObject(o);});
+  const sph=box.getBoundingSphere(new THREE.Sphere());
   const fov=camera.fov*Math.PI/180;
   camera.position.set(0,0,(sph.radius/Math.sin(fov/2))*1.18);camera.lookAt(0,0,0);
+  // glow halo tinted to the stain, sized to the body
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:HALO,color:new THREE.Color(TINT[t.stain]),blending:THREE.AdditiveBlending,transparent:true,opacity:t.stain==='void'?0.3:0.5,depthWrite:false}));
+  halo.scale.setScalar(sph.radius*3.0);current.add(halo);
   document.getElementById('jump').value=state.id;const cap=s=>String(s).replace(/_/g,' ');
   document.getElementById('traits').innerHTML=`<div><b>#</b>${state.id}</div>`+
     [['Form','form'],['Surface','surface'],['Appendage','appendage'],['Spines','spines'],['Shells','shells'],['Stain','stain'],['Iridescence','irid'],['Nucleus','nucleus'],['Anomaly','anomaly']]
