@@ -60,7 +60,6 @@ const T={
   surface:[['Smooth',38],['Bumpy',26],['Porous',20],['Ribbed',16]],
   spines:[['None',50],['Few',28],['Crown',16],['Halo',6]],
   appendage:[['None',42],['Cilia',22],['Flagella',16],['Tendrils',13],['Pods',7]],
-  face:[['Dot',30],['Cute',26],['None',18],['Wide',12],['Sleepy',9],['Smirk',5]],
   shells:[['1',62],['2',28],['3',10]],
   stain:[['nile_blue',15],['congo_red',14],['malachite',13],['eosin',12],['safranin',11],['methylene',10],['fuchsia',8],['gold',6],['plasma',4],['aurora',4],['void',2],['iridescent',1]],
   irid:[['None',26],['Faint',38],['Vivid',26],['Spectral',10]],
@@ -74,7 +73,7 @@ const RARE=new Set(['3','Lattice','Coral','Discus','Crown','Halo','gold','plasma
 function traitsFor(id){
   const r=mb(((id*2654435761)>>>0)^0x9e37);
   const t={form:wpick(r,T.form),surface:wpick(r,T.surface),spines:wpick(r,T.spines),shells:wpick(r,T.shells),
-    appendage:wpick(r,T.appendage),face:wpick(r,T.face),
+    appendage:wpick(r,T.appendage),
     stain:wpick(r,T.stain),irid:wpick(r,T.irid),nucleus:wpick(r,T.nucleus),anomaly:wpick(r,T.anomaly),_r:r};
   if(t.form==='Acanthar'&&t.spines==='None')t.spines='Crown';
   if(t.anomaly==='Supernova')t.spines='Halo';
@@ -165,22 +164,30 @@ function blob(r,detail,amp,fq,seed){
 // spines are raycast onto the actual built surface so they grow OUT of the
 // form (whatever its shape) instead of floating on a fixed-radius sphere.
 function addSpines(group,t,mat,count,len){
-  group.updateMatrixWorld(true);
-  const targets=[];group.traverse(o=>{if(o.isMesh)targets.push(o);});
-  const ray=new THREE.Raycaster();const O=new THREE.Vector3();
-  for(let i=0;i<count;i++){const dir=fib(i,count);
-    ray.set(O,dir);const hit=ray.intersectObjects(targets,false);
-    const base=hit.length?hit[hit.length-1].point.clone():dir.clone().multiplyScalar(1.4);
+  const S=bodySamples(group);if(!S.length)return;const used=new Set();
+  for(let i=0;i<count;i++){const s=support(S,fib(i,count),used);if(!s)break;const o=outward(s);
     const sl=len*(0.7+t._r()*0.6);
     const cone=new THREE.Mesh(new THREE.ConeGeometry(0.05,sl,6),mat);
-    cone.position.copy(base).add(dir.clone().multiplyScalar(sl*0.42));
-    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);group.add(cone);}
+    cone.position.copy(s.p).add(o.clone().multiplyScalar(sl*0.42));
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),o);group.add(cone);}
 }
 
-// shared raycast helpers: find where a direction meets the built surface
-function surfaceTargets(group){group.updateMatrixWorld(true);const a=[];group.traverse(o=>{if(o.isMesh)a.push(o);});return a;}
-const _ray=new THREE.Raycaster(),_O=new THREE.Vector3();
-function hitSurface(targets,dir){_ray.set(_O,dir);const h=_ray.intersectObjects(targets,false);return h.length?h[h.length-1].point.clone():dir.clone().multiplyScalar(1.3);}
+// Sample real surface points (world-space pos + normal) from every body mesh.
+// Spines/appendages anchor to THESE, so they always grow from actual matter —
+// no raycast from the centre that can miss a branch and fall to a phantom shell.
+function bodySamples(group){
+  group.updateMatrixWorld(true);const out=[];const v=new THREE.Vector3(),nv=new THREE.Vector3(),nm=new THREE.Matrix3();
+  group.traverse(o=>{if(!o.isMesh)return;const g=o.geometry;if(!g.attributes.normal)g.computeVertexNormals();
+    const pos=g.attributes.position,nor=g.attributes.normal;nm.getNormalMatrix(o.matrixWorld);
+    const stride=Math.max(1,Math.floor(pos.count/48));
+    for(let i=0;i<pos.count;i+=stride){v.fromBufferAttribute(pos,i).applyMatrix4(o.matrixWorld);
+      nv.fromBufferAttribute(nor,i).applyMatrix3(nm).normalize();out.push({p:v.clone(),n:nv.clone()});}});
+  return out;
+}
+// support point: the bit of real surface that sticks out furthest along `dir`
+// (the convex-hull point) — that's exactly where a growth should emerge.
+function support(S,dir,used){let best=-1,bd=-1e9;for(let k=0;k<S.length;k++){if(used.has(k))continue;const d=S[k].p.dot(dir);if(d>bd){bd=d;best=k;}}if(best<0)return null;used.add(best);return S[best];}
+function outward(s){const o=s.n.clone();if(o.dot(s.p)<0)o.negate();return o.lerp(s.p.clone().normalize(),0.35).normalize();}
 
 // a soft wavy tube growing from `start` along `dir` — used for flagella/tendrils
 function wavyTube(start,dir,len,rad,curl,segs,seed){
@@ -195,48 +202,17 @@ function wavyTube(start,dir,len,rad,curl,segs,seed){
 
 // extra organic growths beyond the rigid spines
 function addAppendages(G,t,mat){
-  const type=t.appendage;if(type==='None')return;const r=t._r,T=surfaceTargets(G);
-  if(type==='Cilia'){const n=54;for(let i=0;i<n;i++){const dir=fib(i,n),base=hitSurface(T,dir),sl=0.28+r()*0.18;
-    const c=new THREE.Mesh(new THREE.ConeGeometry(0.022,sl,5),mat);c.position.copy(base).add(dir.clone().multiplyScalar(sl*0.42));
-    c.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);G.add(c);}}
-  else if(type==='Flagella'){const n=2+((r()*2)|0);for(let i=0;i<n;i++){
-    const dir=new THREE.Vector3((r()-.5)*0.9,-0.6-r()*0.5,(r()-.5)*0.9).normalize(),base=hitSurface(T,dir);
-    G.add(new THREE.Mesh(wavyTube(base,dir,2.4+r()*0.8,0.05,2.4,40,r()*6),mat));}}
-  else if(type==='Tendrils'){const n=4+((r()*3)|0);for(let i=0;i<n;i++){
-    const dir=fib(i,n).add(new THREE.Vector3((r()-.5)*.5,(r()-.5)*.5,(r()-.5)*.5)).normalize(),base=hitSurface(T,dir);
-    G.add(new THREE.Mesh(wavyTube(base,dir,1.2+r()*0.5,0.06,3.2,34,r()*6),mat));}}
-  else if(type==='Pods'){const n=7+((r()*4)|0);for(let i=0;i<n;i++){
-    const dir=new THREE.Vector3((r()-.5)*1.4,-0.4-r()*0.8,(r()-.5)*1.4).normalize(),base=hitSurface(T,dir),pr=0.16+r()*0.12;
-    const m=new THREE.Mesh(new THREE.SphereGeometry(pr,14,14),mat);m.position.copy(base).add(dir.clone().multiplyScalar(pr*0.4));G.add(m);}}
-}
-
-// the signature: a little face suspended just under the glass surface
-function addFace(G,t){
-  if(t.face==='None')return;const T=surfaceTargets(G);
-  const front=new THREE.Vector3(0,0.06,1).normalize();
-  const right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),front).normalize();
-  const up=new THREE.Vector3().crossVectors(front,right).normalize();
-  const eye=new THREE.MeshStandardMaterial({color:0x0d0a07,roughness:0.25,metalness:0,envMap,envMapIntensity:0.6});
-  const cfg={Dot:{er:0.11,sep:0.42,ey:0.12,mouth:null},
-             Cute:{er:0.14,sep:0.5,ey:0.16,mouth:'smile'},
-             Wide:{er:0.18,sep:0.58,ey:0.18,mouth:'o'},
-             Sleepy:{er:0.14,sep:0.5,ey:0.16,mouth:'smile',sleepy:true},
-             Smirk:{er:0.15,sep:0.5,ey:0.16,mouth:'smirk'}}[t.face];
-  const aim=off=>{const dir=front.clone().add(off).normalize();return {p:hitSurface(T,dir),dir};};
-  for(const s of[-1,1]){const {p,dir}=aim(right.clone().multiplyScalar(s*cfg.sep).add(up.clone().multiplyScalar(cfg.ey)));
-    if(cfg.sleepy){const e=new THREE.Mesh(new THREE.CapsuleGeometry(cfg.er*0.4,cfg.er*1.0,4,8),eye);
-      e.position.copy(p).add(dir.clone().multiplyScalar(cfg.er*0.7));e.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),right);G.add(e);}
-    else{const e=new THREE.Mesh(new THREE.SphereGeometry(cfg.er,18,18),eye);
-      e.position.copy(p).add(dir.clone().multiplyScalar(cfg.er*0.95));e.scale.z=0.82;
-      e.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir);G.add(e);
-      const g=new THREE.Mesh(new THREE.SphereGeometry(cfg.er*0.32,10,10),new THREE.MeshBasicMaterial({color:0xffffff}));
-      g.position.copy(p).add(dir.clone().multiplyScalar(cfg.er*1.55)).add(up.clone().multiplyScalar(cfg.er*0.34)).add(right.clone().multiplyScalar(s*cfg.er*0.22));G.add(g);}}
-  if(cfg.mouth){const {p,dir}=aim(up.clone().multiplyScalar(-0.26));
-    if(cfg.mouth==='o'){const m=new THREE.Mesh(new THREE.SphereGeometry(0.1,14,14),eye);m.scale.set(0.9,1.2,0.7);m.position.copy(p).add(dir.clone().multiplyScalar(0.08));G.add(m);}
-    else{const arc=cfg.mouth==='smirk'?Math.PI*0.55:Math.PI*0.9;
-      const tor=new THREE.Mesh(new THREE.TorusGeometry(0.18,0.032,8,22,arc),eye);
-      tor.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir);tor.rotateZ(-Math.PI/2-arc/2);
-      tor.position.copy(p).add(dir.clone().multiplyScalar(0.08));G.add(tor);}}
+  const type=t.appendage;if(type==='None')return;const r=t._r,S=bodySamples(G);if(!S.length)return;const used=new Set();
+  const down=()=>new THREE.Vector3((r()-.5)*1.3,-0.5-r()*0.8,(r()-.5)*1.3).normalize();
+  if(type==='Cilia'){const n=Math.min(54,S.length);for(let i=0;i<n;i++){const s=support(S,fib(i,n),used);if(!s)break;const o=outward(s),sl=0.26+r()*0.16;
+    const c=new THREE.Mesh(new THREE.ConeGeometry(0.022,sl,5),mat);c.position.copy(s.p).add(o.clone().multiplyScalar(sl*0.42));
+    c.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),o);G.add(c);}}
+  else if(type==='Flagella'){const n=2+((r()*2)|0);for(let i=0;i<n;i++){const s=support(S,down(),used);if(!s)break;const o=outward(s);
+    G.add(new THREE.Mesh(wavyTube(s.p,o,2.3+r()*0.8,0.05,2.4,40,r()*6),mat));}}
+  else if(type==='Tendrils'){const n=4+((r()*3)|0);for(let i=0;i<n;i++){const s=support(S,fib(i,n),used);if(!s)break;const o=outward(s);
+    G.add(new THREE.Mesh(wavyTube(s.p,o,1.2+r()*0.5,0.06,3.2,34,r()*6),mat));}}
+  else if(type==='Pods'){const n=7+((r()*4)|0);for(let i=0;i<n;i++){const s=support(S,down(),used);if(!s)break;const o=outward(s),pr=0.16+r()*0.12;
+    const m=new THREE.Mesh(new THREE.SphereGeometry(pr,14,14),mat);m.position.copy(s.p).add(o.clone().multiplyScalar(pr*0.4));G.add(m);}}
 }
 
 let current=null;
@@ -286,9 +262,7 @@ function build(id){
     if(t.nucleus==='Cluster'||t.nucleus==='Living'){const k=t.nucleus==='Living'?5:3;for(let i=0;i<k;i++){const nn=new THREE.Mesh(new THREE.SphereGeometry(0.26+r()*0.14,16,16),nm);nn.position.set((r()-.5)*0.7,(r()-.5)*0.7,(r()-.5)*0.7);G.add(nn);}}
     else G.add(new THREE.Mesh(new THREE.SphereGeometry(0.55,18,18),nm));
   }
-  // face (the signature) + organic appendages — placed before spines so they
-  // anchor to the body surface, not to spine tips
-  addFace(G,t);
+  // organic appendages — anchored to real surface points (support points)
   addAppendages(G,t,glass(t,{thin:true}));
   // spines add-on
   const spN={None:0,Few:10,Crown:20,Halo:40}[t.spines];
@@ -312,12 +286,12 @@ function show(id){
   camera.position.set(0,0,(sph.radius/Math.sin(fov/2))*1.18);camera.lookAt(0,0,0);
   document.getElementById('jump').value=state.id;const cap=s=>String(s).replace(/_/g,' ');
   document.getElementById('traits').innerHTML=`<div><b>#</b>${state.id}</div>`+
-    [['Form','form'],['Surface','surface'],['Face','face'],['Appendage','appendage'],['Spines','spines'],['Shells','shells'],['Stain','stain'],['Iridescence','irid'],['Nucleus','nucleus'],['Anomaly','anomaly']]
+    [['Form','form'],['Surface','surface'],['Appendage','appendage'],['Spines','spines'],['Shells','shells'],['Stain','stain'],['Iridescence','irid'],['Nucleus','nucleus'],['Anomaly','anomaly']]
     .map(([L,k])=>`<div><b>${L}</b>${cap(t[k])}</div>`).join('')+`<div class="tier"><b>tier</b>${t.tier}</div>`;
 }
 
 function buildDist(){
-  const cats=['form','surface','face','appendage','spines','shells','stain','irid','nucleus','anomaly','tier'];const tally={};cats.forEach(c=>tally[c]={});
+  const cats=['form','surface','appendage','spines','shells','stain','irid','nucleus','anomaly','tier'];const tally={};cats.forEach(c=>tally[c]={});
   for(let id=1;id<=TOTAL;id++){const t=traitsFor(id);for(const c of cats){const v=String(t[c]);tally[c][v]=(tally[c][v]||0)+1;}}
   const el=document.getElementById('dist');el.innerHTML='';
   for(const c of cats){const h=document.createElement('h2');h.textContent=c;el.appendChild(h);
@@ -339,7 +313,7 @@ document.getElementById('close').onclick=()=>document.getElementById('sheet').cl
 function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 addEventListener('resize',resize);resize();
 let t0=performance.now();
-function loop(){const t=(performance.now()-t0)/1000;if(current){const sp=current.userData.spin||0.5;current.rotation.y=Math.sin(t*sp)*0.6;current.rotation.x=Math.sin(t*sp*0.7)*0.12;const s=1+Math.sin(t*0.8)*0.012;current.scale.setScalar(s);}renderer.render(scene,camera);requestAnimationFrame(loop);}
+function loop(){const t=(performance.now()-t0)/1000;if(current){current.rotation.y=t*(current.userData.spin||0.18);current.rotation.x=Math.sin(t*0.3)*0.1;const s=1+Math.sin(t*0.8)*0.012;current.scale.setScalar(s);}renderer.render(scene,camera);requestAnimationFrame(loop);}
 show(1);document.getElementById('load').style.display='none';loop();
 </script>
 </body>
