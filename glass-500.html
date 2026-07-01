@@ -327,12 +327,13 @@ function show(id){
   state.id=((id-1+TOTAL)%TOTAL)+1;
   if(current){scene.remove(current);current.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());}});}
   const {node,t}=build(state.id);current=node;scene.add(current);
-  // auto-frame from the solid meshes only (halo sprite excluded)
+  // auto-frame. token mode frames the BODY (thin spines/appendages may spill
+  // past the edge) so the mass fills the cell tightly; browse mode fits it all.
   current.updateMatrixWorld(true);
-  const box=new THREE.Box3();current.traverse(o=>{if(o.isMesh)box.expandByObject(o);});
+  const box=new THREE.Box3();current.traverse(o=>{if(o.isMesh&&!(TOKEN&&o.userData.thin))box.expandByObject(o);});
   const sph=box.getBoundingSphere(new THREE.Sphere());
   const fov=camera.fov*Math.PI/180;
-  camera.position.set(0,0,(sph.radius/Math.sin(fov/2))*1.18);camera.lookAt(0,0,0);
+  camera.position.set(0,0,(sph.radius/Math.sin(fov/2))*(TOKEN?1.12:1.18));camera.lookAt(0,0,0);
   document.getElementById('jump').value=state.id;const cap=s=>String(s).replace(/_/g,' ');
   document.getElementById('traits').innerHTML=`<div><b>#</b>${state.id}</div>`+
     [['Form','form'],['Surface','surface'],['Appendage','appendage'],['Spines','spines'],['Shells','shells'],['Stain','stain'],['Iridescence','irid'],['Nucleus','nucleus'],['Anomaly','anomaly']]
