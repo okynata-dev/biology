@@ -176,7 +176,7 @@ function fib(i,n){const phi=Math.acos(1-2*(i+0.5)/n),th=Math.PI*(1+Math.sqrt(5))
 const uTime={value:0}; // shared clock driving the living motion in every shader
 // perfect-loop clock: everything periodic uses whole cycles per LOOP seconds,
 // so t=0 and t=LOOP render identically → seamless mp4 loops.
-const LOOP=8, W=2*Math.PI/LOOP; const uW={value:W};
+const LOOP=16, W=2*Math.PI/LOOP; const uW={value:W};  // 16s cycle → calm, slow rock
 
 const PAT={Solid:0,Gradient:1,Duotone:2,Stripes:3,Dots:4,Marble:5};
 
@@ -561,7 +561,10 @@ function loop(){const t=(performance.now()-t0)/1000;uTime.value=t;applyMotion(t)
 // deterministic frame seek for offline capture (mp4/still): freezes motion at time t
 window.__seek=function(t){uTime.value=t;applyMotion(t);renderer.render(scene,camera);};
 window.__LOOP=LOOP;  // loop period (s) — render frames over [0,LOOP) for a seamless mp4
-show(START);loop();
+window.__tierOf=id=>traitsFor(id).tier;  // for rarity ranking (grid page)
+show(START);
+if(Q.has('still')){window.__seek(0);document.getElementById('load').style.display='none';window.__biomReady=true;}
+else loop();
 </script>
 </body>
 </html>
