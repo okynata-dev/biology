@@ -518,7 +518,7 @@ if(TOKEN)document.body.classList.add('bare');
 
 const state={id:1};
 // zoom: 1.0 = framed default (far limit), 1.5 = 50% closer (near limit)
-const ZMAX=1.5;let zoom=ZMAX,baseDist=7.6;const camDir=new THREE.Vector3(0,0,1);  // default = zoomed in; zoom out to 1.0 = old framed size
+const ZMAX=1.8;let zoom=ZMAX,baseDist=7.6;const camDir=new THREE.Vector3(0,0,1);  // default = zoomed in; zoom out to 1.0 = old framed size
 function applyZoom(){camera.position.copy(camDir).multiplyScalar(baseDist/zoom);camera.lookAt(0,0,0);}
 function setZoom(z){zoom=Math.min(ZMAX,Math.max(1,z));applyZoom();}
 addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.08:1/1.08));},{passive:false});
