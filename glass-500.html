@@ -490,9 +490,9 @@ function show(id){
   // composition: each token gets its own slight viewpoint (azimuth + elevation)
   const cr=mb((state.id*48271)^0x2c1);
   const az=(cr()-0.5)*0.55*(TOKEN?0.7:1),el=0.06+cr()*0.26;
-  const dist=(sph.radius/Math.sin(fov/2))*(TOKEN?1.12:1.18);
-  camera.position.set(Math.sin(az)*Math.cos(el),Math.sin(el),Math.cos(az)*Math.cos(el)).multiplyScalar(dist);
-  camera.lookAt(0,0,0);
+  baseDist=(sph.radius/Math.sin(fov/2))*(TOKEN?1.12:1.18);
+  camDir.set(Math.sin(az)*Math.cos(el),Math.sin(el),Math.cos(az)*Math.cos(el));
+  applyZoom();
   document.getElementById('jump').value=state.id;const cap=s=>String(s).replace(/_/g,' ');
   document.getElementById('traits').innerHTML=`<div><b>#</b>${state.id}</div>`+
     [['Form','form'],['Surface','surface'],['Pattern','pattern'],['Appendage','appendage'],['Spines','spines'],['Shells','shells'],['Stain','stain'],['Light','light'],['Iridescence','irid'],['Nucleus','nucleus'],['Anomaly','anomaly']]
@@ -517,13 +517,22 @@ const START=Math.min(TOTAL,Math.max(1,parseInt(Q.get('id'),10)||1));
 if(TOKEN)document.body.classList.add('bare');
 
 const state={id:1};
+// zoom: 1.0 = framed default (far limit), 1.5 = 50% closer (near limit)
+const ZMAX=1.5;let zoom=1,baseDist=7.6;const camDir=new THREE.Vector3(0,0,1);
+function applyZoom(){camera.position.copy(camDir).multiplyScalar(baseDist/zoom);camera.lookAt(0,0,0);}
+function setZoom(z){zoom=Math.min(ZMAX,Math.max(1,z));applyZoom();}
+addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.08:1/1.08));},{passive:false});
+let pinch0=0;
+addEventListener('touchstart',e=>{if(e.touches.length===2)pinch0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)/zoom;},{passive:true});
+addEventListener('touchmove',e=>{if(e.touches.length===2&&pinch0){setZoom(Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)/pinch0);}},{passive:true});
+
 document.getElementById('prev').onclick=()=>show(state.id-1);
 document.getElementById('next').onclick=()=>show(state.id+1);
 document.getElementById('rand').onclick=()=>show(1+((Math.random()*TOTAL)|0));
 document.getElementById('jump').onchange=e=>show(parseInt(e.target.value,10)||1);
 addEventListener('keydown',e=>{if(e.key==='ArrowLeft')show(state.id-1);if(e.key==='ArrowRight')show(state.id+1);});
-let tx=0;addEventListener('touchstart',e=>tx=e.touches[0].clientX,{passive:true});
-addEventListener('touchend',e=>{const dx=e.changedTouches[0].clientX-tx;if(Math.abs(dx)>50)show(state.id+(dx<0?1:-1));},{passive:true});
+let tx=0,swipe=false;addEventListener('touchstart',e=>{swipe=e.touches.length===1;if(swipe)tx=e.touches[0].clientX;},{passive:true});
+addEventListener('touchend',e=>{if(!swipe||e.touches.length)return;const dx=e.changedTouches[0].clientX-tx;if(Math.abs(dx)>50)show(state.id+(dx<0?1:-1));},{passive:true});
 document.getElementById('stats').onclick=()=>{buildDist();document.getElementById('sheet').classList.add('on');};
 document.getElementById('close').onclick=()=>document.getElementById('sheet').classList.remove('on');
 function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
