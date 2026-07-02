@@ -474,8 +474,8 @@ function build(id){
     ring.rotation.x=Math.PI/2-0.4;ring.userData.thin=true;G.add(ring);
   }
 
-  G.userData.motion=MOT[D]||null;G.userData.turns=1;
-  if(t.anomaly==='Twin'){const c=G.clone();G.scale.setScalar(0.74);G.position.x=-0.75;c.position.x=0.75;c.scale.setScalar(0.74);const w=new THREE.Group();w.add(G);w.add(c);w.userData.turns=1;w.userData.motion=MOT[D]||null;return{node:w,t};}
+  G.userData.motion=MOT[D]||null;G.userData.swing=0.5+r()*0.35;
+  if(t.anomaly==='Twin'){const c=G.clone();G.scale.setScalar(0.74);G.position.x=-0.75;c.position.x=0.75;c.scale.setScalar(0.74);const w=new THREE.Group();w.add(G);w.add(c);w.userData.swing=0.55;w.userData.motion=MOT[D]||null;return{node:w,t};}
   return{node:G,t};
 }
 
@@ -546,9 +546,9 @@ let t0=performance.now(),firstFrame=true;
 function applyMotion(t){
   if(!current)return;
   const A=t*W;                                   // loop angle: 0..2π across LOOP
-  const M=current.userData.motion||{};const turns=current.userData.turns||1;
-  current.rotation.y=A*turns;
-  current.rotation.x=(M.tilt||0)+Math.sin(A*(M.wc||1))*(M.wa||0.08);
+  const M=current.userData.motion||{};const sw=current.userData.swing||0.6;
+  current.rotation.y=Math.sin(A)*sw;             // calm rock, not a full spin
+  current.rotation.x=(M.tilt||0)+Math.sin(A*(M.wc||1)+1.7)*(M.wa||0.08);
   current.rotation.z=M.rc?Math.sin(A*M.rc)*M.ra:0;
   current.scale.setScalar(1+Math.sin(A)*0.012);
   current.traverse(o=>{const u=o.userData;
