@@ -62,7 +62,7 @@ const T={
   surface:[['Smooth',38],['Bumpy',26],['Porous',20],['Ribbed',16]],
   spines:[['None',50],['Few',28],['Crown',16],['Halo',6]],
   appendage:[['None',42],['Cilia',22],['Flagella',16],['Tendrils',13],['Pods',7]],
-  pattern:[['Solid',44],['Gradient',20],['Duotone',13],['Stripes',11],['Dots',8],['Marble',4]],
+  pattern:[['Solid',50],['Gradient',26],['Duotone',15],['Marble',9]],
   shells:[['1',62],['2',28],['3',10]],
   stain:[['nile_blue',15],['congo_red',14],['malachite',13],['eosin',12],['safranin',11],['methylene',10],['fuchsia',8],['gold',6],['plasma',4],['aurora',4],['void',2],['iridescent',1]],
   irid:[['None',26],['Faint',38],['Vivid',26],['Spectral',10]],
@@ -79,7 +79,7 @@ const ACC={nile_blue:[0x9fe8ff,0x0a3f9e,0xff9a3d],congo_red:[0xffd27a,0x8c1000,0
   fuchsia:[0xffc4ee,0x8f0f78,0x40e0d0],gold:[0xfff0b0,0xa06000,0x9040ff],
   plasma:[0xe0c0ff,0x5a0dc0,0x2fe6c4],aurora:[0xccfff2,0x0a8f78,0xff5f97],
   void:[0x3a4a8a,0x0a0e20,0x8f6fff],iridescent:[0xffffff,0x88c8d8,0xffb0e0]};
-const RARE=new Set(['3','Lattice','Coral','Discus','Crown','Halo','gold','plasma','aurora','void','iridescent','Spectral','Golden','Living','Flagella','Tendrils','Pods','Dots','Marble','Eclipse']);
+const RARE=new Set(['3','Lattice','Coral','Discus','Crown','Halo','gold','plasma','aurora','void','iridescent','Spectral','Golden','Living','Flagella','Tendrils','Pods','Marble','Eclipse']);
 
 function traitsFor(id){
   const r=mb(((id*2654435761)>>>0)^0x9e37);
