@@ -2,55 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Glass · 500</title>
+<title>Glass · scene</title>
 <style>
-  :root{ --bg:#ffffff; --ink:#1a1712; --ink2:#6b645a; }
-  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:ui-monospace,Menlo,monospace;overflow:hidden;-webkit-user-select:none;user-select:none;}
-  #c{display:block;width:100vw;height:100vh;touch-action:none;}
-  .tag{position:fixed;top:calc(14px + env(safe-area-inset-top));left:0;right:0;text-align:center;font-size:10px;letter-spacing:.22em;color:var(--ink2);text-transform:uppercase;}
-  .panel{position:fixed;top:calc(40px + env(safe-area-inset-top));left:16px;font-size:11px;line-height:1.7;color:var(--ink);background:rgba(255,255,255,.4);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid rgba(26,23,18,.1);border-radius:12px;padding:12px 14px;min-width:176px;}
-  .panel b{color:var(--ink2);font-weight:400;text-transform:uppercase;letter-spacing:.06em;font-size:9px;display:inline-block;width:74px;}
-  .panel .tier{font-size:12px;letter-spacing:.1em;margin-top:6px;}
-  .hud{position:fixed;left:0;right:0;bottom:0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;align-items:center;justify-content:center;gap:14px;}
-  .nav{width:44px;height:44px;border-radius:50%;border:1px solid rgba(26,23,18,.18);background:rgba(255,255,255,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:var(--ink);font-size:19px;line-height:42px;text-align:center;cursor:pointer;}
-  .nav:active{transform:scale(.9);}
-  .meta{min-width:120px;text-align:center;}
-  .meta input{width:64px;background:transparent;border:0;border-bottom:1px solid rgba(26,23,18,.25);color:var(--ink);font:inherit;font-size:14px;text-align:center;}
-  .meta .of{font-size:11px;color:var(--ink2);}
-  .btn{position:fixed;cursor:pointer;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);background:rgba(255,255,255,.4);border:1px solid rgba(26,23,18,.1);border-radius:20px;padding:8px 12px;backdrop-filter:blur(6px);}
-  #rand{top:calc(40px + env(safe-area-inset-top));right:16px;}
-  #stats{top:calc(82px + env(safe-area-inset-top));right:16px;}
-  .sheet{position:fixed;inset:0;background:rgba(255,255,255,.96);backdrop-filter:blur(4px);overflow:auto;padding:34px 22px 60px;display:none;}
-  .sheet.on{display:block;}
-  .sheet h2{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2);margin:18px 0 8px;}
-  .sheet h1{font-size:13px;letter-spacing:.2em;text-transform:uppercase;}
-  .bar{display:flex;align-items:center;gap:8px;font-size:11px;margin:3px 0;}
-  .bar .lbl{width:120px;}.bar .track{flex:1;height:8px;background:rgba(26,23,18,.08);border-radius:5px;overflow:hidden;}
-  .bar .fill{height:100%;background:var(--ink);opacity:.55;}.bar .n{width:54px;text-align:right;color:var(--ink2);}
-  .close{position:fixed;top:18px;right:18px;font-size:22px;cursor:pointer;}
-  .load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink2);font-size:12px;letter-spacing:.18em;}
-  /* token mode (animation_url): just the biom, nothing else */
-  body.bare .tag,body.bare .panel,body.bare .hud,body.bare .btn,body.bare .sheet{display:none!important;}
+  html,body{margin:0;height:100%;background:#fff;overflow:hidden;}
+  #c{display:block;width:100vw;height:100vh;}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div class="tag">bioms · glass · 500</div>
-<div class="panel" id="traits"></div>
-<div class="btn" id="rand">random</div>
-<div class="btn" id="stats">distribution</div>
-<div class="hud">
-  <div class="nav" id="prev">‹</div>
-  <div class="meta"><input id="jump" type="number" min="1" max="500" value="1"> <span class="of">/ 500</span></div>
-  <div class="nav" id="next">›</div>
-</div>
-<div class="sheet" id="sheet"><div class="close" id="close">×</div><h1>Trait distribution · 500</h1><div id="dist"></div></div>
-<div class="load" id="load">loading glass…</div>
-
 <script type="importmap">{ "imports": { "three": "/vendor/three.module.js" } }</script>
 <script type="module">
+
 import * as THREE from 'three';
 const TOTAL=500;
 function mb(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
@@ -479,93 +443,56 @@ function build(id){
   return{node:G,t};
 }
 
-function show(id){
-  state.id=((id-1+TOTAL)%TOTAL)+1;
-  if(current){scene.remove(current);current.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose());}});}
-  const {node,t}=build(state.id);current=node;scene.add(current);
-  (LIGHTS[t.light]||LIGHTS.Studio)(t);
-  // auto-frame. token mode frames the BODY (thin spines/appendages may spill
-  // past the edge) so the mass fills the cell tightly; browse mode fits it all.
-  current.updateMatrixWorld(true);
-  const box=new THREE.Box3();current.traverse(o=>{if(o.isMesh&&!(TOKEN&&o.userData.thin))box.expandByObject(o);});
-  const sph=box.getBoundingSphere(new THREE.Sphere());
-  const fov=camera.fov*Math.PI/180;
-  // composition: each token gets its own slight viewpoint (azimuth + elevation)
-  const cr=mb((state.id*48271)^0x2c1);
-  const az=(cr()-0.5)*0.55*(TOKEN?0.7:1),el=0.06+cr()*0.26;
-  baseDist=(sph.radius/Math.sin(fov/2))*(TOKEN?1.12:1.18);
-  camDir.set(Math.sin(az)*Math.cos(el),Math.sin(el),Math.cos(az)*Math.cos(el));
-  applyZoom();
-  document.getElementById('jump').value=state.id;const cap=s=>String(s).replace(/_/g,' ');
-  document.getElementById('traits').innerHTML=`<div><b>#</b>${state.id}</div>`+
-    [['Form','form'],['Surface','surface'],['Pattern','pattern'],['Appendage','appendage'],['Spines','spines'],['Shells','shells'],['Stain','stain'],['Light','light'],['Iridescence','irid'],['Nucleus','nucleus'],['Anomaly','anomaly']]
-    .map(([L,k])=>`<div><b>${L}</b>${cap(t[k])}</div>`).join('')+`<div class="tier"><b>tier</b>${t.tier}</div>`;
-}
-
-function buildDist(){
-  const cats=['form','surface','pattern','appendage','spines','shells','stain','light','irid','nucleus','anomaly','tier'];const tally={};cats.forEach(c=>tally[c]={});
-  for(let id=1;id<=TOTAL;id++){const t=traitsFor(id);for(const c of cats){const v=String(t[c]);tally[c][v]=(tally[c][v]||0)+1;}}
-  const el=document.getElementById('dist');el.innerHTML='';
-  for(const c of cats){const h=document.createElement('h2');h.textContent=c;el.appendChild(h);
-    const en=Object.entries(tally[c]).sort((a,b)=>b[1]-a[1]);const mx=Math.max(...en.map(e=>e[1]));
-    for(const[v,n]of en){const row=document.createElement('div');row.className='bar';
-      row.innerHTML=`<div class="lbl">${v.replace(/_/g,' ')}</div><div class="track"><div class="fill" style="width:${(n/mx*100)|0}%"></div></div><div class="n">${n} · ${(n/TOTAL*100).toFixed(1)}%</div>`;el.appendChild(row);}}
-}
-
-// ---- token mode: /glass-500.html?id=N&token=1 renders ONE biom full-bleed,
-// no UI, deterministic — this is what an animation_url points at ----
+// ---- composition: several diverse bioms, depth-staggered on ONE canvas ----
+try{
 const Q=new URLSearchParams(location.search);
-const TOKEN=Q.has('token')||Q.has('bare');
-const START=Math.min(TOTAL,Math.max(1,parseInt(Q.get('id'),10)||1));
-if(TOKEN)document.body.classList.add('bare');
+const ids=(Q.get('ids')||'1,2,3,4,5,6,7,8,9').split(',').map(s=>parseInt(s,10)).filter(Boolean);
+const root=new THREE.Group();scene.add(root);
+const nodes=[];
+ids.forEach((id,i)=>{
+  const {node}=build(id);
+  node.updateMatrixWorld(true);
+  const box=new THREE.Box3();node.traverse(o=>{if(o.isMesh&&!o.userData.thin)box.expandByObject(o);});
+  const sph=box.getBoundingSphere(new THREE.Sphere());
+  const hr=mb(((id*2654435761)>>>0)^0x51);
+  const wrap=new THREE.Group();
+  wrap.scale.setScalar((1.05/(sph.radius||1))*(0.85+hr()*0.4));   // normalize + size variety
+  const cols=Math.ceil(Math.sqrt(ids.length)),rows=Math.ceil(ids.length/cols);
+  const col=i%cols,row=Math.floor(i/cols);
+  wrap.position.set((col-(cols-1)/2)*2.5+(hr()-0.5)*0.6,
+                    ((rows-1)/2-row)*2.5+(hr()-0.5)*0.6,
+                    (hr()-0.5)*4.0);                              // depth: nearer / farther
+  node.userData.phase=hr()*6.283;
+  wrap.add(node);root.add(wrap);nodes.push(node);
+});
+// centre + frame on the BODY meshes only (symmetric; thin growths may spill a
+// touch past the edge, same as the single-token clips) — wide-ish fov for depth
+camera.fov=42;camera.updateProjectionMatrix();
+function bodyBox(){const b=new THREE.Box3(),v=new THREE.Vector3();root.updateMatrixWorld(true);
+  root.traverse(o=>{if(o.isMesh&&!o.userData.thin)b.expandByObject(o);});return b;}
+{const bs=bodyBox().getBoundingSphere(new THREE.Sphere());root.position.sub(bs.center);}
+const rr=bodyBox().getBoundingSphere(new THREE.Sphere()).radius;
+const fov=camera.fov*Math.PI/180;camera.position.set(0,0,(rr/Math.sin(fov/2))*1.06);camera.lookAt(0,0,0);
 
-const state={id:1};
-// zoom: 1.0 = framed default (far limit), 1.5 = 50% closer (near limit)
-const ZMAX=1.8;let zoom=Q.has('z')?Math.min(ZMAX,Math.max(0.9,parseFloat(Q.get('z')))):ZMAX;  // default = zoomed in; ?z= overrides (mp4 export frames wider)
-let baseDist=7.6;const camDir=new THREE.Vector3(0,0,1);
-function applyZoom(){camera.position.copy(camDir).multiplyScalar(baseDist/zoom);camera.lookAt(0,0,0);}
-function setZoom(z){zoom=Math.min(ZMAX,Math.max(1,z));applyZoom();}
-addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.08:1/1.08));},{passive:false});
-let pinch0=0;
-addEventListener('touchstart',e=>{if(e.touches.length===2)pinch0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)/zoom;},{passive:true});
-addEventListener('touchmove',e=>{if(e.touches.length===2&&pinch0){setZoom(Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY)/pinch0);}},{passive:true});
+function applyNode(node,t){const A=t*W+(node.userData.phase||0);
+  const M=node.userData.motion||{};const sw=node.userData.swing||0.6;
+  node.rotation.y=Math.sin(A)*sw;
+  node.rotation.x=(M.tilt||0)+Math.sin(A*(M.wc||1)+1.7)*(M.wa||0.08);
+  node.rotation.z=M.rc?Math.sin(A*M.rc)*M.ra:0;
+  node.scale.setScalar(1+Math.sin(A)*0.012);
+  node.traverse(o=>{const u=o.userData;
+    if(u.orbit)o.rotation.y=A*u.orbit;
+    if(u.pulse!==undefined)o.scale.setScalar(1+Math.sin(A*2.0+u.pulse)*0.07);});}
+window.__seekAll=t=>{uTime.value=t;for(const n of nodes)applyNode(n,t);renderer.render(scene,camera);};
+window.__readyAll=()=>true;window.__LOOP=LOOP;
 
-document.getElementById('prev').onclick=()=>show(state.id-1);
-document.getElementById('next').onclick=()=>show(state.id+1);
-document.getElementById('rand').onclick=()=>show(1+((Math.random()*TOTAL)|0));
-document.getElementById('jump').onchange=e=>show(parseInt(e.target.value,10)||1);
-addEventListener('keydown',e=>{if(e.key==='ArrowLeft')show(state.id-1);if(e.key==='ArrowRight')show(state.id+1);});
-let tx=0,swipe=false;addEventListener('touchstart',e=>{swipe=e.touches.length===1;if(swipe)tx=e.touches[0].clientX;},{passive:true});
-addEventListener('touchend',e=>{if(!swipe||e.touches.length)return;const dx=e.changedTouches[0].clientX-tx;if(Math.abs(dx)>50)show(state.id+(dx<0?1:-1));},{passive:true});
-document.getElementById('stats').onclick=()=>{buildDist();document.getElementById('sheet').classList.add('on');};
-document.getElementById('close').onclick=()=>document.getElementById('sheet').classList.remove('on');
 function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 addEventListener('resize',resize);resize();
-let t0=performance.now(),firstFrame=true;
-// per-form idle + interior life (orbits, pulses), deterministic in t
-function applyMotion(t){
-  if(!current)return;
-  const A=t*W;                                   // loop angle: 0..2π across LOOP
-  const M=current.userData.motion||{};const sw=current.userData.swing||0.6;
-  current.rotation.y=Math.sin(A)*sw;             // calm rock, not a full spin
-  current.rotation.x=(M.tilt||0)+Math.sin(A*(M.wc||1)+1.7)*(M.wa||0.08);
-  current.rotation.z=M.rc?Math.sin(A*M.rc)*M.ra:0;
-  current.scale.setScalar(1+Math.sin(A)*0.012);
-  current.traverse(o=>{const u=o.userData;
-    if(u.orbit)o.rotation.y=A*u.orbit;
-    if(u.pulse!==undefined)o.scale.setScalar(1+Math.sin(A*2.0+u.pulse)*0.07);});
-}
-function loop(){const t=(performance.now()-t0)/1000;uTime.value=t;applyMotion(t);renderer.render(scene,camera);
-  if(firstFrame){firstFrame=false;document.getElementById('load').style.display='none';window.__biomReady=true;}
-  requestAnimationFrame(loop);}
-// deterministic frame seek for offline capture (mp4/still): freezes motion at time t
-window.__seek=function(t){uTime.value=t;applyMotion(t);renderer.render(scene,camera);};
-window.__LOOP=LOOP;  // loop period (s) — render frames over [0,LOOP) for a seamless mp4
-window.__tierOf=id=>traitsFor(id).tier;  // for rarity ranking (grid page)
-window.__traitOf=id=>{const t=traitsFor(id);return{form:t.form,stain:t.stain,tier:t.tier,pattern:t.pattern,appendage:t.appendage};};
-show(START);
-if(Q.has('still')){window.__seek(0);document.getElementById('load').style.display='none';window.__biomReady=true;}
-else loop();
+let t0=performance.now();
+function loop(){const t=(performance.now()-t0)/1000;window.__seekAll(t);requestAnimationFrame(loop);}
+if(Q.has('still'))window.__seekAll(0);else loop();
+}catch(e){window.__sceneErr=(e&&e.stack)||String(e);}
+
 </script>
 </body>
 </html>
