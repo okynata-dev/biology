@@ -31,7 +31,7 @@ def serve(directory):
 
 def render_one(page, port, cid, res, fps, crf, td):
     page.set_viewport_size({"width": res, "height": res})
-    page.goto(f"http://127.0.0.1:{port}/glass-500.html?id={cid}&token=1&z=1.12", wait_until="load")
+    page.goto(f"http://127.0.0.1:{port}/glass-500.html?id={cid}&token=1&z=1.12", wait_until="load", timeout=60000)
     page.wait_for_function("window.__biomReady === true", timeout=45000)
     L = page.evaluate("window.__LOOP")
     n = int(round(L * fps))
@@ -74,8 +74,19 @@ def main():
             dst = os.path.join(OUT, f"glass-{cid:03d}.mp4")
             if os.path.exists(dst) and os.path.getsize(dst) > 0:
                 print(f"  #{cid:<3} skip (exists)", flush=True); continue
-            out, sz = render_one(page, port, cid, args.res, args.fps, args.crf, td)
-            print(f"  #{cid:<3} -> {os.path.basename(out)}  {sz/1_048_576:.1f} MB", flush=True)
+            # resilient: a transient browser hiccup shouldn't kill the batch
+            for attempt in (1, 2, 3):
+                try:
+                    out, sz = render_one(page, port, cid, args.res, args.fps, args.crf, td)
+                    print(f"  #{cid:<3} -> {os.path.basename(out)}  {sz/1_048_576:.1f} MB", flush=True)
+                    break
+                except Exception as e:
+                    print(f"  #{cid:<3} attempt {attempt} failed: {str(e).splitlines()[0]}", flush=True)
+                    try: page.close()
+                    except Exception: pass
+                    page = browser.new_page(device_scale_factor=1)
+            else:
+                print(f"  #{cid:<3} GAVE UP after 3 tries", flush=True)
         browser.close()
     httpd.shutdown()
     print("done:", OUT)
