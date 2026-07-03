@@ -1,0 +1,98 @@
+# Cloud render of every glass biom's seamless looping mp4 (tokens 1..500).
+#
+# Each matrix chunk renders its slice with scripts/make-glass-loops.py
+# (deterministic frames over one __LOOP via window.__seek, ffmpeg-encoded)
+# then uploads its mp4s straight to R2 under the glass/ prefix — served at
+# https://pngs.thebioms.com/glass/<NNN>.mp4. No artifacts, no laptop.
+#
+# Glass is WebGL transmission (heavier than the 2D preview render), so it
+# runs on software SwiftShader here — run the "Glass loops (smoke)" workflow
+# first to confirm it looks right and to time one token before fanning out.
+#
+# Setup: same secrets as the other render workflows —
+#   CLOUDFLARE_API_TOKEN (Workers R2 Storage: Write) + CLOUDFLARE_ACCOUNT_ID.
+#
+# Trigger: Actions tab -> "Render glass loops" -> Run workflow.
+
+name: Render glass loops
+
+on:
+  workflow_dispatch:
+    inputs:
+      chunks:
+        description: 'Parallel chunks (1-30). Watch the ~20 concurrent-job cap.'
+        default: '20'
+        type: string
+      size:
+        description: 'Square px (1600 default; 1080 lighter/faster).'
+        default: '1600'
+        type: string
+      fps:
+        description: 'Output fps.'
+        default: '18'
+        type: string
+      crf:
+        description: 'x264 CRF (higher = smaller).'
+        default: '21'
+        type: string
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        run: |
+          n="${{ github.event.inputs.chunks }}"
+          matrix=$(python3 -c "import json; n=int('$n'); print(json.dumps({'include': [{'chunk': i, 'total': n} for i in range(n)]}))")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  render:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Playwright + Chromium
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install wrangler
+        run: npm install -g wrangler@4
+      - name: Compute ids for this chunk
+        id: ids
+        run: |
+          ids=$(python3 -c "
+          chunk, total = ${{ matrix.chunk }}, ${{ matrix.total }}
+          lo, hi = 1, 501          # tokens 1..500
+          n = hi - lo
+          per = (n + total - 1) // total
+          s = lo + chunk * per
+          e = min(s + per, hi)
+          print(','.join(str(i) for i in range(s, e)))
+          ")
+          echo "Chunk ${{ matrix.chunk }}: $ids"
+          echo "ids=$ids" >> "$GITHUB_OUTPUT"
+      - name: Render this chunk
+        run: |
+          [ -z "${{ steps.ids.outputs.ids }}" ] && { echo "empty chunk"; exit 0; }
+          python scripts/make-glass-loops.py \
+            --only "${{ steps.ids.outputs.ids }}" \
+            --res ${{ github.event.inputs.size }} \
+            --fps ${{ github.event.inputs.fps }} \
+            --crf ${{ github.event.inputs.crf }}
+          echo "chunk done: $(ls loops/*.mp4 2>/dev/null | wc -l) files, $(du -sh loops 2>/dev/null | cut -f1)"
+      - name: Upload this chunk to R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash scripts_upload_glass.sh

@@ -10,8 +10,13 @@ tuned to land ~10-20 MB.
     python3 scripts/make-glass-loops.py --range 1 500        # everything
     python3 scripts/make-glass-loops.py --res 1280 --fps 25 --crf 20
 """
-import argparse, functools, http.server, os, socket, socketserver, subprocess, threading
+import argparse, functools, http.server, os, socket, socketserver, subprocess, sys, threading
 from playwright.sync_api import sync_playwright
+
+# GPU on the Mac (Metal via ANGLE); software SwiftShader on Linux CI (no GPU)
+GL_ARGS = (["--use-gl=angle", "--use-angle=metal", "--ignore-gpu-blocklist"]
+           if sys.platform == "darwin" else
+           ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT  = os.path.join(ROOT, "loops")
@@ -47,22 +52,28 @@ def render_one(page, port, cid, res, fps, crf, td):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ids", type=int, nargs="*")
+    ap.add_argument("--only", type=str, help="comma-separated ids (for CI)")
     ap.add_argument("--range", type=int, nargs=2)
     ap.add_argument("--res", type=int, default=1280)
     ap.add_argument("--fps", type=int, default=25)
     ap.add_argument("--crf", type=int, default=20)
     args = ap.parse_args()
-    ids = args.ids or (list(range(args.range[0], args.range[1] + 1)) if args.range else [11, 25, 46])
+    if args.only:
+        ids = [int(x) for x in args.only.split(",") if x.strip()]
+    else:
+        ids = args.ids or (list(range(args.range[0], args.range[1] + 1)) if args.range else [11, 25, 46])
     os.makedirs(OUT, exist_ok=True)
     httpd, port = serve(ROOT)
     print(f"serving :{port}  ->  {len(ids)} token(s), {args.res}px @ {args.fps}fps crf{args.crf}")
     import tempfile
     td = tempfile.mkdtemp()
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=[
-            "--use-gl=angle", "--use-angle=metal", "--ignore-gpu-blocklist"])
+        browser = p.chromium.launch(headless=True, args=GL_ARGS)
         page = browser.new_page(device_scale_factor=1)
         for cid in ids:
+            dst = os.path.join(OUT, f"glass-{cid:03d}.mp4")
+            if os.path.exists(dst) and os.path.getsize(dst) > 0:
+                print(f"  #{cid:<3} skip (exists)", flush=True); continue
             out, sz = render_one(page, port, cid, args.res, args.fps, args.crf, td)
             print(f"  #{cid:<3} -> {os.path.basename(out)}  {sz/1_048_576:.1f} MB", flush=True)
         browser.close()
