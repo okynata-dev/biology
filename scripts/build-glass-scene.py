@@ -34,7 +34,7 @@ ids.forEach((id,i)=>{
   const sph=box.getBoundingSphere(new THREE.Sphere());
   const hr=mb(((id*2654435761)>>>0)^0x51);
   const wrap=new THREE.Group();
-  wrap.scale.setScalar((1.05/(sph.radius||1))*(0.85+hr()*0.4));   // normalize + size variety
+  wrap.scale.setScalar((1.57/(sph.radius||1))*(0.85+hr()*0.4));   // normalize (~50% bigger) + size variety
   const cols=Math.ceil(Math.sqrt(ids.length)),rows=Math.ceil(ids.length/cols);
   const col=i%cols,row=Math.floor(i/cols);
   wrap.position.set((col-(cols-1)/2)*2.5+(hr()-0.5)*0.6,
@@ -46,11 +46,14 @@ ids.forEach((id,i)=>{
 // centre + frame on the BODY meshes only (symmetric; thin growths may spill a
 // touch past the edge, same as the single-token clips) — wide-ish fov for depth
 camera.fov=42;camera.updateProjectionMatrix();
-function bodyBox(){const b=new THREE.Box3(),v=new THREE.Vector3();root.updateMatrixWorld(true);
+function bodyBox(){const b=new THREE.Box3();root.updateMatrixWorld(true);
   root.traverse(o=>{if(o.isMesh&&!o.userData.thin)b.expandByObject(o);});return b;}
-{const bs=bodyBox().getBoundingSphere(new THREE.Sphere());root.position.sub(bs.center);}
-const rr=bodyBox().getBoundingSphere(new THREE.Sphere()).radius;
-const fov=camera.fov*Math.PI/180;camera.position.set(0,0,(rr/Math.sin(fov/2))*1.06);camera.lookAt(0,0,0);
+{const c=bodyBox().getCenter(new THREE.Vector3());root.position.sub(c);}
+// frame to the grid's extent (not the bounding sphere) so it fills the frame —
+// no big empty corners; edge growths may spill a touch like the single clips
+const sz=bodyBox().getSize(new THREE.Vector3());
+const half=Math.max(sz.x,sz.y)/2;
+const fov=camera.fov*Math.PI/180;camera.position.set(0,0,(half/Math.tan(fov/2))*1.06);camera.lookAt(0,0,0);
 
 function applyNode(node,t){const A=t*W+(node.userData.phase||0);
   const M=node.userData.motion||{};const sw=node.userData.swing||0.6;
