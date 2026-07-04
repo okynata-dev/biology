@@ -46,3 +46,6 @@ bioms-admin-token.txt
 
 # Atlas build output (uploaded to R2, not committed)
 atlas-out/
+loops/
+posters/
+meta/glass/
