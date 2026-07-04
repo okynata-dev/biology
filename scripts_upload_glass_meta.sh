@@ -27,10 +27,10 @@ for id in "${ids[@]}"; do
   [ -f "$j" ] || { echo "skip meta (missing): $j"; continue; }
   npx wrangler@4 r2 object put "$BUCKET/glass-meta/${id}" --file="$j" \
     --content-type=application/json --cache-control="$CC" --remote
-  p="posters/glass-$(printf '%03d' "$id").webp"
+  p="posters/glass-$(printf '%03d' "$id").jpg"
   if [ -f "$p" ]; then
-    npx wrangler@4 r2 object put "$BUCKET/glass-img/$(printf '%03d' "$id").webp" --file="$p" \
-      --content-type=image/webp --cache-control="public, max-age=31536000, immutable" --remote
+    npx wrangler@4 r2 object put "$BUCKET/glass-img/$(printf '%03d' "$id").jpg" --file="$p" \
+      --content-type=image/jpeg --cache-control="public, max-age=31536000, immutable" --remote
   fi
   n=$((n+1))
 done

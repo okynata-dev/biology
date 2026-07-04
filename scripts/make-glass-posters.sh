@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Poster stills for OpenSea `image` — a mid-loop frame of each glass mp4,
-# 1080px webp. Run after the loops are rendered.
+# 1080px jpg. Run after the loops are rendered.
 #
 #   bash scripts/make-glass-posters.sh            # all in loops/
 #   bash scripts/make-glass-posters.sh 11 25 46   # specific ids
@@ -20,7 +20,7 @@ for f in "${files[@]}"; do
   [ -f "$f" ] || { echo "skip (missing): $f"; continue; }
   nnn=$(basename "$f" .mp4 | sed 's/^glass-//')
   ffmpeg -y -ss 1 -i "$f" -frames:v 1 -vf "scale=1080:1080:flags=lanczos" \
-    -c:v libwebp -quality 90 "posters/glass-$nnn.webp" \
+    -c:v mjpeg -q:v 3 "posters/glass-$nnn.jpg" \
     >/dev/null 2>&1
   n=$((n+1))
 done

@@ -53,7 +53,7 @@ for (let id = 1; id <= TOTAL; id++) {
   const meta = {
     name: `${COLLECTION} #${id}`,
     description: DESC,
-    image: `${IMG_BASE}/${p}.webp`,
+    image: `${IMG_BASE}/${p}.jpg`,
     animation_url: `${MP4_BASE}/${p}.mp4`,
     external_url: `${LIVE_BASE}?id=${id}&token=1`,
     attributes: ATTRS.map(([label, key]) => ({ trait_type: label, value: pretty(t[key]) })),
