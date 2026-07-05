@@ -41,7 +41,7 @@
   # connect-src is whitelisted to the API origin only — Alchemy/OpenSea
   # are reached server-side via the worker, never directly from the
   # browser, so they don't need to appear here.
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self' https://pngs.thebioms.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
   X-Frame-Options: DENY
 
 # Lab + landing + make + explore — no third-party framing allowed.
@@ -141,12 +141,12 @@
   # All /preview rules now live here, single block.
   ! Content-Security-Policy
   ! X-Frame-Options
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self' https://pngs.thebioms.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
   Cache-Control: public, max-age=60, must-revalidate
 /preview
   ! Content-Security-Policy
   ! X-Frame-Options
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self' https://pngs.thebioms.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
   Cache-Control: public, max-age=60, must-revalidate
 
 # glass-500 — the Luoms renderer. Framed same-origin by / (the gate) and
@@ -159,12 +159,12 @@
 /glass-500.html
   ! Content-Security-Policy
   ! X-Frame-Options
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self' https://pngs.thebioms.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
   Cache-Control: public, max-age=60, must-revalidate
 /glass-500
   ! Content-Security-Policy
   ! X-Frame-Options
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self' https://pngs.thebioms.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
   Cache-Control: public, max-age=60, must-revalidate
 
 # Three.js vendored module — content only changes when we bump the vendored

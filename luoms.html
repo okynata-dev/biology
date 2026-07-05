@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Luoms — 500 microorganisms in living glass</title>
-<meta name="description" content="Luoms — 500 microorganisms cast in living glass. Refraction, iridescence and a slow breath, computed in real time. By the makers of Bioms.">
+<title>Luoms</title>
+<meta name="description" content="Luoms — 500 microorganisms in glass, rendered live from their seeds.">
 <meta name="theme-color" content="#ffffff">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
@@ -14,18 +14,17 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Luoms">
 <meta property="og:title" content="Luoms">
-<meta property="og:description" content="500 microorganisms cast in living glass. Rendered in real time, never baked. By the makers of Bioms.">
+<meta property="og:description" content="500 microorganisms in glass, rendered live from their seeds.">
 <meta property="og:url" content="https://thebioms.com/luoms">
 <meta property="og:image" content="https://thebioms.com/og-luoms.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Luoms — microorganisms in living glass">
+<meta property="og:image:alt" content="Luoms">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@theBioms">
-<meta name="twitter:creator" content="@timsouw">
 <meta name="twitter:image" content="https://thebioms.com/og-luoms.jpg">
-<meta name="twitter:image:alt" content="Luoms — microorganisms in living glass">
+<meta name="twitter:image:alt" content="Luoms">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -41,36 +40,28 @@
     background: var(--bg);
     color: var(--ink);
     font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
-    line-height: 1.55;
+    line-height: 1.5;
     font-size: 17px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-  html { scroll-behavior: smooth; }
   ::selection { background: rgba(26, 23, 18, 0.10); color: var(--ink); }
 
-  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px; }
-  a:hover { text-decoration-color: var(--ink); }
-
-  .skip-link {
-    position: absolute; left: -9999px; top: 0;
-    background: var(--ink); color: var(--bg);
-    padding: 12px 18px;
-    border-radius: 0 0 8px 0;
-    font-size: 14px; font-weight: 500;
-    text-decoration: none;
-    z-index: 9999;
-  }
-  .skip-link:focus { left: 0; }
-
+  a { color: inherit; text-decoration: none; }
   a:focus-visible, button:focus-visible {
     outline: 2px solid var(--ink);
     outline-offset: 2px;
     border-radius: 4px;
   }
 
-  /* === NAV — the glass world runs lighter than the cream one:
-     same skeleton as the Bioms pages, whiter materials. === */
+  .skip-link {
+    position: absolute; left: -9999px; top: 0;
+    background: var(--ink); color: var(--bg);
+    padding: 12px 18px; border-radius: 0 0 8px 0;
+    font-size: 14px; font-weight: 500; z-index: 9999;
+  }
+  .skip-link:focus { left: 0; }
+
   nav {
     position: sticky;
     top: 0;
@@ -91,26 +82,17 @@
     font-size: 17px;
     font-weight: 500;
     letter-spacing: -0.005em;
-    color: var(--ink);
-    text-decoration: none;
     transition: opacity 0.15s;
   }
-  .brand:hover { opacity: 0.65; text-decoration: none; }
+  .brand:hover { opacity: 0.65; }
   .brand-mark { width: 18px; height: 18px; display: block; }
-  .nav-links {
-    display: flex;
-    align-items: center;
-    gap: 22px;
-    font-size: 14px;
-  }
+  .nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
   .nav-links a {
     color: var(--ink-3);
-    text-decoration: none;
     transition: color 0.15s;
-    padding: 12px 6px;
-    margin: -12px -6px;
+    padding: 12px 6px; margin: -12px -6px;
   }
-  .nav-links a:hover { color: var(--ink); text-decoration: none; }
+  .nav-links a:hover { color: var(--ink); }
   .nav-x { display: inline-flex; align-items: center; color: var(--ink-3); transition: color 0.15s; margin-left: 4px; }
   .nav-x:hover { color: var(--ink); }
   .x-icon { width: 15px; height: 15px; display: block; }
@@ -119,249 +101,105 @@
     .nav-links { gap: 14px; font-size: 13px; }
   }
 
-  section { padding: 96px 32px; position: relative; }
-  @media (max-width: 600px) { section { padding: 64px 20px; } }
-  .wrap { max-width: 1240px; margin: 0 auto; }
-
-  h2 {
-    font-size: clamp(26px, 3vw, 36px);
-    line-height: 1.1;
-    letter-spacing: -0.015em;
-    font-weight: 500;
-    margin-bottom: 24px;
-  }
-  p { margin-bottom: 16px; color: var(--ink-2); }
-  p:last-child { margin-bottom: 0; }
-
-  /* === HERO — the organism first, words second. === */
-  .hero { padding: 64px 32px 80px; }
-  .hero-grid {
-    display: grid;
-    grid-template-columns: minmax(360px, 1.1fr) minmax(280px, 1fr);
-    gap: clamp(40px, 6vw, 96px);
+  /* === HERO — the organism, live and uncropped, and the wordmark. === */
+  .hero {
+    padding: clamp(40px, 8vh, 96px) 24px clamp(24px, 4vh, 48px);
+    display: flex;
+    flex-direction: column;
     align-items: center;
-  }
-  @media (max-width: 820px) {
-    .hero-grid { grid-template-columns: 1fr; gap: 36px; }
+    text-align: center;
   }
   .hero-stage {
-    font: inherit;
-    color: inherit;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    -webkit-appearance: none;
-    appearance: none;
+    font: inherit; color: inherit; padding: 0; border: 0;
+    background: transparent; -webkit-appearance: none; appearance: none;
     position: relative;
-    width: 100%;
-    aspect-ratio: 1;
-    max-height: 76vh;
-    margin: 0 auto;
+    width: min(74vw, 62vh);
+    height: min(74vw, 62vh);
     overflow: hidden;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-    border-radius: 24px;
+    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   }
+  @media (hover: hover) { .hero-stage:hover { transform: scale(1.02); } }
+  .hero-stage:active { transform: scale(0.995); }
   .hero-stage iframe {
     position: absolute; inset: 0;
     width: 100%; height: 100%;
     border: 0; display: block;
     background: #fff;
-    pointer-events: none;    /* stage button takes the tap */
+    pointer-events: none;
     opacity: 0;
-    transition: opacity 0.8s ease;
+    transition: opacity 0.9s ease;
   }
   .hero-stage iframe.on { opacity: 1; }
   .hero-stage:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
-  .hero-text { max-width: 460px; }
-  .hero-title {
-    font-size: clamp(40px, 5.2vw, 68px);
-    letter-spacing: -0.03em;
+  .hero-word {
+    font-size: clamp(44px, 7vw, 96px);
     font-weight: 500;
-    line-height: 0.96;
-    margin: 0 0 22px;
-  }
-  .hero-tag {
-    margin: 0 0 12px;
-    font-size: clamp(17px, 1.4vw, 19px);
-    color: var(--ink-2);
-    line-height: 1.5;
-    text-wrap: pretty;
-  }
-  .hero-note {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 11px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--ink-3);
-    margin: 0 0 32px;
-  }
-  .hero-hint {
-    margin-top: 14px;
-    text-align: center;
-    font-size: 12px;
-    color: var(--ink-3);
-    letter-spacing: 0.04em;
-  }
-  @media (max-width: 820px) {
-    .hero { padding: 32px 18px 48px; }
-    .hero-stage { max-height: none; max-width: 560px; }
+    letter-spacing: -0.035em;
+    line-height: 1;
+    margin-top: clamp(12px, 2vh, 28px);
   }
 
-  /* Buttons — same primitive as the rest of the site, restated locally
-     so this page doesn't pull the cream-world stylesheet. */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 13px 26px;
-    border-radius: 999px;
-    background: var(--ink);
-    color: var(--bg);
-    font-size: 15px;
-    font-weight: 500;
-    text-decoration: none;
-    border: 1px solid var(--ink);
-    transition: opacity 0.2s, transform 0.2s;
-    cursor: pointer;
-  }
-  .btn:hover { opacity: 0.85; text-decoration: none; }
-  .btn:active { transform: scale(0.98); }
-  .btn-ghost { background: transparent; color: var(--ink); border-color: var(--rule); }
-  .btn-ghost:hover { opacity: 1; border-color: var(--ink); }
-  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
-
-  /* === STATEMENT === */
-  .statement { padding: clamp(96px, 14vh, 160px) 32px; }
-  .statement blockquote {
-    max-width: 740px;
-    margin: 0 auto;
-    text-align: center;
-    font-size: clamp(21px, 2.3vw, 30px);
-    line-height: 1.36;
-    letter-spacing: -0.014em;
-    font-weight: 400;
-    color: var(--ink);
-    text-wrap: balance;
-  }
-  @media (max-width: 600px) { .statement { padding: 56px 22px; } }
-
-  /* === MATERIAL — three quiet columns. === */
-  .material-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: clamp(32px, 4vw, 64px);
-    max-width: 1100px;
+  /* === GALLERY — the collection itself, each cell a living loop. === */
+  .gallery {
+    padding: clamp(24px, 4vh, 48px) clamp(16px, 3vw, 40px) clamp(64px, 9vh, 120px);
+    max-width: 1320px;
     margin: 0 auto;
   }
-  .material-grid h3 {
-    font-size: 17px;
-    font-weight: 500;
-    letter-spacing: -0.01em;
-    margin-bottom: 10px;
-  }
-  .material-grid p { font-size: 15px; line-height: 1.6; }
-
-  /* === TIERS — the quiet crescendo. === */
-  .tiers { text-align: center; }
-  .tier-ladder {
-    margin: 40px 0 0;
-    display: flex;
-    align-items: baseline;
-    justify-content: center;
-    flex-wrap: wrap;
-    column-gap: 26px;
-    row-gap: 14px;
-  }
-  .tier-ladder .step { color: var(--ink); line-height: 1; }
-  .tier-ladder .step small {
-    display: block;
-    margin-top: 8px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    color: var(--ink-3);
-  }
-  .tier-ladder .s1 { font-size: 14px; opacity: 0.42; }
-  .tier-ladder .s2 { font-size: 16px; opacity: 0.56; }
-  .tier-ladder .s3 { font-size: 18px; opacity: 0.7; }
-  .tier-ladder .s4 { font-size: 21px; opacity: 0.86; }
-  .tier-ladder .s5 { font-size: 25px; opacity: 1; font-weight: 500; letter-spacing: -0.012em; }
-  .tiers .aside {
-    margin: 28px auto 0;
-    max-width: 520px;
-    font-size: 14px;
-    color: var(--ink-3);
-  }
-
-  /* === GALLERY — a few residents, rendered live, one frame each. === */
   .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
-    gap: clamp(10px, 1.4vw, 18px);
-    margin-top: 40px;
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+    gap: clamp(10px, 1.4vw, 20px);
   }
-  .gallery-cell {
+  .cell {
     position: relative;
     aspect-ratio: 1;
     display: block;
     overflow: hidden;
-    border-radius: 18px;
+    border-radius: 20px;
     border: 1px solid var(--rule);
     background: #fff;
-    text-decoration: none;
-    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-                border-color 0.2s;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s;
   }
-  .gallery-cell iframe {
+  .cell video, .cell img {
     position: absolute; inset: 0;
     width: 100%; height: 100%;
-    border: 0; display: block;
+    object-fit: cover;
+    display: block;
     background: #fff;
-    pointer-events: none;
   }
-  .gallery-cell .id-tag {
+  .cell .id {
     position: absolute;
     bottom: 12px; left: 14px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px;
     letter-spacing: 0.06em;
     color: var(--ink-3);
+    background: rgba(255, 255, 255, 0.72);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    padding: 2px 7px;
+    border-radius: 5px;
     opacity: 0;
     transition: opacity 0.15s;
   }
   @media (hover: hover) {
-    .gallery-cell:hover { transform: translateY(-3px); border-color: rgba(26, 23, 18, 0.28); }
-    .gallery-cell:hover .id-tag { opacity: 1; }
+    .cell:hover { transform: translateY(-3px); border-color: rgba(26, 23, 18, 0.26); }
+    .cell:hover .id { opacity: 1; }
   }
-  @media (hover: none) { .gallery-cell .id-tag { opacity: 1; } }
+  @media (hover: none) { .cell .id { opacity: 1; } }
 
-  /* === CLOSING === */
-  .drop { padding: clamp(72px, 10vw, 140px) clamp(20px, 4vw, 32px); }
-  .drop-block {
-    max-width: 620px;
-    margin: 0 auto;
+  .all {
+    display: block;
     text-align: center;
-    padding: clamp(48px, 7vw, 80px) clamp(32px, 5vw, 64px);
-    border: 1px solid var(--rule);
-    border-radius: 28px;
+    margin-top: clamp(40px, 6vh, 72px);
+    font-size: 15px;
+    color: var(--ink-3);
+    transition: color 0.15s;
   }
-  .drop-block h2 {
-    margin: 0 0 16px;
-    font-size: clamp(40px, 4.5vw, 56px);
-    letter-spacing: -0.028em;
-    line-height: 1;
-    text-wrap: balance;
-  }
-  .drop-block p {
-    margin: 0 auto;
-    font-size: clamp(16px, 1.4vw, 18px);
-    line-height: 1.5;
-    text-wrap: balance;
-  }
-  .drop-cta { justify-content: center; margin-top: 32px; }
+  .all:hover { color: var(--ink); }
 
-  /* === FOOTER === */
   footer {
     padding: 32px;
     display: flex;
@@ -373,7 +211,7 @@
     color: var(--ink-3);
     border-top: 1px solid var(--rule);
   }
-  footer a { color: inherit; text-decoration: none; transition: color 0.15s; }
+  footer a { transition: color 0.15s; }
   footer a:hover { color: var(--ink); }
   .footer-meta { display: flex; align-items: center; gap: 14px; }
   .footer-meta .sep { opacity: 0.4; }
@@ -386,7 +224,6 @@
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
       transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
     }
   }
 </style>
@@ -395,12 +232,12 @@
 
 <a class="skip-link" href="#main">Skip to content</a>
 <nav>
-  <a class="brand" href="/luoms" aria-label="Luoms — home">
+  <a class="brand" href="/luoms" aria-label="Luoms">
     <img class="brand-mark" src="/favicon.svg?v=3" alt="" width="18" height="18" decoding="async">
     <span>Luoms</span>
   </a>
   <div class="nav-links">
-    <a href="/glass-500.html">All 500</a>
+    <a href="/glass-500.html">Renderer</a>
     <a href="/bioms">Bioms</a>
     <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow on X" target="_blank" rel="noopener">
       <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -410,92 +247,16 @@
   </div>
 </nav>
 
-<main>
+<main id="main">
+  <section class="hero">
+    <button type="button" class="hero-stage" id="heroStage" aria-label="Show another Luom"></button>
+    <div class="hero-word">Luoms</div>
+  </section>
 
-<section class="hero" id="main">
-  <div class="wrap">
-    <div class="hero-grid">
-      <div>
-        <button type="button" class="hero-stage" id="heroStage"
-                aria-label="Tap to see another Luom"></button>
-        <div class="hero-hint" id="heroHint" aria-hidden="true">Tap the organism for another one</div>
-      </div>
-      <div class="hero-text">
-        <h1 class="hero-title">Luoms</h1>
-        <p class="hero-tag">Microorganisms cast in living glass. Refraction, iridescence and a slow breath — computed in your browser, right now. Nothing here is a video.</p>
-        <p class="hero-note">500 · By the makers of Bioms</p>
-        <div class="cta-row">
-          <a href="/glass-500.html" class="btn">Browse all 500</a>
-          <a href="/bioms" class="btn btn-ghost">Meet the Bioms</a>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="statement">
-  <div class="wrap">
-    <blockquote>
-      Every Luom is grown from a single seed —<br>
-      and grown again, live, each time you look at it.
-    </blockquote>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <div class="material-grid">
-      <div>
-        <h3>Real glass, really computed</h3>
-        <p>Light passes through the body, bends, and lands on the far wall of the organism. Nothing is pre-rendered — the refraction you see is calculated for your screen, at this moment.</p>
-      </div>
-      <div>
-        <h3>Ten forms, one material</h3>
-        <p>Cocci, morulae, lattices, corals — ten body plans, each with its own skeleton, spines, appendages and interior life. Some carry a radiolarian cage fine enough to read twice.</p>
-      </div>
-      <div>
-        <h3>A slow breath</h3>
-        <p>Each organism rocks on a six-second tide and settles back exactly where it began. Patient, repeating, alive — the same calm loop, forever.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="tiers">
-  <div class="wrap">
-    <h2>Five tiers, read at a glance.</h2>
-    <p style="max-width:520px;margin:0 auto;">Rarity is structural, not a label — extra shells, crowns of spines, orbiting satellites. You can tell a Mythic from across the room.</p>
-    <div class="tier-ladder" aria-label="Tier distribution">
-      <span class="step s1">Common<small>81</small></span>
-      <span class="step s2">Uncommon<small>179</small></span>
-      <span class="step s3">Rare<small>136</small></span>
-      <span class="step s4">Epic<small>60</small></span>
-      <span class="step s5">Mythic<small>44</small></span>
-    </div>
-    <p class="aside">Every trait — form, stain, pattern, light, anomaly — is derived from the token's seed and nothing else. The distribution is fixed, published, and verifiable in the renderer itself.</p>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <h2>Some of the five hundred.</h2>
-    <div class="gallery-grid" id="galleryGrid"></div>
-  </div>
-</section>
-
-<section class="drop">
-  <div class="wrap">
-    <div class="drop-block">
-      <h2>500, once.</h2>
-      <p>Luoms are an ERC-721 collection of 500 on Ethereum. Each token is the living renderer and a perfect six-second loop of its organism.</p>
-      <div class="cta-row drop-cta">
-        <a href="/glass-500.html" class="btn">Open the renderer</a>
-        <a href="https://twitter.com/theBioms" target="_blank" rel="noopener" class="btn btn-ghost">Follow for the date</a>
-      </div>
-    </div>
-  </div>
-</section>
-
+  <section class="gallery">
+    <div class="gallery-grid" id="grid"></div>
+    <a class="all" href="/glass-500.html">See all 500 →</a>
+  </section>
 </main>
 
 <footer>
@@ -506,7 +267,7 @@
     <span class="sep">·</span>
     <a href="/bioms">Bioms</a>
     <span class="sep">·</span>
-    <a href="/glass-500.html">All 500</a>
+    <a href="/glass-500.html">Renderer</a>
   </div>
   <div class="footer-meta">
     <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
@@ -518,24 +279,24 @@
 <script>
 (function () {
   var TOTAL = 500;
-  // Curated first impressions — high-tier organisms across forms and stains.
-  var CURATED = [134, 13, 154, 11, 138, 171, 99, 140, 37, 18];
+  var CDN = 'https://pngs.thebioms.com';
+  var pad = function (n) { return String(n).padStart(3, '0'); };
 
-  // --- hero: one live organism, tap to roll ---
+  // --- hero: the live renderer, uncropped (full=1), tap to roll ---
   var stage = document.getElementById('heroStage');
-  var current = CURATED[Math.floor(Math.random() * CURATED.length)];
+  var HERO_IDS = [134, 13, 154, 11, 44, 230, 357, 140, 171, 18];
+  var current = HERO_IDS[Math.floor(Math.random() * HERO_IDS.length)];
 
   function mountHero(id) {
     stage.innerHTML = '';
     var f = document.createElement('iframe');
-    f.src = '/glass-500.html?id=' + id + '&token=1&flat=1';
-    f.title = 'Live Luom #' + id;
+    f.src = '/glass-500.html?id=' + id + '&token=1&full=1&flat=1&z=1.1';
+    f.title = 'Luom #' + id;
     f.loading = 'eager';
     f.addEventListener('load', function () { f.classList.add('on'); });
     stage.appendChild(f);
   }
   mountHero(current);
-
   stage.addEventListener('click', function () {
     var next;
     do { next = 1 + Math.floor(Math.random() * TOTAL); } while (next === current);
@@ -543,29 +304,50 @@
     mountHero(current);
   });
 
-  // --- gallery: six residents, one rendered frame each (?still=1 stops the
-  // animation loop after the first frame, so six cells cost almost nothing
-  // after load). Click opens the full live renderer on that token. ---
-  var GALLERY = [44, 135, 171, 13, 140, 154];
-  var grid = document.getElementById('galleryGrid');
+  // --- gallery: the seamless mp4 loops (on R2), one per cell ---
+  // Each cell is a real video, not a still. Videos are loaded and played
+  // only while on screen (IntersectionObserver), so scrolling never has
+  // more than a handful decoding at once — light even on a fanless laptop.
+  var GALLERY = [230, 423, 140, 357, 350, 362, 18, 183, 11, 191,
+                 13, 154, 134, 392, 37, 44, 174, 307];
+  var grid = document.getElementById('grid');
+
+  var io = ('IntersectionObserver' in window) ? new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      var v = e.target;
+      if (e.isIntersecting) {
+        if (!v.src) v.src = v.dataset.src;
+        var p = v.play(); if (p && p.catch) p.catch(function () {});
+      } else {
+        v.pause();
+      }
+    });
+  }, { rootMargin: '200px' }) : null;
+
   GALLERY.forEach(function (id) {
     var a = document.createElement('a');
-    a.className = 'gallery-cell';
+    a.className = 'cell';
     a.href = '/glass-500.html?id=' + id;
     a.target = '_blank';
     a.rel = 'noopener';
-    a.setAttribute('aria-label', 'Open Luom #' + id + ' live');
-    var f = document.createElement('iframe');
-    f.src = '/glass-500.html?id=' + id + '&token=1&still=1&flat=1';
-    f.title = 'Luom #' + id;
-    f.loading = 'lazy';
-    f.setAttribute('aria-hidden', 'true');
-    a.appendChild(f);
+    a.setAttribute('aria-label', 'Luom #' + id);
+
+    var v = document.createElement('video');
+    v.muted = true; v.loop = true; v.playsInline = true;
+    v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+    v.preload = 'none';
+    v.poster = CDN + '/glass-img/' + pad(id) + '.jpg';
+    v.dataset.src = CDN + '/glass/' + pad(id) + '.mp4';
+    a.appendChild(v);
+
     var tag = document.createElement('span');
-    tag.className = 'id-tag';
-    tag.textContent = '#' + String(id).padStart(3, '0');
+    tag.className = 'id';
+    tag.textContent = '#' + pad(id);
     a.appendChild(tag);
+
     grid.appendChild(a);
+    if (io) io.observe(v);
+    else { v.autoplay = true; v.src = v.dataset.src; }
   });
 })();
 </script>

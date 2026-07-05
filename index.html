@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="bioms-reveal" content="true">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Bioms · Luoms</title>
-<meta name="description" content="Two colonies. Bioms — 3,000 microbial organisms on Ethereum. Luoms — 500 microorganisms cast in living glass.">
+<title>Bioms</title>
+<meta name="description" content="Bioms and Luoms — two colonies of generative microorganisms.">
 <meta name="theme-color" content="#ffffff">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
@@ -14,28 +14,25 @@
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Bioms">
-<meta property="og:title" content="Bioms · Luoms">
-<meta property="og:description" content="Two colonies. Bioms — 3,000 microbial organisms on Ethereum. Luoms — 500 microorganisms cast in living glass.">
+<meta property="og:title" content="Bioms">
+<meta property="og:description" content="Bioms and Luoms — two colonies of generative microorganisms.">
 <meta property="og:url" content="https://thebioms.com/">
-<meta property="og:image" content="https://thebioms.com/og-collage.png">
+<meta property="og:image" content="https://thebioms.com/og-gate.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Bioms and Luoms — generative microbial organisms">
+<meta property="og:image:alt" content="Bioms and Luoms">
 
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:site" content="@theBioms">
-<meta name="twitter:creator" content="@timsouw">
-<meta name="twitter:image" content="https://thebioms.com/og-collage.png">
-<meta name="twitter:image:alt" content="Bioms and Luoms — generative microbial organisms">
+<meta name="twitter:image" content="https://thebioms.com/og-gate.jpg">
+<meta name="twitter:image:alt" content="Bioms and Luoms">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
     --cream: #ece9e0;
     --ink: #1c1a16;
-    --ink-2: #5b554a;
     --ink-3: #686356;
-    --rule: rgba(28, 26, 22, 0.12);
   }
 
   html, body {
@@ -48,32 +45,25 @@
     overflow: hidden;
   }
 
-  /* The gate: two worlds, one viewport. The Bioms (cream) layer sits on
-     top of the Luoms (white) layer and is clipped by a slowly moving
-     wave — the boundary is the only "element", and it's invisible:
-     just the line where the two materials meet. */
-  .gate {
-    position: fixed;
-    inset: 0;
-  }
+  /* The gate: two worlds, one viewport. The cream (Bioms) layer sits
+     over the white (Luoms) layer, clipped by a slow living wave — the
+     boundary is the only element, and it is invisible: just the line
+     where the two materials meet. */
+  .gate { position: fixed; inset: 0; }
   .half {
     position: absolute;
     inset: 0;
     display: block;
     text-decoration: none;
     color: var(--ink);
-    outline-offset: -6px;
     -webkit-tap-highlight-color: transparent;
   }
   .half-luoms { background: #ffffff; }
   .half-bioms {
     background: var(--cream);
-    /* wave clip applied from JS; static fallback keeps the split sane
-       before the first rAF tick (and under reduced motion). */
     clip-path: polygon(50% 0%, 50% 100%, 100% 100%, 100% 0%);
     will-change: clip-path;
   }
-  /* The same analog grain the Bioms landing uses — only on the cream side. */
   .half-bioms::before {
     content: "";
     position: absolute;
@@ -82,8 +72,8 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.014 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  /* Content column inside each half — organism above, wordmark below.
-     Positioned inside the OUTER 50% so it never crosses the wave. */
+  /* Content column inside each half — organism above, wordmark below,
+     kept inside the OUTER 44% so it never crosses the wave. */
   .col {
     position: absolute;
     top: 0; bottom: 0;
@@ -92,16 +82,15 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: clamp(18px, 3vh, 30px);
-    text-align: center;
+    gap: clamp(20px, 3.4vh, 40px);
     padding: 24px;
   }
   .half-luoms .col { left: 2%; }
   .half-bioms .col { right: 2%; }
 
   .stage {
-    width: min(34vw, 52vh);
-    height: min(34vw, 52vh);
+    width: min(38vw, 60vh);
+    height: min(38vw, 60vh);
     position: relative;
     transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   }
@@ -110,72 +99,39 @@
     border: 0;
     display: block;
     background: transparent;
-    pointer-events: none;   /* the half itself is the link */
+    pointer-events: none;
     opacity: 0;
-    transition: opacity 0.8s ease;
+    transition: opacity 0.9s ease;
   }
   .stage iframe.on { opacity: 1; }
-  /* Bioms side keeps its petri-paper tile look */
-  .half-bioms .stage iframe { background: #f4f1e8; border-radius: 20px; }
 
   @media (hover: hover) {
-    .half:hover .stage { transform: scale(1.025); }
-    .half:hover .enter { color: var(--ink); }
-    .half:hover .enter::after { transform: translateX(3px); }
+    .half:hover .stage { transform: scale(1.03); }
   }
 
   .wordmark {
-    font-size: clamp(34px, 4.6vw, 64px);
+    font-size: clamp(30px, 4.4vw, 60px);
     font-weight: 500;
     letter-spacing: -0.03em;
     line-height: 1;
   }
-  .tagline {
-    font-size: clamp(13px, 1.15vw, 16px);
-    color: var(--ink-2);
-    line-height: 1.5;
-    max-width: 300px;
-    text-wrap: balance;
-  }
-  .meta-line {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 11px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--ink-3);
-  }
-  .enter {
-    font-size: 13px;
-    color: var(--ink-3);
-    letter-spacing: 0.02em;
-    transition: color 0.2s;
-  }
-  .enter::after {
-    content: "→";
-    display: inline-block;
-    margin-left: 6px;
-    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-  }
 
-  a:focus-visible { outline: 2px solid var(--ink); }
+  a:focus-visible { outline: 2px solid var(--ink); outline-offset: -6px; }
 
-  /* Portrait / narrow: the wave turns horizontal — Luoms above,
-     Bioms below. Same materials, same silence. */
+  /* Portrait: the wave turns horizontal — Luoms above, Bioms below. */
   @media (max-aspect-ratio: 5/6), (max-width: 720px) {
     .half-bioms { clip-path: polygon(0% 50%, 100% 50%, 100% 100%, 0% 100%); }
     .col {
       left: 0 !important; right: 0 !important;
       width: 100%;
       top: auto; bottom: auto;
-      height: 42%;
-      gap: 12px;
-      padding: 16px;
+      height: 44%;
+      gap: 18px;
     }
     .half-luoms .col { top: 3%; }
     .half-bioms .col { bottom: 3%; }
-    .stage { width: min(46vw, 26vh); height: min(46vw, 26vh); }
-    .wordmark { font-size: clamp(30px, 9vw, 44px); }
-    .tagline { font-size: 13px; max-width: 260px; }
+    .stage { width: min(52vw, 30vh); height: min(52vw, 30vh); }
+    .wordmark { font-size: clamp(28px, 9vw, 44px); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -186,31 +142,18 @@
 <body>
 
 <div class="gate">
-
-  <a class="half half-luoms" href="/luoms" aria-label="Luoms — 500 microorganisms in living glass">
+  <a class="half half-luoms" href="/luoms" aria-label="Luoms">
     <div class="col">
       <div class="stage" id="stageLuoms"></div>
-      <div>
-        <div class="wordmark">Luoms</div>
-      </div>
-      <p class="tagline">Microorganisms cast in living glass. Rendered in real time, never baked.</p>
-      <div class="meta-line">500 · Living glass</div>
-      <div class="enter">Enter</div>
+      <div class="wordmark">Luoms</div>
     </div>
   </a>
-
-  <a class="half half-bioms" href="/bioms" aria-label="Bioms — 3,000 microbial organisms on Ethereum">
+  <a class="half half-bioms" href="/bioms" aria-label="Bioms">
     <div class="col">
       <div class="stage" id="stageBioms"></div>
-      <div>
-        <div class="wordmark">Bioms</div>
-      </div>
-      <p class="tagline">Living, procedural microbes. They burn each other; the survivors carry everything forward.</p>
-      <div class="meta-line">3,000 · On Ethereum</div>
-      <div class="enter">Enter</div>
+      <div class="wordmark">Bioms</div>
     </div>
   </a>
-
 </div>
 
 <script>
@@ -225,10 +168,9 @@
   var SEGS = 36;
 
   function wavePoly(t, horizontal) {
-    // boundary position across [0..100] of the cross axis
     var pts = [];
     for (var i = 0; i <= SEGS; i++) {
-      var u = i / SEGS;                       // 0..1 along the boundary
+      var u = i / SEGS;
       var w = 50
         + 2.6 * Math.sin(u * 5.1 + t * 0.55)
         + 1.5 * Math.sin(u * 9.7 - t * 0.31 + 1.4)
@@ -237,7 +179,6 @@
         ? (u * 100).toFixed(2) + '% ' + w.toFixed(2) + '%'
         : w.toFixed(2) + '% ' + (u * 100).toFixed(2) + '%');
     }
-    // close around the Bioms side (right in landscape, bottom in portrait)
     return 'polygon(' + (horizontal
       ? pts.join(',') + ',100% 100%,0% 100%'
       : pts.join(',') + ',100% 100%,100% 0%') + ')';
@@ -259,9 +200,10 @@
   }
 
   // ---- the residents -----------------------------------------------
-  // One live organism per world. Both renderers already exist as
-  // self-contained pages; they're mounted lazily and fade in on load.
-  var LUOM_IDS = [134, 11, 13, 154, 138, 99];
+  // One live organism per world — the real renderer each collection
+  // ships, not a still or a video. full=1 fits the whole body (spines
+  // included) so nothing is clipped at the frame edge.
+  var LUOM_IDS = [134, 11, 13, 154, 44, 230, 357, 140];
   var BIOM_SEEDS = [247, 44, 132, 1900, 176, 2222];
   var luomId = LUOM_IDS[Math.floor(Math.random() * LUOM_IDS.length)];
   var biomSeed = BIOM_SEEDS[Math.floor(Math.random() * BIOM_SEEDS.length)];
@@ -276,9 +218,9 @@
     el.appendChild(f);
   }
   mount(document.getElementById('stageLuoms'),
-        '/glass-500.html?id=' + luomId + '&token=1&flat=1&z=0.9', 'Live Luom');
+        '/glass-500.html?id=' + luomId + '&token=1&full=1&flat=1&z=1.1', 'Luoms');
   mount(document.getElementById('stageBioms'),
-        '/preview.html?seed=' + biomSeed + '&bare=1&lite=1', 'Live Biom');
+        '/preview.html?seed=' + biomSeed + '&bare=1&lite=1', 'Bioms');
 })();
 </script>
 

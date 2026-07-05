@@ -43,9 +43,7 @@ const ATTRS = [
 ];
 
 const DESC =
-  "A microorganism cast in living glass — grown from a single seed and rendered in real time. " +
-  "Refraction, iridescence and a slow breath are computed in the browser, never baked. " +
-  "One of 500 Luoms, by the makers of Bioms.";
+  "One of 500 Luoms. A microorganism in glass, rendered live from its seed.";
 
 const manifest = [];
 for (let id = 1; id <= TOTAL; id++) {
