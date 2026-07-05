@@ -32,23 +32,24 @@
   :root {
     --cream: #ece9e0;
     --ink: #1c1a16;
-    --ink-3: #686356;
+    --ink-2: #57514735;
   }
 
   html, body {
     height: 100%;
     background: #ffffff;
     color: var(--ink);
-    font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow: hidden;
   }
 
-  /* The gate: two worlds, one viewport. The cream (Bioms) layer sits
-     over the white (Luoms) layer, clipped by a slow living wave — the
-     boundary is the only element, and it is invisible: just the line
-     where the two materials meet. */
+  /* The gate: two equal worlds, one viewport. The cream (Bioms) layer
+     sits over the white (Luoms) layer, clipped by a slow, calm wave —
+     the boundary is the only element, and it is invisible: just the
+     line where the two materials meet. Both organisms float on their
+     own material, same size, on one shared horizontal axis. */
   .gate { position: fixed; inset: 0; }
   .half {
     position: absolute;
@@ -72,27 +73,26 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.014 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  /* Content column inside each half — organism above, wordmark below,
-     kept inside the OUTER 44% so it never crosses the wave. */
+  /* Content column inside each half — organism on the shared axis,
+     wordmark a fixed step below. Kept inside the OUTER 46% so it never
+     crosses the wave. */
   .col {
     position: absolute;
     top: 0; bottom: 0;
-    width: 44%;
+    width: 46%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: clamp(20px, 3.4vh, 40px);
-    padding: 24px;
   }
-  .half-luoms .col { left: 2%; }
-  .half-bioms .col { right: 2%; }
+  .half-luoms .col { left: 0; }
+  .half-bioms .col { right: 0; }
 
   .stage {
-    width: min(38vw, 60vh);
-    height: min(38vw, 60vh);
+    width: min(34vw, 52vh);
+    height: min(34vw, 52vh);
     position: relative;
-    transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .stage iframe {
     width: 100%; height: 100%;
@@ -101,37 +101,39 @@
     background: transparent;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.9s ease;
+    transition: opacity 1s ease;
   }
   .stage iframe.on { opacity: 1; }
 
-  @media (hover: hover) {
-    .half:hover .stage { transform: scale(1.03); }
-  }
-
   .wordmark {
-    font-size: clamp(30px, 4.4vw, 60px);
-    font-weight: 500;
-    letter-spacing: -0.03em;
+    margin-top: clamp(20px, 3.2vh, 40px);
+    font-size: clamp(30px, 3.4vw, 52px);
+    font-weight: 600;
+    letter-spacing: -0.032em;
     line-height: 1;
+    transition: opacity 0.3s;
   }
 
-  a:focus-visible { outline: 2px solid var(--ink); outline-offset: -6px; }
+  @media (hover: hover) {
+    .half:hover .stage { transform: scale(1.04); }
+  }
 
-  /* Portrait: the wave turns horizontal — Luoms above, Bioms below. */
+  a:focus-visible { outline: 2px solid var(--ink); outline-offset: -8px; }
+
+  /* Portrait: the wave turns horizontal — Luoms above, Bioms below,
+     still equal, still on one shared vertical axis. */
   @media (max-aspect-ratio: 5/6), (max-width: 720px) {
     .half-bioms { clip-path: polygon(0% 50%, 100% 50%, 100% 100%, 0% 100%); }
     .col {
       left: 0 !important; right: 0 !important;
       width: 100%;
       top: auto; bottom: auto;
-      height: 44%;
-      gap: 18px;
+      height: 50%;
     }
-    .half-luoms .col { top: 3%; }
-    .half-bioms .col { bottom: 3%; }
-    .stage { width: min(52vw, 30vh); height: min(52vw, 30vh); }
-    .wordmark { font-size: clamp(28px, 9vw, 44px); }
+    .half-luoms .col { top: 0; }
+    .half-bioms .col { bottom: 0; }
+    .stage { width: min(52vw, 32vh); height: min(52vw, 32vh); }
+    .wordmark { font-size: clamp(28px, 8vw, 42px); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -159,22 +161,21 @@
 <script>
 (function () {
   // ---- the wave ----------------------------------------------------
-  // The boundary between the two worlds: a slow compound sine, redrawn
-  // as the clip-path of the cream (Bioms) layer. No stroke, no glow —
-  // the wave exists only as the meeting line of two materials.
+  // A slow, low compound sine redrawn as the clip-path of the cream
+  // layer. Calm — a seam, not a jag. No stroke, no glow: the wave
+  // exists only as the meeting line of two materials.
   var biomsHalf = document.querySelector('.half-bioms');
   var mqPortrait = window.matchMedia('(max-aspect-ratio: 5/6), (max-width: 720px)');
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-  var SEGS = 36;
+  var SEGS = 40;
 
   function wavePoly(t, horizontal) {
     var pts = [];
     for (var i = 0; i <= SEGS; i++) {
       var u = i / SEGS;
       var w = 50
-        + 2.6 * Math.sin(u * 5.1 + t * 0.55)
-        + 1.5 * Math.sin(u * 9.7 - t * 0.31 + 1.4)
-        + 0.7 * Math.sin(u * 17.3 + t * 0.83 + 3.1);
+        + 1.9 * Math.sin(u * 4.2 + t * 0.36)
+        + 0.9 * Math.sin(u * 8.3 - t * 0.22 + 1.4);
       pts.push(horizontal
         ? (u * 100).toFixed(2) + '% ' + w.toFixed(2) + '%'
         : w.toFixed(2) + '% ' + (u * 100).toFixed(2) + '%');
@@ -201,10 +202,10 @@
 
   // ---- the residents -----------------------------------------------
   // One live organism per world — the real renderer each collection
-  // ships, not a still or a video. full=1 fits the whole body (spines
-  // included) so nothing is clipped at the frame edge.
-  var LUOM_IDS = [134, 11, 13, 154, 44, 230, 357, 140];
-  var BIOM_SEEDS = [247, 44, 132, 1900, 176, 2222];
+  // ships, floating transparent on its own material (no card, no tile).
+  // full=1 fits the whole body so nothing clips at the frame edge.
+  var LUOM_IDS = [44, 135, 171, 154, 230, 357, 37, 174, 134, 307];
+  var BIOM_SEEDS = [247, 132, 1900, 176, 2222, 64];
   var luomId = LUOM_IDS[Math.floor(Math.random() * LUOM_IDS.length)];
   var biomSeed = BIOM_SEEDS[Math.floor(Math.random() * BIOM_SEEDS.length)];
 
@@ -218,9 +219,9 @@
     el.appendChild(f);
   }
   mount(document.getElementById('stageLuoms'),
-        '/glass-500.html?id=' + luomId + '&token=1&full=1&flat=1&z=1.1', 'Luoms');
+        '/glass-500.html?id=' + luomId + '&token=1&full=1&flat=1&z=1.12', 'Luoms');
   mount(document.getElementById('stageBioms'),
-        '/preview.html?seed=' + biomSeed + '&bare=1&lite=1', 'Bioms');
+        '/preview.html?seed=' + biomSeed + '&bare=1&lite=1&cutout=1', 'Bioms');
 })();
 </script>
 
