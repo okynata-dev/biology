@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>Glass · 500</title>
+<title>Luoms · 500</title>
 <style>
   :root{ --bg:#ffffff; --ink:#1a1712; --ink2:#6b645a; }
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:ui-monospace,Menlo,monospace;overflow:hidden;-webkit-user-select:none;user-select:none;}
@@ -37,7 +37,7 @@
 </head>
 <body>
 <canvas id="c"></canvas>
-<div class="tag">bioms · glass · 500</div>
+<div class="tag">luoms · 500</div>
 <div class="panel" id="traits"></div>
 <div class="btn" id="rand">random</div>
 <div class="btn" id="stats">distribution</div>
@@ -112,7 +112,11 @@ function makeBgTex(){const s=1024,cv=document.createElement('canvas');cv.width=c
   const rg=g.createRadialGradient(s/2,s*0.47,s*0.28,s/2,s*0.5,s*0.78);
   rg.addColorStop(0,'rgba(255,255,255,0)');rg.addColorStop(1,'rgba(214,209,198,0.42)');
   g.fillStyle=rg;g.fillRect(0,0,s,s);return new THREE.CanvasTexture(cv);}
-scene.background=makeBgTex();
+// ?flat=1 — TRUE white background for seamless embeds on white pages.
+// A texture background goes through ACES tone mapping (white lands ~#eaeaea);
+// a plain Color background is a clear-color, which skips tone mapping.
+scene.background=new URLSearchParams(location.search).has('flat')
+  ? new THREE.Color(0xffffff) : makeBgTex();
 const camera=new THREE.PerspectiveCamera(34,1,0.1,100);camera.position.set(0,0,7.6);
 
 function makeEnv(){

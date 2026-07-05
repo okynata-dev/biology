@@ -26,7 +26,7 @@ const b = mod.indexOf(marker, a) + marker.length;
 const { TOTAL, traitsFor } = new Function(mod.slice(a, b) + "\nreturn {TOTAL, traitsFor};")();
 
 // ---- presentation ----
-const COLLECTION = "Bioms · Glass";
+const COLLECTION = "Luoms";
 const IMG_BASE = "https://pngs.thebioms.com/glass-img"; // poster stills (.webp)
 const MP4_BASE = "https://pngs.thebioms.com/glass";     // seamless loop mp4s
 const LIVE_BASE = "https://thebioms.com/glass-500.html"; // real-time renderer
@@ -44,7 +44,8 @@ const ATTRS = [
 
 const DESC =
   "A microorganism cast in living glass — grown from a single seed and rendered in real time. " +
-  "Refraction, iridescence and a slow breath are computed in the browser, never baked. One of 500 in Bioms · Glass.";
+  "Refraction, iridescence and a slow breath are computed in the browser, never baked. " +
+  "One of 500 Luoms, by the makers of Bioms.";
 
 const manifest = [];
 for (let id = 1; id <= TOTAL; id++) {

@@ -10,3 +10,6 @@
 /partners.html  /   301
 /list           /   301
 /list.html      /   301
+
+# Luoms — short alias for the second collection's page.
+/glass          /luoms   301
