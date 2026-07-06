@@ -31,7 +31,13 @@ def serve(directory):
 
 def render_one(page, port, cid, res, fps, crf, td):
     page.set_viewport_size({"width": res, "height": res})
-    page.goto(f"http://127.0.0.1:{port}/glass-500.html?id={cid}&token=1&z=1.12", wait_until="load", timeout=60000)
+    # &still=1 is REQUIRED: it disables the live requestAnimationFrame loop()
+    # in the page. Without it, loop() keeps advancing uTime in real time and
+    # overwrites every window.__seek(t) between the seek and the screenshot,
+    # so each capture lands on a random real-time phase — the clip races
+    # through ~100 cycles instead of the one deterministic, seamless loop we
+    # seek frame by frame.
+    page.goto(f"http://127.0.0.1:{port}/glass-500.html?id={cid}&token=1&z=1.12&still=1", wait_until="load", timeout=60000)
     page.wait_for_function("window.__biomReady === true", timeout=45000)
     L = page.evaluate("window.__LOOP")
     n = int(round(L * fps))
