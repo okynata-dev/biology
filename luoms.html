@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Luoms</title>
-<meta name="description" content="Luoms — 500 microorganisms in glass, rendered live from their seeds. Explore every one, trait by trait.">
+<meta name="description" content="Luoms: 500 microorganisms in glass, rendered live from their seeds. Explore every one, trait by trait.">
 <meta name="theme-color" content="#ffffff">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
@@ -16,6 +16,7 @@
 <meta property="og:title" content="Luoms">
 <meta property="og:description" content="500 microorganisms in glass, rendered live from their seeds. Explore every one, trait by trait.">
 <meta property="og:url" content="https://thebioms.com/luoms">
+<meta property="luoms:contract" content="0xFc992f44555f413F5138d04496BEacC4b2AFf793">
 <meta property="og:image" content="https://thebioms.com/og-luoms.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -76,8 +77,15 @@
   .intro { padding: clamp(48px, 8vh, 88px) 0 clamp(24px, 4vh, 40px); text-align: center; }
   .intro h1 { font-size: clamp(52px, 8vw, 104px); font-weight: 600; letter-spacing: -0.04em; line-height: .95; }
   .intro p { max-width: 560px; margin: 20px auto 0; color: var(--ink-2); font-size: clamp(16px,1.4vw,18px); text-wrap: balance; }
-  .stat-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 26px; }
-  .stat { font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); background: var(--chip); padding: 7px 12px; border-radius: 999px; }
+  /* collect */
+  .collect { text-align: center; }
+  .collect .sub { margin: 10px auto 0; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; margin-top: 26px; padding: 13px 26px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 15px; font-weight: 500; border: 1px solid var(--ink); transition: opacity .2s, transform .1s; }
+  .btn:hover { opacity: .85; }
+  .btn:active { transform: scale(.98); }
+  .contract { margin-top: 18px; font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 12px; color: var(--ink-3); }
+  .contract a { color: var(--ink-2); border-bottom: 1px solid var(--rule); }
+  .contract a:hover { color: var(--ink); border-color: var(--ink); }
 
   /* ---------- explorer ---------- */
   .explorer { padding: clamp(20px,3vh,32px) 0 clamp(56px,8vh,96px); }
@@ -176,6 +184,7 @@
   <div class="nav-links">
     <a href="#rarity">Rarity</a>
     <a href="/glass-500.html">Renderer</a>
+    <a href="https://opensea.io/collection/luoms/overview" target="_blank" rel="noopener">Collect</a>
     <a href="/bioms">Bioms</a>
     <a href="https://twitter.com/theBioms" aria-label="Follow on X" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;color:var(--ink-3)">
       <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
@@ -187,8 +196,7 @@
   <section class="intro">
     <div class="wrap">
       <h1>Luoms</h1>
-      <p>Five hundred microorganisms grown in glass. Every trait — the body, the skeleton, the stain, the light — comes from the token's seed and is rendered live, right here. Pick any one and look inside.</p>
-      <div class="stat-row" id="statRow"></div>
+      <p>Five hundred microorganisms grown in glass. Everything about a Luom, from its body to its colour, is fixed by its token number and drawn live in your browser. Pick any of them and look inside.</p>
     </div>
   </section>
 
@@ -200,8 +208,8 @@
         </button>
         <div class="panel">
           <div class="panel-top">
-            <div class="token-id" id="tokenId">Luom #—</div>
-            <div class="tier-badge" id="tierBadge">—</div>
+            <div class="token-id" id="tokenId">Luom</div>
+            <div class="tier-badge" id="tierBadge">…</div>
           </div>
           <div class="controls">
             <button type="button" class="ctrl" id="prev" aria-label="Previous">‹</button>
@@ -220,9 +228,20 @@
   <section class="section" id="rarity">
     <div class="wrap">
       <h2>Every trait, counted.</h2>
-      <p class="sub">Traits are fixed by the seed and published in full. Pick a category, then tap any value to jump the explorer to a Luom that carries it. Gold bars are the rare ones.</p>
+      <p class="sub">Every trait is set by the token number and published in full. Pick a category, then tap a value to jump to a Luom that has it. Gold marks the rare ones.</p>
       <div class="cat-chips" id="catChips"></div>
       <div class="bars" id="bars"></div>
+    </div>
+  </section>
+
+  <section class="section collect">
+    <div class="wrap">
+      <h2>Collect on OpenSea.</h2>
+      <p class="sub">Five hundred Luoms, ERC-721 on Ethereum.</p>
+      <a class="btn" href="https://opensea.io/collection/luoms/overview" target="_blank" rel="noopener">Open the collection</a>
+      <p class="contract">Contract
+        <a href="https://etherscan.io/address/0xFc992f44555f413F5138d04496BEacC4b2AFf793" target="_blank" rel="noopener" title="0xFc992f44555f413F5138d04496BEacC4b2AFf793">0xFc99…F793</a>
+      </p>
     </div>
   </section>
 
@@ -231,16 +250,16 @@
       <h2>What a Luom is made of.</h2>
       <div class="about-grid">
         <div>
-          <h3>Grown from a seed</h3>
-          <p>Each token's number is the only input. It decides the body plan, the spines, the stain, the interior — the same seed always grows the same organism, on any screen.</p>
+          <h3>Grown from a number</h3>
+          <p>The token number is the only input. It sets the body, the spines, the stain and the interior, and the same number always grows the same organism on any screen.</p>
         </div>
         <div>
-          <h3>Rendered live, not filmed</h3>
-          <p>What you see is computed in your browser as you watch: real refraction through glass, iridescence, and a slow six-second breath that loops seamlessly.</p>
+          <h3>Live in the browser</h3>
+          <p>The picture is computed while you look at it. Light bends through the glass, the colour shifts, and the body breathes on a six-second loop.</p>
         </div>
         <div>
           <h3>Rarity you can see</h3>
-          <p>Rank isn't a hidden number. It shows up in the body — extra shells, a crown of spines, a lattice skeleton, orbiting satellites. A Mythic reads as one across the room.</p>
+          <p>Rank shows up in the body: extra shells, a crown of spines, a lattice skeleton, satellites in orbit. You can pick out a Mythic from across the room.</p>
         </div>
       </div>
     </div>
@@ -395,17 +414,10 @@
     });
   }
 
-  function buildStats() {
-    var forms={}, stains={}; data.forEach(function(t){forms[t.form]=1;stains[t.stain]=1;});
-    var el=document.getElementById('statRow');
-    ['500 tokens', Object.keys(forms).length+' forms', Object.keys(stains).length+' stains', '5 tiers', 'rendered live']
-      .forEach(function(s){ var d=document.createElement('span'); d.className='stat'; d.textContent=s; el.appendChild(d); });
-  }
-
   // ---- load data, then boot ----
   fetch('/luoms.json').then(function(r){return r.json();}).then(function(arr){
     data=arr; arr.forEach(function(t){byId[t.id]=t;});
-    buildStats(); buildChips(); buildBars();
+    buildChips(); buildBars();
     var start = 1 + Math.floor(Math.random()*TOTAL);
     go(start);
   }).catch(function(){
