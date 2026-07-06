@@ -183,7 +183,7 @@ function fib(i,n){const phi=Math.acos(1-2*(i+0.5)/n),th=Math.PI*(1+Math.sqrt(5))
 const uTime={value:0}; // shared clock driving the living motion in every shader
 // perfect-loop clock: everything periodic uses whole cycles per LOOP seconds,
 // so t=0 and t=LOOP render identically → seamless mp4 loops.
-const LOOP=6, W=2*Math.PI/LOOP; const uW={value:W};  // 6s cycle — calm rock, tight clip
+const LOOP=12, W=2*Math.PI/LOOP; const uW={value:W};  // 6s cycle — calm rock, tight clip
 
 const PAT={Solid:0,Gradient:1,Duotone:2,Stripes:3,Dots:4,Marble:5};
 
@@ -557,13 +557,15 @@ function applyMotion(t){
   if(!current)return;
   const A=t*W;                                   // loop angle: 0..2π across LOOP
   const M=current.userData.motion||{};const sw=current.userData.swing||0.6;
-  current.rotation.y=Math.sin(A)*sw;             // calm rock, not a full spin
-  current.rotation.x=(M.tilt||0)+Math.sin(A*(M.wc||1)+1.7)*(M.wa||0.08);
-  current.rotation.z=M.rc?Math.sin(A*M.rc)*M.ra:0;
-  current.scale.setScalar(1+Math.sin(A)*0.012);
+  // one calm sway, side to side, there and back once per loop. Every term
+  // is sin(A·whole-number) so t=0 and t=LOOP land identically -> seamless.
+  current.rotation.y=Math.sin(A)*sw;             // the sway
+  current.rotation.x=(M.tilt||0)+Math.sin(A+0.6)*0.05;  // gentle nod (resting tilt kept)
+  current.rotation.z=0;                          // no twisting spin
+  current.scale.setScalar(1+Math.sin(A)*0.012);  // slow breath
   current.traverse(o=>{const u=o.userData;
-    if(u.orbit)o.rotation.y=A*u.orbit;
-    if(u.pulse!==undefined)o.scale.setScalar(1+Math.sin(A*2.0+u.pulse)*0.07);});
+    if(u.orbit)o.rotation.y=Math.sin(A+1.2)*0.5; // orbit ring sways too, lagging — not a full revolution
+    if(u.pulse!==undefined)o.scale.setScalar(1+Math.sin(A*2.0+u.pulse)*0.06);});
 }
 function loop(){const t=(performance.now()-t0)/1000;uTime.value=t;applyMotion(t);renderer.render(scene,camera);
   if(firstFrame){firstFrame=false;document.getElementById('load').style.display='none';window.__biomReady=true;}
