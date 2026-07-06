@@ -26,10 +26,14 @@ const b = mod.indexOf(marker, a) + marker.length;
 const { TOTAL, traitsFor } = new Function(mod.slice(a, b) + "\nreturn {TOTAL, traitsFor};")();
 
 // ---- presentation ----
+// image        = the seamless mp4 loop (OpenSea plays it on hover in grids,
+//                shows the first frame otherwise — no static poster needed).
+// animation_url = the LIVE renderer (the token IS a live canvas on the
+//                detail page). If a client can't run the WebGL, the grid
+//                still shows the mp4, so nothing looks broken.
 const COLLECTION = "Luoms";
-const IMG_BASE = "https://pngs.thebioms.com/glass-img"; // poster stills (.webp)
-const MP4_BASE = "https://pngs.thebioms.com/glass";     // seamless loop mp4s
-const LIVE_BASE = "https://thebioms.com/glass-500.html"; // real-time renderer
+const MP4_BASE = "https://pngs.thebioms.com/glass";  // seamless loop mp4s
+const LIVE_BASE = "https://thebioms.com/glass-500";  // real-time renderer (clean URL, no .html redirect hop)
 
 const pretty = s => String(s).split("_").map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
 const pad = id => String(id).padStart(3, "0");
@@ -52,9 +56,9 @@ for (let id = 1; id <= TOTAL; id++) {
   const meta = {
     name: `${COLLECTION} #${id}`,
     description: DESC,
-    image: `${IMG_BASE}/${p}.jpg`,
-    animation_url: `${MP4_BASE}/${p}.mp4`,
-    external_url: `${LIVE_BASE}?id=${id}&token=1`,
+    image: `${MP4_BASE}/${p}.mp4`,
+    animation_url: `${LIVE_BASE}?id=${id}&token=1&full=1&flat=1&z=1.1`,
+    external_url: `https://thebioms.com/luoms`,
     attributes: ATTRS.map(([label, key]) => ({ trait_type: label, value: pretty(t[key]) })),
   };
   fs.writeFileSync(path.join(OUT, `${id}.json`), JSON.stringify(meta, null, 2));
