@@ -93,9 +93,9 @@
   .seam path {
     fill: none;
     stroke: url(#seamHi);
-    stroke-width: 2px;
+    stroke-width: 1.5px;
     vector-effect: non-scaling-stroke;
-    filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.6));
+    filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.35));
   }
   .half-bioms::after {
     content: "";
@@ -125,8 +125,15 @@
     transition: opacity 1.1s ease;
   }
   .stage iframe.on { opacity: 1; }
-  @media (hover: hover) {
-    .half:hover .stage { transform: translate(-50%, -50%) scale(1.05); }
+
+  /* enter transition: the chosen world washes over the screen */
+  .flood {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.42s ease;
   }
 
   /* ---- clear-glass wordmark ---------------------------------------
@@ -148,18 +155,17 @@
     line-height: 1;
     color: rgba(255, 255, 255, 0.02);
     -webkit-text-stroke: 1.4px rgba(255, 255, 255, 0.95);
-    /* clear glass: transparent body (the organism shows straight through),
-       a bright rim, a thin dark bottom edge for definition on any ground,
-       chromatic dispersion, and a soft cast shadow. All offset — nothing
-       centred — so the interior never tints. */
+    /* clear glass, no gimmicks: transparent body (the organism shows
+       straight through), a bright rim, a thin dark edge for definition
+       on any ground, and a soft cast shadow. All offset, nothing centred,
+       so the interior never tints. No chromatic fringe. */
     text-shadow:
       0 1px 0 rgba(255, 255, 255, 0.9),
       0 -1px 1px rgba(0, 0, 0, 0.16),
       0 1px 2px rgba(0, 0, 0, 0.24),
-      1.4px 0 0 rgba(255, 60, 140, 0.16),
-      -1.4px 0 0 rgba(40, 170, 255, 0.18),
       0 3px 6px rgba(0, 0, 0, 0.12),
       0 18px 50px rgba(0, 0, 0, 0.15);
+    will-change: transform;
   }
   /* specular sheen — a diagonal band of light clipped to the glyphs */
   .word::after {
@@ -217,57 +223,127 @@
     <defs>
       <linearGradient id="seamHi" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="rgba(255,255,255,0)"/>
-        <stop offset="0.5" stop-color="rgba(255,255,255,0.9)"/>
+        <stop offset="0.5" stop-color="rgba(255,255,255,0.62)"/>
         <stop offset="1" stop-color="rgba(255,255,255,0)"/>
       </linearGradient>
     </defs>
     <path id="seamPath" d=""/>
   </svg>
+  <div class="flood" id="flood" aria-hidden="true"></div>
 </div>
 
 <script>
 (function () {
-  // ---- the fold: one wave drives the cream clip, its cast shadow, and
-  // the specular highlight, so all three stay perfectly registered ----
+  // ================= the living gate =================
+  // Motion answers the pointer, not an idle loop: the membrane leans
+  // toward the cursor, the organisms parallax, the glass wordmark moves
+  // less (so it sits in front). Everything springs (lerp toward target)
+  // for weight. Without a pointer it's a slow, quiet breath.
+  var luomsHalf = document.querySelector('.half-luoms');
   var biomsHalf = document.querySelector('.half-bioms');
   var seamShadow = document.getElementById('seamShadow');
   var seamPath = document.getElementById('seamPath');
+  var floodEl = document.getElementById('flood');
+  var stageL = document.getElementById('stageLuoms');
+  var stageB = document.getElementById('stageBioms');
+  var wordL = luomsHalf.querySelector('.word');
+  var wordB = biomsHalf.querySelector('.word');
   var mqPortrait = window.matchMedia('(max-aspect-ratio: 5/6), (max-width: 720px)');
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var fine = window.matchMedia('(hover: hover) and (pointer: fine)');
   var SEGS = 44;
 
-  // boundary offset (in half-percent) at position u along the seam, time t.
-  // Baseline keeps it just off the centre so the wave never clamps flat.
-  function waveAt(u, t) {
-    return 3.9
-      + 2.4 * Math.sin(u * 2.4 + t * 0.26)
-      + 1.0 * Math.sin(u * 5.6 - t * 0.18 + 1.3)
-      + 0.4 * Math.sin(u * 9.5 + t * 0.40);
-  }
+  var tgt = { nx: 0, ny: 0, hoverL: 0, hoverB: 0, bumpU: 0.5, bumpAmt: 0 };
+  var cur = { nx: 0, ny: 0, sclL: 1, sclB: 1, bumpU: 0.5, bumpAmt: 0 };
+  var entering = false;
+  function lerp(a, b, k) { return a + (b - a) * k; }
 
-  function seam(t, horizontal) {
-    var clip = [], d = [];
-    for (var i = 0; i <= SEGS; i++) {
-      var u = i / SEGS, w = waveAt(u, t), vp = (50 + w / 2).toFixed(2), uu = (u * 100).toFixed(2);
-      if (horizontal) { clip.push(uu + '% ' + w.toFixed(2) + '%'); d.push(uu + ' ' + vp); }
-      else { clip.push(w.toFixed(2) + '% ' + uu + '%'); d.push(vp + ' ' + uu); }
-    }
-    var poly = horizontal
-      ? 'polygon(0% 100%,100% 100%,' + clip.slice().reverse().join(',') + ')'
-      : 'polygon(' + clip.join(',') + ',100% 100%,100% 0%)';
-    return { clip: poly, d: 'M' + d.join('L') };
+  function waveAt(u, t) {
+    var idle = 3.9
+      + 1.5 * Math.sin(u * 2.4 + t * 0.22)
+      + 0.7 * Math.sin(u * 5.6 - t * 0.15 + 1.3);
+    var du = u - cur.bumpU;
+    return idle + cur.bumpAmt * Math.exp(-(du * du) / 0.04);   // soft bump toward the cursor
   }
 
   function paint(t) {
-    var s = seam(t, mqPortrait.matches);
-    biomsHalf.style.clipPath = s.clip;
-    seamShadow.style.clipPath = s.clip;
-    seamPath.setAttribute('d', s.d);
+    var horiz = mqPortrait.matches, clip = [], d = [];
+    for (var i = 0; i <= SEGS; i++) {
+      var u = i / SEGS, w = waveAt(u, t), vp = (50 + w / 2).toFixed(2), uu = (u * 100).toFixed(2);
+      if (horiz) { clip.push(uu + '% ' + w.toFixed(2) + '%'); d.push(uu + ' ' + vp); }
+      else { clip.push(w.toFixed(2) + '% ' + uu + '%'); d.push(vp + ' ' + uu); }
+    }
+    var poly = horiz
+      ? 'polygon(0% 100%,100% 100%,' + clip.slice().reverse().join(',') + ')'
+      : 'polygon(' + clip.join(',') + ',100% 100%,100% 0%)';
+    biomsHalf.style.clipPath = poly;
+    seamShadow.style.clipPath = poly;
+    seamPath.setAttribute('d', 'M' + d.join('L'));
+
+    var ox = (cur.nx * 12).toFixed(1), oy = (cur.ny * 12).toFixed(1),
+        wx = (cur.nx * 4).toFixed(1), wy = (cur.ny * 4).toFixed(1);
+    stageL.style.transform = 'translate(-50%,-50%) translate(' + ox + 'px,' + oy + 'px) scale(' + cur.sclL.toFixed(4) + ')';
+    stageB.style.transform = 'translate(-50%,-50%) translate(' + ox + 'px,' + oy + 'px) scale(' + cur.sclB.toFixed(4) + ')';
+    wordL.style.transform = wordB.style.transform = 'translate(' + wx + 'px, calc(-50% + ' + wy + 'px))';
   }
 
-  var start = performance.now();
-  function frame(now) { paint((now - start) / 1000); if (!reduced.matches) requestAnimationFrame(frame); }
-  if (reduced.matches) { paint(0); } else { requestAnimationFrame(frame); }
+  var t0 = performance.now();
+  function loop(now) {
+    if (entering) return;
+    cur.nx = lerp(cur.nx, tgt.nx, 0.09);
+    cur.ny = lerp(cur.ny, tgt.ny, 0.09);
+    cur.bumpAmt = lerp(cur.bumpAmt, tgt.bumpAmt, 0.12);
+    cur.bumpU = lerp(cur.bumpU, tgt.bumpU, 0.14);
+    cur.sclL = lerp(cur.sclL, 1 + tgt.hoverL * 0.045, 0.12);
+    cur.sclB = lerp(cur.sclB, 1 + tgt.hoverB * 0.045, 0.12);
+    paint((now - t0) / 1000);
+    requestAnimationFrame(loop);
+  }
+
+  if (reduced.matches) {
+    paint(0);
+  } else {
+    requestAnimationFrame(loop);
+    if (fine.matches) {
+      var reset = function () { tgt.nx = 0; tgt.ny = 0; tgt.hoverL = 0; tgt.hoverB = 0; tgt.bumpAmt = 0; };
+      window.addEventListener('pointermove', function (e) {
+        var vw = window.innerWidth, vh = window.innerHeight;
+        tgt.nx = (e.clientX / vw) * 2 - 1;
+        tgt.ny = (e.clientY / vh) * 2 - 1;
+        if (mqPortrait.matches) {
+          var fy = e.clientY / vh, dy = fy - 0.52;
+          tgt.hoverL = fy < 0.5 ? 1 : 0; tgt.hoverB = fy < 0.5 ? 0 : 1;
+          tgt.bumpAmt = (dy < 0 ? -1 : 1) * Math.max(0, 1 - Math.abs(dy) / 0.55) * 3.4;
+          tgt.bumpU = e.clientX / vw;
+        } else {
+          var fx = e.clientX / vw, dx = fx - 0.52;
+          tgt.hoverL = fx < 0.5 ? 1 : 0; tgt.hoverB = fx < 0.5 ? 0 : 1;
+          tgt.bumpAmt = (dx < 0 ? -1 : 1) * Math.max(0, 1 - Math.abs(dx) / 0.55) * 3.4;
+          tgt.bumpU = e.clientY / vh;
+        }
+      }, { passive: true });
+      window.addEventListener('pointerleave', reset);
+      window.addEventListener('blur', reset);
+    }
+  }
+
+  // enter: the chosen world washes over, the organism leans in, then go.
+  function enter(side, href) {
+    if (entering) return;
+    if (reduced.matches) { location.href = href; return; }
+    entering = true;
+    var cream = getComputedStyle(document.documentElement).getPropertyValue('--cream').trim() || '#ece9e0';
+    floodEl.style.background = side === 'l' ? '#ffffff' : cream;
+    var win = side === 'l' ? stageL : stageB, lose = side === 'l' ? stageB : stageL;
+    win.style.transition = 'transform 0.55s cubic-bezier(0.22,1,0.36,1)';
+    win.style.transform = (win.style.transform || 'translate(-50%,-50%) scale(1)').replace(/scale\([^)]*\)/, 'scale(1.12)');
+    lose.style.transition = wordL.style.transition = wordB.style.transition = 'opacity 0.35s ease';
+    lose.style.opacity = wordL.style.opacity = wordB.style.opacity = '0';
+    requestAnimationFrame(function () { floodEl.style.opacity = '1'; });
+    setTimeout(function () { location.href = href; }, 440);
+  }
+  luomsHalf.addEventListener('click', function (e) { e.preventDefault(); enter('l', '/luoms'); });
+  biomsHalf.addEventListener('click', function (e) { e.preventDefault(); enter('b', '/bioms'); });
 
   // ---- the giant residents -----------------------------------------
   // curated so both sides always carry real colour and mass — no pale
