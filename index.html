@@ -112,14 +112,19 @@
     letter-spacing: -0.05em;
     line-height: 1;
     color: rgba(255, 255, 255, 0.02);
-    -webkit-text-stroke: 1.25px rgba(255, 255, 255, 0.92);
+    -webkit-text-stroke: 1.4px rgba(255, 255, 255, 0.95);
+    /* clear glass: transparent body (the organism shows straight through),
+       a bright rim, a thin dark bottom edge for definition on any ground,
+       chromatic dispersion, and a soft cast shadow. All offset — nothing
+       centred — so the interior never tints. */
     text-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.85),
-      0 -1.5px 1px rgba(0, 0, 0, 0.14),
+      0 1px 0 rgba(255, 255, 255, 0.9),
+      0 -1px 1px rgba(0, 0, 0, 0.16),
+      0 1px 2px rgba(0, 0, 0, 0.24),
       1.4px 0 0 rgba(255, 60, 140, 0.16),
       -1.4px 0 0 rgba(40, 170, 255, 0.18),
-      0 2px 2px rgba(0, 0, 0, 0.07),
-      0 18px 50px rgba(0, 0, 0, 0.13);
+      0 3px 6px rgba(0, 0, 0, 0.12),
+      0 18px 50px rgba(0, 0, 0, 0.15);
   }
   /* specular sheen — a diagonal band of light clipped to the glyphs */
   .word::after {
@@ -141,17 +146,8 @@
     0%, 100% { background-position: 130% 0; }
     50% { background-position: -30% 0; }
   }
-  /* on the cream side the rim needs a touch more body to hold on light */
-  .half-bioms .word {
-    -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.85);
-    text-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.7),
-      0 -1px 1px rgba(0, 0, 0, 0.2),
-      1.2px 0 0 rgba(255, 60, 140, 0.14),
-      -1.2px 0 0 rgba(40, 170, 255, 0.16),
-      0 3px 6px rgba(0, 0, 0, 0.12),
-      0 16px 44px rgba(0, 0, 0, 0.18);
-  }
+  /* both sides share the robust recipe above — the dark hairline carries
+     legibility on the cream half without needing a heavier rim. */
 
   a:focus-visible .word { outline: 2px solid var(--ink); outline-offset: 12px; }
 
@@ -214,8 +210,10 @@
   else { requestAnimationFrame(frame); }
 
   // ---- the giant residents -----------------------------------------
-  var LUOM_IDS = [44, 135, 171, 154, 230, 357, 37, 174, 134, 307, 99];
-  var BIOM_SEEDS = [38, 109, 156, 132, 2222, 176];
+  // curated so both sides always carry real colour and mass — no pale
+  // iridescent/void Luoms, no washed-out Bioms; varied across forms.
+  var LUOM_IDS = [44, 135, 171, 230, 357, 174, 134, 13, 140, 18, 138];
+  var BIOM_SEEDS = [38, 109, 156];
   var luomId = LUOM_IDS[Math.floor(Math.random() * LUOM_IDS.length)];
   var biomSeed = BIOM_SEEDS[Math.floor(Math.random() * BIOM_SEEDS.length)];
 

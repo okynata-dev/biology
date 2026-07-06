@@ -574,6 +574,9 @@ window.__LOOP=LOOP;  // loop period (s) — render frames over [0,LOOP) for a se
 window.__tierOf=id=>traitsFor(id).tier;  // for rarity ranking (grid page)
 window.__traitOf=id=>{const t=traitsFor(id);return{form:t.form,stain:t.stain,tier:t.tier,pattern:t.pattern,appendage:t.appendage};};
 show(START);
+// embedded control: parent (e.g. /luoms explorer) can swap the token in
+// place — no reload, engine stays warm. { __luom:true, id:N }
+addEventListener('message',e=>{const d=e.data;if(d&&d.__luom&&Number.isFinite(d.id))show(d.id);});
 if(Q.has('still')){window.__seek(0);document.getElementById('load').style.display='none';window.__biomReady=true;}
 else loop();
 </script>

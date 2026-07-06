@@ -281,25 +281,32 @@
   var pretty = function (s){ return String(s).split('_').map(function(w){return w.charAt(0).toUpperCase()+w.slice(1);}).join(' '); };
   var pad3 = function (n){ return String(n).padStart(3,'0'); };
 
-  var data = null, byId = {}, state = { id: 1 }, srcTimer = null;
+  var data = null, byId = {}, state = { id: 1 };
 
   var viewer = document.getElementById('viewer');
+  // One warm renderer, mounted once. Navigation swaps the token in place
+  // via postMessage — instant, no reload, no flash.
+  var vframe = null, vLoaded = false, vPending = null;
+  function postToken(id) {
+    try { vframe.contentWindow.postMessage({ __luom: true, id: id }, location.origin); } catch (e) {}
+  }
   function setViewer(id) {
-    // (re)mount the live renderer for this token — one WebGL frame at a time
-    clearTimeout(srcTimer);
-    srcTimer = setTimeout(function () {
-      viewer.classList.remove('loaded');
-      var old = viewer.querySelector('iframe');
-      var f = document.createElement('iframe');
-      f.title = 'Luom #' + id;
-      f.loading = 'eager';
-      f.src = '/glass-500.html?id=' + id + '&token=1&full=1&flat=1&z=1.1';
-      f.addEventListener('load', function () {
-        f.classList.add('on'); viewer.classList.add('loaded');
-        if (old) old.remove();
+    if (!vframe) {
+      vframe = document.createElement('iframe');
+      vframe.title = 'Luom';
+      vframe.loading = 'eager';
+      vframe.src = '/glass-500.html?id=' + id + '&token=1&full=1&flat=1&z=1.1';
+      vframe.addEventListener('load', function () {
+        vLoaded = true; vframe.classList.add('on'); viewer.classList.add('loaded');
+        if (vPending != null && vPending !== id) postToken(vPending);
+        vPending = null;
       });
-      viewer.appendChild(f);
-    }, 90);
+      viewer.appendChild(vframe);
+    } else if (vLoaded) {
+      postToken(id);
+    } else {
+      vPending = id;
+    }
   }
 
   function rarityCount(cat, val) {
