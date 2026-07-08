@@ -1,11 +1,11 @@
 # Cloudflare Pages — redirects. Evaluated BEFORE static assets, so these
 # win over the .html files still in the repo (kept for history/rollback).
 #
-# Post-mint retirement (2026-06-10): the mint is over, so the waitlist,
-# partner-application, and public-list surfaces are gone. Old links from
-# tweets/DMs land on the homepage instead of a stale signup form.
-/reserve        /   301
-/reserve.html   /   301
+# Post-mint retirement (2026-06-10): partner-application and public-list
+# surfaces are gone. Old links from tweets/DMs land on the homepage.
+# /reserve came BACK 2026-07-08 as the Luoms phase-two signup page —
+# only the .html variant redirects, to the canonical clean URL.
+/reserve.html   /reserve   301
 /partners       /   301
 /partners.html  /   301
 /list           /   301

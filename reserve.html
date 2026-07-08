@@ -3,729 +3,249 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reserve — Bioms</title>
-<meta name="description" content="Drop your wallet to be counted before the WL window opens.">
-<meta name="theme-color" content="#ece9e0">
+<title>Reserve</title>
+<meta name="description" content="Leave a wallet address to be counted before the Luoms mint. Bioms holders mint first.">
+<meta name="theme-color" content="#ffffff">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="/favicon.svg?v=3">
-<link rel="stylesheet" href="/nav-wallet.css?v=9">
-<link rel="stylesheet" href="/design.css?v=4">
 <link rel="canonical" href="https://thebioms.com/reserve">
 
-<meta property="og:title" content="Bioms — Reserve your spot">
-<meta property="og:description" content="WL window opens June 8. Drop your wallet to be counted first.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://thebioms.com/og-collage.png">
+<meta property="og:site_name" content="Luoms">
+<meta property="og:title" content="Reserve a Luom">
+<meta property="og:description" content="Leave a wallet address to be counted before the mint. Bioms holders mint first.">
+<meta property="og:url" content="https://thebioms.com/reserve">
+<meta property="og:image" content="https://thebioms.com/og-luoms.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Luoms">
 <meta name="twitter:card" content="summary_large_image">
-
+<meta name="twitter:site" content="@theBioms">
+<meta name="twitter:image" content="https://thebioms.com/og-luoms.jpg">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  /* Surface palette + radius/shadow/easing tokens come from /design.css.
-     This page used to declare its own --ok / --bad — both now map to
-     the canonical --ok (quiet green) and --burn (ember-rust) tokens
-     defined globally so the validation states match the rest of the site. */
   :root {
-    --bad: var(--burn);
+    --bg: #ffffff;
+    --ink: #1a1712;
+    --ink-2: #5f584d;
+    --ink-3: #837b6e;
+    --rule: rgba(26, 23, 18, 0.10);
+    --rule-2: rgba(26, 23, 18, 0.06);
+    --chip: #f4f2ec;
+    --ok: #2e7d4f;
+    --err: #a4442c;
+    --r: 18px;
   }
-
   html, body {
-    min-height: 100vh;
     background: var(--bg);
     color: var(--ink);
     font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
-    line-height: 1.55;
+    line-height: 1.5;
     font-size: 17px;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+  ::selection { background: rgba(26, 23, 18, 0.10); }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 6px; }
 
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='280'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0 0.05  0 0 0 0.014 0'/%3E%3C/filter%3E%3Crect width='280' height='280' filter='url(%23n)'/%3E%3C/svg%3E");
-    z-index: 1;
-  }
-
-  a { color: inherit; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px; }
-
-  /* Skip-link — WCAG 2.4.1, hidden until keyboard-focused */
-  .skip-link {
-    position: absolute; left: -9999px; top: 0;
-    background: var(--ink); color: var(--bg);
-    padding: 12px 18px; border-radius: 0 0 8px 0;
-    font-size: 14px; font-weight: 500; text-decoration: none;
-    z-index: 9999;
-  }
-  .skip-link:focus { left: 0; outline: 2px solid var(--bg); outline-offset: -2px; }
-  a:hover { text-decoration-color: var(--ink); }
-
-  /* === NAV (canonical) === */
   nav {
     position: sticky; top: 0; z-index: 50;
-    padding: 18px 32px;
+    padding: 16px 32px;
     display: flex; justify-content: space-between; align-items: center;
-    background: rgba(236, 233, 224, 0.94);
+    background: rgba(255,255,255,0.86);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--rule);
   }
-  .brand {
-    display: inline-flex; align-items: center; gap: 9px;
-    font-size: 17px; font-weight: 500; letter-spacing: -0.005em;
-    color: var(--ink); text-decoration: none;
-    transition: opacity 0.15s;
-  }
-  .brand:hover { opacity: 0.65; text-decoration: none; }
+  .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; transition: opacity .15s; }
+  .brand:hover { opacity: .6; }
   .brand-mark { width: 18px; height: 18px; display: block; }
-  /* brand-mark is /favicon.svg loaded as <img> — see index.html for why. */
-  .nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
-  .nav-links a {
-    color: var(--ink-3); text-decoration: none;
-    transition: color 0.15s;
-    padding: 12px 6px;
-    margin: -12px -6px;
-  }
-  .nav-links a:hover { color: var(--ink); text-decoration: none; }
-  .nav-x { display: inline-flex; align-items: center; color: var(--ink-3); transition: color 0.15s; margin-left: 4px; }
-  .nav-x:hover { color: var(--ink); text-decoration: none; }
-  a:focus-visible, button:focus-visible, input:focus-visible {
-    outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 4px;
-  }
+  .nav-links { display: flex; align-items: center; gap: 20px; font-size: 14px; }
+  .nav-links a { color: var(--ink-3); transition: color .15s; padding: 10px 4px; margin: -10px -4px; }
+  .nav-links a:hover { color: var(--ink); }
   .x-icon { width: 15px; height: 15px; display: block; }
-  @media (max-width: 600px) {
-    nav { padding: 14px 18px; }
-    .nav-links { gap: 14px; font-size: 13px; }
-  }
+  @media (max-width: 600px){ nav{ padding: 13px 18px; } .nav-links{ gap: 14px; font-size: 13px; } }
 
-  /* === MAIN ===
-     Everything in this column is center-aligned so the title, subtitle,
-     countdown chip, and full-width form read as one symmetric stack.
-     The earlier left-aligned heading next to a centered inline-flex
-     countdown next to a full-width input looked askew (countdown sat
-     hard against the left edge of the column while the form below
-     stretched edge to edge). One alignment everywhere fixes it. */
-  .wrap {
-    position: relative; z-index: 2;
-    max-width: 560px;
-    margin: 0 auto;
-    padding: clamp(64px, 14vh, 140px) 28px 96px;
-    text-align: center;
-  }
-  h1 {
-    font-size: clamp(38px, 5.2vw, 56px);
-    letter-spacing: -0.025em;
-    font-weight: 500;
-    line-height: 1.05;
-    margin-bottom: 14px;
-  }
-  .h1-sub {
-    font-size: clamp(15px, 1.4vw, 17px);
-    line-height: 1.5;
-    color: var(--ink-2);
-    margin: 0 auto 48px;
-    max-width: 32em;
-  }
-  .live-counter {
-    margin-top: 18px;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 12px;
-    letter-spacing: 0.04em;
-    color: var(--ink-3);
-    text-align: center;
-  }
-  .live-counter strong { color: var(--ink-2); font-weight: 500; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 32px; }
+  @media (max-width: 600px){ .wrap{ padding: 0 18px; } }
 
-  /* === COUNTDOWN — same component as homepage drop block.
-     Sits between subtitle and form so the user sees both how long
-     they have to drop their wallet AND the form below in one view.
-     CSS duplicated (not imported) because reserve.html stays
-     self-contained per the project's no-build conventions. */
-  .countdown {
-    display: inline-flex;
-    align-items: flex-start;
-    gap: 10px;
-    margin: 0 0 36px;
+  .intro { padding: clamp(48px, 9vh, 96px) 0 clamp(16px, 3vh, 28px); text-align: center; }
+  .intro h1 { font-size: clamp(44px, 7vw, 84px); font-weight: 600; letter-spacing: -0.04em; line-height: .95; }
+  .intro p { max-width: 540px; margin: 20px auto 0; color: var(--ink-2); font-size: clamp(16px,1.4vw,18px); text-wrap: balance; }
+
+  .viewer {
+    position: relative;
+    width: min(340px, 70vw);
+    aspect-ratio: 1;
+    margin: clamp(20px,4vh,36px) auto 0;
+    border: 1px solid var(--rule);
+    border-radius: 26px;
+    overflow: hidden;
+    background: radial-gradient(120% 120% at 50% 12%, #ffffff 0%, #fbfaf7 55%, #f3f1ea 100%);
+  }
+  .viewer iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: transparent; opacity: 0; transition: opacity .6s ease; }
+  .viewer iframe.on { opacity: 1; }
+
+  .phases { margin: clamp(28px,5vh,44px) auto 0; max-width: 560px; text-align: left; }
+  .phase { display: flex; gap: 16px; padding: 18px 0; border-top: 1px solid var(--rule-2); }
+  .phase:last-child { border-bottom: 1px solid var(--rule-2); }
+  .phase .no { font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 12px; color: var(--ink-3); padding-top: 3px; white-space: nowrap; }
+  .phase h3 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .phase p { margin-top: 3px; font-size: 14.5px; color: var(--ink-2); }
+
+  .form-block { margin: clamp(28px,5vh,44px) auto 0; max-width: 560px; text-align: center; padding-bottom: clamp(64px, 10vh, 120px); }
+  .form-row { display: flex; gap: 10px; }
+  @media (max-width: 520px){ .form-row{ flex-direction: column; } }
+  .addr-input {
+    flex: 1; min-width: 0;
     padding: 14px 18px;
-    background: rgba(255, 255, 255, 0.55);
     border: 1px solid var(--rule);
-    border-radius: 14px;
-  }
-  .countdown .cd-unit {
-    display: flex; flex-direction: column;
-    align-items: center;
-    min-width: 44px;
-  }
-  .countdown .cd-num {
-    font-size: clamp(24px, 3vw, 32px);
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-    line-height: 1;
-    color: var(--ink);
-  }
-  .countdown .cd-lbl {
-    font-size: 9px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--ink-3);
-    margin-top: 7px;
-  }
-  .countdown .cd-sep {
-    font-size: clamp(20px, 2.6vw, 26px);
-    font-weight: 400;
-    color: var(--ink-3);
-    line-height: 1;
-    margin-top: 2px;
-    user-select: none;
-  }
-  @media (max-width: 480px) {
-    .countdown { gap: 6px; padding: 12px 14px; }
-    .countdown .cd-unit { min-width: 36px; }
-  }
-
-  /* Post-mint state on /reserve — when timer hits zero the waitlist
-     becomes irrelevant (anyone can mint via OpenSea), so swap the
-     whole form area for a clear "go mint" CTA. */
-  .mint-live-cta {
-    display: flex; flex-direction: column;
-    gap: 12px;
-  }
-  /* The default `display: flex` above overrides the HTML `hidden`
-     attribute (user-agent display:none). Without this rule the live
-     CTA block would render alongside the waitlist form pre-mint. */
-  .mint-live-cta[hidden] { display: none; }
-
-  /* === FORM === */
-  form.reserve-form {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .field input {
-    width: 100%;
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: var(--r-sm);
-    padding: 16px 18px;
-    font-family: inherit;
-    font-size: 16px;
-    color: var(--ink);
-    /* Input contents always left-aligned regardless of the wrap's
-       text-align: center — typing a 0x address into a centered field
-       looks broken. */
-    text-align: left;
-    transition: border-color 0.15s, box-shadow 0.15s;
-    -webkit-appearance: none;
-    appearance: none;
-  }
-  .field input::placeholder {
-    color: var(--ink-3);
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    border-radius: 999px;
+    background: var(--chip);
+    font-family: ui-monospace,"SF Mono",Menlo,monospace;
     font-size: 14px;
-    letter-spacing: 0.02em;
+    color: var(--ink);
+    transition: border-color .15s, background .15s;
   }
-  .field input:focus {
-    border-color: var(--ink);
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(28,26,22,0.08);
-  }
-  /* Validation borders — quiet ink for valid, burn-rust for invalid.
-     The colours are PURPOSELY low-saturation so a typing user is never
-     punished by a red flash; the cue is information, not alarm. */
-  .field input.valid    { border-color: var(--ink); }
-  .field input.invalid  { border-color: rgba(184, 73, 44, 0.55); }
-
-  /* The form input + button read as one carved unit, so the submit
-     drops the global pill radius and adopts the input's --r-sm. The
-     two surfaces now feel like a tied pair. */
-  form.reserve-form .btn {
-    width: 100%;
-    padding: 16px 22px;
-    font-size: 16px;
-    border-radius: var(--r-sm);
-  }
-
-  /* === SUCCESS STATE === */
-  .success {
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: var(--r-md);
-    padding: 28px 22px;
-    text-align: center;
-  }
-  .success-title {
-    font-size: 22px;
-    letter-spacing: -0.015em;
-    font-weight: 500;
-  }
-  .success-sub {
-    color: var(--ink-2);
-    font-size: 14px;
-    margin-top: 10px;
-    line-height: 1.5;
-    max-width: 32em;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  .success-cta {
-    margin-top: 18px;
-  }
-  /* Success CTA — paper-fill outline pill that inverts on hover.
-     Same chip language as the rest of the site (paper + ink-hairline). */
-  .success-cta-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 10px 18px;
+  .addr-input::placeholder { color: var(--ink-3); font-family: -apple-system,"SF Pro Text",system-ui,sans-serif; }
+  .addr-input:focus { outline: none; border-color: var(--ink-3); background: #fff; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 13px 26px; border-radius: 999px;
+    background: var(--ink); color: #fff;
+    font-size: 15px; font-weight: 500;
     border: 1px solid var(--ink);
-    background: transparent;
-    color: var(--ink);
-    border-radius: var(--r-pill);
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 500;
-    transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+    transition: opacity .2s, transform .1s;
+    white-space: nowrap;
   }
-  .success-cta-btn:hover { background: var(--ink); color: var(--bg); }
-
-  /* Submit error region. Quiet warm-ember tint (matches the brand burn
-     accent at 1/3 strength) — readable as a problem without screaming. */
-  .form-error {
-    margin-top: 14px;
-    padding: 12px 16px;
-    border-radius: var(--r-sm);
-    background: var(--burn-soft);
-    border: 1px solid var(--burn-glow);
-    color: var(--burn);
-    font-size: 14px;
-    line-height: 1.4;
-  }
-  .form-error:empty { display: none; }
-
-  .success-secondary {
-    margin-top: 22px;
-    padding-top: 20px;
-    border-top: 1px solid var(--rule);
-  }
-  .link-btn {
-    background: none;
-    border: 0;
-    color: var(--ink-3);
-    font: inherit;
-    font-size: 14px;
-    cursor: pointer;
-    padding: 6px 12px;
-    border-radius: 6px;
-    transition: color 0.15s, background 0.15s;
-  }
-  .link-btn:hover { color: var(--ink); background: rgba(28,26,22,0.04); }
-
-  /* === FOOTER (canonical) === */
-  footer {
-    padding: 32px;
-    display: flex; justify-content: space-between; align-items: center;
-    flex-wrap: wrap; gap: 12px;
-    font-size: 13px; color: var(--ink-3);
-    border-top: 1px solid var(--rule);
-    position: relative; z-index: 2;
-  }
-  footer a { color: inherit; text-decoration: none; transition: color 0.15s; }
-  footer a:hover { color: var(--ink); }
-  .footer-meta { display: flex; align-items: center; gap: 14px; }
-  .footer-meta .sep { opacity: 0.4; }
-  @media (max-width: 600px) {
-    footer { padding: 24px 18px; flex-direction: column; text-align: center; gap: 12px; }
-    .footer-meta { flex-wrap: wrap; justify-content: center; gap: 8px 14px; }
-    .footer-meta > span:not(.sep), .footer-meta > a { white-space: nowrap; }
-  }
-
-  /* Accessibility — and a free perf win on low-end devices. */
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
+  .btn:hover { opacity: .85; }
+  .btn:active { transform: scale(.98); }
+  .btn[disabled] { opacity: .5; cursor: default; }
+  .status { margin-top: 14px; font-size: 14px; min-height: 21px; color: var(--ink-2); }
+  .status.ok { color: var(--ok); }
+  .status.err { color: var(--err); }
+  .fineprint { margin-top: 22px; font-size: 12.5px; color: var(--ink-3); }
+  .fineprint a { color: var(--ink-2); border-bottom: 1px solid var(--rule); }
+  .fineprint a:hover { color: var(--ink); border-color: var(--ink); }
 </style>
 </head>
 <body>
 
-<a class="skip-link" href="#main">Skip to content</a>
 <nav>
-  <a class="brand" href="/" aria-label="Bioms — home">
+  <a class="brand" href="/luoms" aria-label="Luoms">
     <img class="brand-mark" src="/favicon.svg?v=3" alt="" width="18" height="18" decoding="async">
-    <span>Bioms</span>
+    <span>Luoms</span>
   </a>
   <div class="nav-links">
-    <a href="/lab">Lab</a>
-    <a href="https://twitter.com/theBioms" class="nav-x" aria-label="Follow Bioms on X" target="_blank" rel="noopener">
-      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-      </svg>
+    <a href="/luoms">Collection</a>
+    <a href="https://opensea.io/collection/luoms/overview" target="_blank" rel="noopener">OpenSea</a>
+    <a href="/bioms">Bioms</a>
+    <a href="https://twitter.com/theBioms" aria-label="Follow on X" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;color:var(--ink-3)">
+      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
     </a>
   </div>
 </nav>
 
-<main class="wrap" id="main">
-  <h1>Be counted.</h1>
-  <p class="h1-sub">
-    WL mint opens <strong>June 8, 7 PM GMT+7</strong> · 0.005 ETH. Drop your wallet
-    before the list closes — <strong>5 PM GMT+7</strong>, two hours before mint.
-  </p>
+<main>
+  <section class="intro">
+    <div class="wrap">
+      <h1>Reserve a Luom.</h1>
+      <p>Five hundred microorganisms in glass, rendered live from their seeds. Leave a wallet address below and you will be counted when the mint opens.</p>
 
-  <!-- Pre-mint live countdown. Same component as the homepage drop block.
-       At T-0 #cdPreState is hidden and #cdLiveState is shown (waitlist
-       form is moot once anyone can mint on OpenSea). -->
-  <div id="cdPreState">
-    <!-- aria-live removed: ticking countdown spams screen readers every
-         second. aria-label still announces the purpose on focus. -->
-    <div style="margin-bottom:11px; font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--ink-3);">until the list closes</div>
-    <div class="countdown" id="countdown" aria-label="Time until the waitlist closes">
-      <div class="cd-unit"><span class="cd-num" id="cdDays">—</span><span class="cd-lbl">Days</span></div>
-      <div class="cd-sep">:</div>
-      <div class="cd-unit"><span class="cd-num" id="cdHrs">—</span><span class="cd-lbl">Hrs</span></div>
-      <div class="cd-sep">:</div>
-      <div class="cd-unit"><span class="cd-num" id="cdMins">—</span><span class="cd-lbl">Mins</span></div>
-      <div class="cd-sep">:</div>
-      <div class="cd-unit"><span class="cd-num" id="cdSecs">—</span><span class="cd-lbl">Secs</span></div>
-    </div>
-  </div>
-
-  <div id="formContainer">
-    <form class="reserve-form" id="reserveForm" novalidate>
-      <div class="field">
-        <input
-          type="text"
-          id="reserveInput"
-          name="value"
-          placeholder="0x… or yourname.eth"
-          autocomplete="off"
-          autocapitalize="off"
-          autocorrect="off"
-          spellcheck="false"
-          autofocus
-          required
-          aria-label="Ethereum wallet address or ENS name"
-        />
+      <div class="viewer" aria-hidden="true">
+        <iframe id="vframe" title="A living Luom" loading="eager"></iframe>
       </div>
-      <button type="submit" class="btn" id="reserveSubmit" disabled>Save my spot</button>
-    </form>
-    <!-- Submit error region. Hidden until a submit fails. aria-live=polite
-         so screen readers announce on appearance, but not on every text
-         change (assertive would spam during typing-correction flow). The
-         submit handler writes a humanised message based on err.code, so
-         users see WHY it failed instead of a vague 'Try again' on the
-         button. Without this, on mint day a 5xx blip would leave users
-         re-submitting the same form thinking nothing is happening. -->
-    <div class="form-error" id="formError" hidden aria-live="polite" role="status"></div>
-    <div class="live-counter" id="liveCounter" hidden>
-      <strong id="liveCount">—</strong> already in
-    </div>
-  </div>
 
-  <div id="successPanel" class="success" hidden>
-    <div class="success-title" id="successTitle">You're on the list.</div>
-    <div class="success-sub" id="successSub">Mint announcement will go up on X. Follow to know first.</div>
-    <div class="success-cta">
-      <a class="success-cta-btn" href="https://twitter.com/theBioms" target="_blank" rel="noopener">Follow @theBioms</a>
-    </div>
-    <div class="success-secondary">
-      <button type="button" class="link-btn" id="addAnotherBtn">Add another address</button>
-    </div>
-  </div>
+      <div class="phases">
+        <div class="phase">
+          <span class="no">PHASE 1</span>
+          <div>
+            <h3>Holders first.</h3>
+            <p>Every Bioms holder mints free. No signup needed: the snapshot reads the chain.</p>
+          </div>
+        </div>
+        <div class="phase">
+          <span class="no">PHASE 2</span>
+          <div>
+            <h3>Everyone on this list.</h3>
+            <p>Leave an address below. When phase two opens, the list becomes the allowlist.</p>
+          </div>
+        </div>
+      </div>
 
-  <!-- Post-mint state — countdown flips into this once the WL window
-       has opened. Waitlist form is no longer the right path; user
-       should go straight to OpenSea. -->
-  <div id="cdLiveState" class="mint-live-cta" hidden>
-    <a href="https://opensea.io/collection/bioms/overview" target="_blank" rel="noopener" class="btn" style="text-align:center;text-decoration:none;">Mint on OpenSea</a>
-    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener" class="btn ghost" style="text-align:center;text-decoration:none;">Follow @theBioms</a>
-  </div>
+      <div class="form-block">
+        <form id="rform" class="form-row" novalidate>
+          <input class="addr-input" id="addr" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+                 placeholder="0x address or ENS name" aria-label="Wallet address or ENS name">
+          <button class="btn" id="rbtn" type="submit">Count me in</button>
+        </form>
+        <p class="status" id="rstatus" role="status" aria-live="polite"></p>
+        <p class="fineprint">One address is enough. Already listed addresses are recognised, not duplicated.<br>
+          The collection lives at <a href="https://etherscan.io/address/0xFc992f44555f413F5138d04496BEacC4b2AFf793" target="_blank" rel="noopener">0xFc99&hellip;F793</a> on Ethereum.</p>
+      </div>
+    </div>
+  </section>
 </main>
 
-<footer>
-  <div class="footer-meta">
-    <span>© 2026 Bioms</span>
-    <span class="sep">·</span>
-    <a href="/lab">Lab</a>
-    <span class="sep">·</span>
-    <a href="/explore">Traits</a>
-    <span class="sep">·</span>
-    <a href="/gallery">Gallery</a>
-    <span class="sep">·</span>
-    <a href="/view">View</a>
-    <span class="sep">·</span>
-    <a href="/make">Banners</a>
-    <span class="sep">·</span>
-    <a href="/reserve">Mint</a>
-    <span class="sep">·</span>
-    <a href="/manifesto">Manifesto</a>
-  </div>
-  <div class="footer-meta">
-    <a href="https://twitter.com/theBioms" target="_blank" rel="noopener">@theBioms</a>
-    <span class="sep">·</span>
-    <a href="https://twitter.com/timsouw" target="_blank" rel="noopener">by @timsouw</a>
-  </div>
-</footer>
-
 <script>
-// =============================================================
-// RESERVE — pre-mint wallet signup form
-//
-// Address-only. We collect wallets so we can take a snapshot for
-// the mint allowlist. Email was intentionally dropped: addresses
-// are what we actually need for on-chain operations, and asking
-// for both was clutter.
-//
-// Input validates an Ethereum address (0x + 40 hex) live as the
-// user types. The submit button stays disabled until a valid
-// address is entered — no error copy needed, the red border on
-// invalid input + dark border on valid input does the work.
-// =============================================================
-const WORKER_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
-  ? 'http://localhost:8787'
-  : 'https://api.thebioms.com';
+(function(){
+  // A living Luom in the viewer — random pick, curated calm set.
+  var IDS = [13, 18, 44, 134, 135, 140, 171, 230, 357];
+  var id = IDS[Math.floor(Math.random() * IDS.length)];
+  var f = document.getElementById('vframe');
+  f.addEventListener('load', function(){ f.classList.add('on'); });
+  f.src = '/glass-500.html?id=' + id + '&token=1&full=1&flat=1&z=1.1';
 
-const input         = document.getElementById('reserveInput');
-const submitBtn     = document.getElementById('reserveSubmit');
-const form          = document.getElementById('reserveForm');
-const formContainer = document.getElementById('formContainer');
-const successPanel  = document.getElementById('successPanel');
-const successTitle  = document.getElementById('successTitle');
-const successSub    = document.getElementById('successSub');
-const addAnotherBtn = document.getElementById('addAnotherBtn');
+  var form = document.getElementById('rform');
+  var input = document.getElementById('addr');
+  var btn = document.getElementById('rbtn');
+  var status = document.getElementById('rstatus');
 
-const RE_ETH = /^0x[a-fA-F0-9]{40}$/;
-const RE_ENS = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.eth$/i;
-
-function shortDate(ms) {
-  if (typeof ms !== 'number') return '';
-  try {
-    return new Date(ms).toLocaleDateString(undefined, {
-      day: 'numeric', month: 'short', year: 'numeric'
-    });
-  } catch (_) { return ''; }
-}
-function shortAddr(s) {
-  if (!s) return '';
-  if (s.startsWith('0x') && s.length === 42) return s.slice(0, 6) + '…' + s.slice(-4);
-  return s;
-}
-
-function classify(v) {
-  const trimmed = v.trim().toLowerCase();
-  if (!trimmed) return { valid: false, value: null };
-  if (RE_ETH.test(trimmed)) return { valid: true, value: trimmed };
-  if (RE_ENS.test(trimmed)) return { valid: true, value: trimmed };
-  return { valid: false, value: null };
-}
-
-function updateValidation() {
-  const r = classify(input.value);
-  if (!input.value.trim()) {
-    input.classList.remove('valid', 'invalid');
-    submitBtn.disabled = true;
-    return;
-  }
-  if (r.valid) {
-    input.classList.remove('invalid');
-    input.classList.add('valid');
-    submitBtn.disabled = false;
-  } else {
-    input.classList.remove('valid');
-    input.classList.add('invalid');
-    submitBtn.disabled = true;
-  }
-}
-
-input.addEventListener('input', updateValidation);
-input.addEventListener('blur', updateValidation);
-
-async function submitReservation(value) {
-  const r = await fetch(`${WORKER_URL}/api/waitlist`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ kind: 'address', value }),
-  });
-  if (!r.ok) {
-    const data = await r.json().catch(() => ({}));
-    throw new Error(data.error || 'request_failed');
-  }
-  return r.json();
-}
-
-function showSuccess(resp) {
-  formContainer.hidden = true;
-  successPanel.hidden = false;
-  if (resp && resp.already_in_list) {
-    successTitle.textContent = "You were already in.";
-  } else {
-    successTitle.textContent = "You're on the list.";
-  }
-  // success-sub stays as the "follow @theBioms" line — that's what
-  // users want next regardless of first vs returning signup.
-}
-
-// Humanise worker error codes for the form-error region. Each code maps
-// to a short user-facing line + (optional) actionable hint. Codes that
-// aren't in the map fall back to a generic 'Try again in a moment.'
-const ERROR_COPY = {
-  waitlist_closed: 'The list is closed — sign-ups ended 2 hours before mint. See you at the drop on OpenSea.',
-  rate_limited: 'Too many attempts from this network. Wait a few minutes and try again.',
-  origin_required: 'Your browser blocked the request. Refresh the page and try again.',
-  forbidden_origin: 'Your browser blocked the request. Refresh the page and try again.',
-  bad_address: 'That address didn\'t validate. Check the 0x format or use the ENS name.',
-  bad_value: 'That entry doesn\'t look like a wallet address.',
-  ens_unresolvable: 'We couldn\'t resolve that ENS name. Try the 0x address directly.',
-  body_too_large: 'The form submission was too large. Refresh and try again.',
-  value_too_long: 'That entry is too long — paste only the address.',
-  invalid_json: 'Something got malformed. Refresh and try again.',
-  bad_kind: 'Form layout outdated — refresh the page.',
-};
-
-const formError = document.getElementById('formError');
-function showFormError(message) {
-  formError.textContent = message;
-  formError.hidden = false;
-}
-function clearFormError() {
-  formError.textContent = '';
-  formError.hidden = true;
-}
-
-// Clear the error region when the user starts editing — most retry
-// attempts start with a fresh input. Lets us re-show on next failure
-// without leaving stale text underneath.
-input.addEventListener('input', clearFormError);
-
-form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  clearFormError();
-  const r = classify(input.value);
-  if (!r.valid) return;
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Saving…';
-  try {
-    const resp = await submitReservation(r.value);
-    showSuccess(resp);
-  } catch (err) {
-    // Re-enable the button + show a humanised reason in the error
-    // region so the user understands WHY it failed (was: just 'Try
-    // again' on the button, which left users re-submitting the same
-    // payload thinking nothing was happening).
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Try again';
-    const code = err && err.message;
-    const msg = ERROR_COPY[code] || 'Network blip — try again in a moment. If this keeps happening, refresh the page.';
-    showFormError(msg);
-  }
-});
-
-// === ADD ANOTHER ===
-// Reset success panel back to the form for entering a new address.
-// The previous wallet stays in the list — this just clears the
-// frontend state so user can submit a second one.
-addAnotherBtn.addEventListener('click', () => {
-  input.value = '';
-  input.classList.remove('valid', 'invalid');
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Save my spot';
-  successPanel.hidden = true;
-  formContainer.hidden = false;
-  input.focus();
-  loadCount();
-});
-
-async function loadCount() {
-  try {
-    const r = await fetch(`${WORKER_URL}/api/waitlist/count`, { method: 'GET' });
-    if (!r.ok) return;
-    const data = await r.json();
-    if (typeof data.count === 'number' && data.count > 0) {
-      document.getElementById('liveCount').textContent = data.count.toLocaleString();
-      document.getElementById('liveCounter').hidden = false;
-    }
-  } catch (_) { /* quiet — counter is decorative */ }
-}
-
-// Boot
-updateValidation();
-loadCount();
-
-// =========================================================================
-// MINT COUNTDOWN — same component as homepage drop block.
-// =========================================================================
-// On T-0 the WL/Waitlist form becomes irrelevant — anyone can mint via
-// OpenSea — so we hide the entire form area + countdown and reveal the
-// "Mint on OpenSea" CTA pair. Single page-state swap, no reload.
-(function mintCountdown() {
-  // The waitlist closes 2 hours BEFORE the mint so the snapshot can be frozen
-  // and the OpenSea allowlist set up. The countdown targets the CLOSE time.
-  // Three states: open (form + countdown) → closed (form gone, "mint at 7 PM")
-  // → live (mint opened, go to OpenSea). The server enforces the same cutoff.
-  const CLOSE_AT = new Date('2026-06-08T17:00:00+07:00').getTime();  // 2h before mint
-  const MINT_AT  = new Date('2026-06-08T19:00:00+07:00').getTime();
-  const elDays = document.getElementById('cdDays');
-  const elHrs  = document.getElementById('cdHrs');
-  const elMins = document.getElementById('cdMins');
-  const elSecs = document.getElementById('cdSecs');
-  const preState  = document.getElementById('cdPreState');
-  const liveState = document.getElementById('cdLiveState');
-  const formContainer = document.getElementById('formContainer');
-  const successPanel  = document.getElementById('successPanel');
-  if (!elDays || !preState || !liveState) return;
-
-  const pad = (n) => String(n).padStart(2, '0');
-  const subEl = document.querySelector('.h1-sub');
-  const h1El  = document.querySelector('h1');
-  const osBtn = liveState.querySelector('a.btn');
-  let phase = 'open';
-
-  function showEnd(live) {
-    const next = live ? 'live' : 'closed';
-    if (phase === next) return;
-    phase = next;
-    preState.hidden = true;
-    if (formContainer) formContainer.hidden = true;
-    if (successPanel)  successPanel.hidden  = true;
-    liveState.hidden = false;
-    if (live) {
-      if (h1El)  h1El.textContent = 'The mint is live.';
-      if (subEl) subEl.innerHTML  = 'Mint via OpenSea — anyone can mint now.';
-      if (osBtn) osBtn.textContent = 'Mint on OpenSea';
-    } else {
-      if (h1El)  h1El.textContent = 'The list is closed.';
-      if (subEl) subEl.innerHTML  = 'The WL snapshot is locked. Mint opens <strong>June 8, 7 PM GMT+7</strong> on OpenSea.';
-      if (osBtn) osBtn.textContent = 'View on OpenSea';
-    }
+  function setStatus(msg, cls){
+    status.textContent = msg;
+    status.className = 'status' + (cls ? ' ' + cls : '');
   }
 
-  function tick() {
-    const now = Date.now();
-    if (now >= MINT_AT)  { showEnd(true);  return false; }  // mint live → stop ticking
-    if (now >= CLOSE_AT) { showEnd(false); return true;  }  // closed → keep ticking to catch mint
-    // Still open — count down to CLOSE.
-    const diff = CLOSE_AT - now;
-    elDays.textContent = String(Math.floor(diff / 86400000));
-    elHrs.textContent  = pad(Math.floor((diff % 86400000) / 3600000));
-    elMins.textContent = pad(Math.floor((diff % 3600000) / 60000));
-    elSecs.textContent = pad(Math.floor((diff % 60000) / 1000));
-    return true;
-  }
+  var MSG = {
+    bad_address: 'That does not look like an address or ENS name.',
+    ens_unresolvable: 'That ENS name does not resolve to an address.',
+    rate_limited: 'Too many signups from this connection. Try again later.',
+    waitlist_closed: 'The list is closed. The snapshot has been taken.',
+    value_too_long: 'That does not look like an address.',
+    bad_value: 'That does not look like an address.'
+  };
 
-  if (!tick()) return;
-  let timer = setInterval(() => { if (!tick()) { clearInterval(timer); timer = null; } }, 1000);
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { if (timer) { clearInterval(timer); timer = null; } }
-    else if (phase !== 'live') {
-      if (!tick()) return;
-      if (!timer) timer = setInterval(() => { if (!tick()) { clearInterval(timer); timer = null; } }, 1000);
-    }
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var v = (input.value || '').trim();
+    if (!v) { setStatus('Enter a wallet address or ENS name.', 'err'); input.focus(); return; }
+    btn.disabled = true;
+    setStatus('Checking…');
+    fetch('https://api.thebioms.com/api/waitlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'address', value: v })
+    }).then(function(r){ return r.json().then(function(j){ return { s: r.status, j: j }; }); })
+      .then(function(res){
+        if (res.j && res.j.ok) {
+          if (res.j.already_in_list) {
+            setStatus('This address is already on the list. You are counted.', 'ok');
+          } else {
+            setStatus('Done. This address will be in the phase two allowlist.', 'ok');
+            input.value = '';
+          }
+        } else {
+          var code = res.j && res.j.error;
+          setStatus(MSG[code] || 'Something went wrong. Try again.', 'err');
+        }
+      })
+      .catch(function(){ setStatus('Network error. Try again.', 'err'); })
+      .finally(function(){ btn.disabled = false; });
   });
 })();
 </script>
 
-<script defer src="/nav-wallet.js?v=9"></script>
 </body>
 </html>
