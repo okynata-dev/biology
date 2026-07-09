@@ -335,6 +335,8 @@
       </div>
       <div class="toolbar">
         <input class="search" id="search" placeholder="Filter by address…" autocomplete="off">
+        <button class="tab" id="luoms-toggle" type="button" aria-pressed="false"
+                title="Only signups after the Bioms list closed (the Luoms wave)">Luoms wave</button>
       </div>
       <div class="wrap-table">
         <table>
@@ -504,11 +506,22 @@ function renderRows(rows) {
     : '');
 }
 
+// The Bioms waitlist closed 2026-06-08 17:00 GMT+7; everything after is the
+// Luoms phase-two wave. The toggle narrows the table, the visible count and
+// the CSV export to just that wave.
+const LUOMS_EPOCH = new Date('2026-06-09T00:00:00+07:00').getTime();
+let luomsOnly = false;
+
+function waveRows() {
+  return luomsOnly ? allRows.filter(r => r.signedUpMs > LUOMS_EPOCH) : allRows;
+}
+
 function applyFilter() {
+  const base = waveRows();
+  totalEl.textContent = String(base.length);
   const q = (searchEl.value || '').trim().toLowerCase();
-  if (!q) return renderRows(allRows);
-  const filtered = allRows.filter(r => r.value.toLowerCase().includes(q));
-  renderRows(filtered);
+  if (!q) return renderRows(base);
+  renderRows(base.filter(r => r.value.toLowerCase().includes(q)));
 }
 
 // ===== Fetch =====
@@ -581,6 +594,24 @@ downloadBtn.addEventListener('click', async () => {
   downloadBtn.disabled = true;
   downloadBtn.textContent = 'Preparing…';
   try {
+    // Luoms wave active: the rows are already in memory — build the CSV
+    // client-side instead of pulling the full 188k+ export.
+    if (currentView !== 'partners' && luomsOnly) {
+      const rows = waveRows();
+      const csv = 'id,address,signed_up\n' + rows.map(r =>
+        `${r.id},${r.value},${new Date(r.signedUpMs).toISOString()}`
+      ).join('\n');
+      const blob0 = new Blob([csv], { type: 'text/csv' });
+      const url0 = URL.createObjectURL(blob0);
+      const a0 = document.createElement('a');
+      a0.href = url0;
+      a0.download = `luoms-wave-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a0);
+      a0.click();
+      document.body.removeChild(a0);
+      setTimeout(() => URL.revokeObjectURL(url0), 1000);
+      return;
+    }
     // Download the CSV for whichever tab is active.
     const kind = currentView === 'partners' ? 'partners' : 'waitlist';
     const r = await fetch(`${WORKER_URL}/api/admin/${kind}?format=csv`, {
@@ -618,6 +649,14 @@ logoutBtn.addEventListener('click', () => {
 });
 
 searchEl.addEventListener('input', applyFilter);
+
+const luomsToggle = document.getElementById('luoms-toggle');
+luomsToggle.addEventListener('click', () => {
+  luomsOnly = !luomsOnly;
+  luomsToggle.classList.toggle('active', luomsOnly);
+  luomsToggle.setAttribute('aria-pressed', String(luomsOnly));
+  applyFilter();
+});
 
 // ===== Partners (community applications) =====
 // Data is user-submitted free text → ESCAPE everything before injecting.

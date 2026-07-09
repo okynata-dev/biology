@@ -55,65 +55,150 @@
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     text-align: center;
-    padding: 24px;
+    padding: 32px 24px;
   }
+
+  /* Living Luom — no card, no border. Just the organism on the page. */
+  .organism {
+    width: min(300px, 58vw);
+    aspect-ratio: 1;
+    position: relative;
+    opacity: 0;
+    animation: rise .9s cubic-bezier(.22,.8,.24,1) .15s forwards;
+  }
+  .organism iframe {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    border: 0; display: block;
+    opacity: 0; transition: opacity 1.2s ease;
+  }
+  .organism iframe.on { opacity: 1; }
+
   h1 {
-    font-size: clamp(44px, 7vw, 84px);
+    margin-top: clamp(6px, 2vh, 20px);
+    font-size: clamp(46px, 7vw, 88px);
     font-weight: 600;
-    letter-spacing: -0.04em;
+    letter-spacing: -0.045em;
     line-height: .95;
+    opacity: 0;
+    animation: rise .9s cubic-bezier(.22,.8,.24,1) .3s forwards;
   }
-  .form-row {
-    display: flex; gap: 10px;
-    width: min(560px, 100%);
-    margin-top: clamp(30px, 5vh, 48px);
+  .sub {
+    margin-top: 16px;
+    max-width: 400px;
+    color: var(--ink-2);
+    font-size: 16px;
+    text-wrap: balance;
+    opacity: 0;
+    animation: rise .9s cubic-bezier(.22,.8,.24,1) .42s forwards;
   }
-  @media (max-width: 520px){ .form-row{ flex-direction: column; } }
-  .addr-input {
-    flex: 1; min-width: 0;
-    padding: 15px 20px;
+
+  /* One pill: input and button live inside the same rounded container. */
+  .pill {
+    display: flex; align-items: center;
+    width: min(520px, 100%);
+    margin-top: clamp(28px, 5vh, 44px);
+    padding: 6px;
     border: 1px solid var(--rule);
     border-radius: 999px;
     background: var(--chip);
-    font-family: ui-monospace,"SF Mono",Menlo,monospace;
+    transition: border-color .2s, background .2s, box-shadow .2s;
+    opacity: 0;
+    animation: rise .9s cubic-bezier(.22,.8,.24,1) .54s forwards;
+  }
+  .pill:focus-within {
+    border-color: rgba(26,23,18,.28);
+    background: #fff;
+    box-shadow: 0 10px 40px rgba(26,23,18,.08);
+  }
+  .pill input {
+    flex: 1; min-width: 0;
+    border: 0; background: transparent;
+    padding: 11px 12px 11px 18px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 14px;
     color: var(--ink);
-    text-align: center;
-    transition: border-color .15s, background .15s;
   }
-  .addr-input::placeholder { color: var(--ink-3); font-family: -apple-system,"SF Pro Text",system-ui,sans-serif; }
-  .addr-input:focus { outline: none; border-color: var(--ink-3); background: #fff; }
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center;
-    padding: 14px 28px; border-radius: 999px;
+  .pill input:focus { outline: none; }
+  .pill input::placeholder { color: var(--ink-3); font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; }
+  .pill button {
+    flex: none;
+    padding: 11px 22px;
+    border: 0; border-radius: 999px;
     background: var(--ink); color: #fff;
-    font-size: 15px; font-weight: 500;
-    border: 1px solid var(--ink);
-    transition: opacity .2s, transform .1s;
-    white-space: nowrap;
+    font-size: 14.5px; font-weight: 500;
+    transition: opacity .2s, transform .12s;
   }
-  .btn:hover { opacity: .85; }
-  .btn:active { transform: scale(.98); }
-  .btn[disabled] { opacity: .5; cursor: default; }
-  .status { margin-top: 16px; font-size: 14px; min-height: 21px; color: var(--ink-2); }
+  .pill button:hover { opacity: .85; }
+  .pill button:active { transform: scale(.97); }
+  .pill button[disabled] { opacity: .5; cursor: default; }
+  @media (max-width: 480px) {
+    .pill { flex-direction: column; padding: 8px; border-radius: 24px; gap: 8px; }
+    .pill input { width: 100%; text-align: center; padding: 10px 8px; }
+    .pill button { width: 100%; padding: 12px; }
+  }
+
+  .status {
+    margin-top: 16px;
+    font-size: 14px;
+    min-height: 21px;
+    color: var(--ink-2);
+    transition: opacity .3s;
+  }
   .status.ok { color: var(--ok); }
   .status.err { color: var(--err); }
+
+  .foot {
+    margin-top: clamp(28px, 6vh, 52px);
+    font-size: 13px;
+    color: var(--ink-3);
+    opacity: 0;
+    animation: rise .9s cubic-bezier(.22,.8,.24,1) .66s forwards;
+  }
+  .foot a { color: var(--ink-2); border-bottom: 1px solid var(--rule); transition: color .15s, border-color .15s; }
+  .foot a:hover { color: var(--ink); border-color: var(--ink); }
+  .foot .dot { margin: 0 8px; opacity: .5; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .organism, h1, .sub, .pill, .foot { animation: none; opacity: 1; }
+  }
 </style>
 </head>
 <body>
 
 <main class="stage">
+  <div class="organism" aria-hidden="true">
+    <iframe id="vframe" title="A living Luom" loading="eager"></iframe>
+  </div>
+
   <h1>Reserve a spot.</h1>
-  <form id="rform" class="form-row" novalidate>
-    <input class="addr-input" id="addr" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+  <p class="sub">The mint opens July 17. Bioms holders go first, this list goes second.</p>
+
+  <form id="rform" class="pill" novalidate>
+    <input id="addr" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
            placeholder="0x address or ENS name" aria-label="Wallet address or ENS name">
-    <button class="btn" id="rbtn" type="submit">Count me in</button>
+    <button id="rbtn" type="submit">Count me in</button>
   </form>
   <p class="status" id="rstatus" role="status" aria-live="polite"></p>
+
+  <p class="foot">
+    <a href="/luoms">Luoms</a><span class="dot">·</span>500 organisms in glass<span class="dot">·</span><a href="https://opensea.io/collection/luoms/overview" target="_blank" rel="noopener">OpenSea</a>
+  </p>
 </main>
 
 <script>
 (function(){
+  // A living Luom above the heading — random pick from a curated calm set.
+  var IDS = [13, 18, 44, 134, 135, 140, 171, 230, 357];
+  var id = IDS[Math.floor(Math.random() * IDS.length)];
+  var f = document.getElementById('vframe');
+  f.addEventListener('load', function(){ f.classList.add('on'); });
+  f.src = '/glass-500.html?id=' + id + '&token=1&full=1&flat=1&z=1.16';
+
   var form = document.getElementById('rform');
   var input = document.getElementById('addr');
   var btn = document.getElementById('rbtn');
