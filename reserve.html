@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reserve</title>
-<meta name="description" content="Leave a wallet address to be counted before the Luoms mint. Bioms holders mint first.">
+<meta name="description" content="Leave a wallet address to be counted before the Luoms mint.">
 <meta name="theme-color" content="#ffffff">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=3">
 <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=3" media="(prefers-color-scheme: dark)">
@@ -13,8 +13,8 @@
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Luoms">
-<meta property="og:title" content="Reserve a Luom">
-<meta property="og:description" content="Leave a wallet address to be counted before the mint. Bioms holders mint first.">
+<meta property="og:title" content="Reserve a spot">
+<meta property="og:description" content="Leave a wallet address to be counted before the Luoms mint.">
 <meta property="og:url" content="https://thebioms.com/reserve">
 <meta property="og:image" content="https://thebioms.com/og-luoms.jpg">
 <meta property="og:image:width" content="1200">
@@ -31,13 +31,12 @@
     --ink-2: #5f584d;
     --ink-3: #837b6e;
     --rule: rgba(26, 23, 18, 0.10);
-    --rule-2: rgba(26, 23, 18, 0.06);
     --chip: #f4f2ec;
     --ok: #2e7d4f;
     --err: #a4442c;
-    --r: 18px;
   }
   html, body {
+    height: 100%;
     background: var(--bg);
     color: var(--ink);
     font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
@@ -51,69 +50,42 @@
   button { font: inherit; color: inherit; cursor: pointer; }
   a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 6px; }
 
-  nav {
-    position: sticky; top: 0; z-index: 50;
-    padding: 16px 32px;
-    display: flex; justify-content: space-between; align-items: center;
-    background: rgba(255,255,255,0.86);
-    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--rule);
+  .stage {
+    min-height: 100%;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    padding: 24px;
   }
-  .brand { display: inline-flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; transition: opacity .15s; }
-  .brand:hover { opacity: .6; }
-  .brand-mark { width: 18px; height: 18px; display: block; }
-  .nav-links { display: flex; align-items: center; gap: 20px; font-size: 14px; }
-  .nav-links a { color: var(--ink-3); transition: color .15s; padding: 10px 4px; margin: -10px -4px; }
-  .nav-links a:hover { color: var(--ink); }
-  .x-icon { width: 15px; height: 15px; display: block; }
-  @media (max-width: 600px){ nav{ padding: 13px 18px; } .nav-links{ gap: 14px; font-size: 13px; } }
-
-  .wrap { max-width: 760px; margin: 0 auto; padding: 0 32px; }
-  @media (max-width: 600px){ .wrap{ padding: 0 18px; } }
-
-  .intro { padding: clamp(48px, 9vh, 96px) 0 clamp(16px, 3vh, 28px); text-align: center; }
-  .intro h1 { font-size: clamp(44px, 7vw, 84px); font-weight: 600; letter-spacing: -0.04em; line-height: .95; }
-  .intro p { max-width: 540px; margin: 20px auto 0; color: var(--ink-2); font-size: clamp(16px,1.4vw,18px); text-wrap: balance; }
-
-  .viewer {
-    position: relative;
-    width: min(340px, 70vw);
-    aspect-ratio: 1;
-    margin: clamp(20px,4vh,36px) auto 0;
-    border: 1px solid var(--rule);
-    border-radius: 26px;
-    overflow: hidden;
-    background: radial-gradient(120% 120% at 50% 12%, #ffffff 0%, #fbfaf7 55%, #f3f1ea 100%);
+  h1 {
+    font-size: clamp(44px, 7vw, 84px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: .95;
   }
-  .viewer iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: transparent; opacity: 0; transition: opacity .6s ease; }
-  .viewer iframe.on { opacity: 1; }
-
-  .phases { margin: clamp(28px,5vh,44px) auto 0; max-width: 560px; text-align: left; }
-  .phase { display: flex; gap: 16px; padding: 18px 0; border-top: 1px solid var(--rule-2); }
-  .phase:last-child { border-bottom: 1px solid var(--rule-2); }
-  .phase .no { font-family: ui-monospace,"SF Mono",Menlo,monospace; font-size: 12px; color: var(--ink-3); padding-top: 3px; white-space: nowrap; }
-  .phase h3 { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
-  .phase p { margin-top: 3px; font-size: 14.5px; color: var(--ink-2); }
-
-  .form-block { margin: clamp(28px,5vh,44px) auto 0; max-width: 560px; text-align: center; padding-bottom: clamp(64px, 10vh, 120px); }
-  .form-row { display: flex; gap: 10px; }
+  .form-row {
+    display: flex; gap: 10px;
+    width: min(560px, 100%);
+    margin-top: clamp(30px, 5vh, 48px);
+  }
   @media (max-width: 520px){ .form-row{ flex-direction: column; } }
   .addr-input {
     flex: 1; min-width: 0;
-    padding: 14px 18px;
+    padding: 15px 20px;
     border: 1px solid var(--rule);
     border-radius: 999px;
     background: var(--chip);
     font-family: ui-monospace,"SF Mono",Menlo,monospace;
     font-size: 14px;
     color: var(--ink);
+    text-align: center;
     transition: border-color .15s, background .15s;
   }
   .addr-input::placeholder { color: var(--ink-3); font-family: -apple-system,"SF Pro Text",system-ui,sans-serif; }
   .addr-input:focus { outline: none; border-color: var(--ink-3); background: #fff; }
   .btn {
     display: inline-flex; align-items: center; justify-content: center;
-    padding: 13px 26px; border-radius: 999px;
+    padding: 14px 28px; border-radius: 999px;
     background: var(--ink); color: #fff;
     font-size: 15px; font-weight: 500;
     border: 1px solid var(--ink);
@@ -123,81 +95,25 @@
   .btn:hover { opacity: .85; }
   .btn:active { transform: scale(.98); }
   .btn[disabled] { opacity: .5; cursor: default; }
-  .status { margin-top: 14px; font-size: 14px; min-height: 21px; color: var(--ink-2); }
+  .status { margin-top: 16px; font-size: 14px; min-height: 21px; color: var(--ink-2); }
   .status.ok { color: var(--ok); }
   .status.err { color: var(--err); }
-  .fineprint { margin-top: 22px; font-size: 12.5px; color: var(--ink-3); }
-  .fineprint a { color: var(--ink-2); border-bottom: 1px solid var(--rule); }
-  .fineprint a:hover { color: var(--ink); border-color: var(--ink); }
 </style>
 </head>
 <body>
 
-<nav>
-  <a class="brand" href="/luoms" aria-label="Luoms">
-    <img class="brand-mark" src="/favicon.svg?v=3" alt="" width="18" height="18" decoding="async">
-    <span>Luoms</span>
-  </a>
-  <div class="nav-links">
-    <a href="/luoms">Collection</a>
-    <a href="https://opensea.io/collection/luoms/overview" target="_blank" rel="noopener">OpenSea</a>
-    <a href="/bioms">Bioms</a>
-    <a href="https://twitter.com/theBioms" aria-label="Follow on X" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;color:var(--ink-3)">
-      <svg class="x-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-    </a>
-  </div>
-</nav>
-
-<main>
-  <section class="intro">
-    <div class="wrap">
-      <h1>Reserve a Luom.</h1>
-      <p>Five hundred microorganisms in glass, rendered live from their seeds. Leave a wallet address below and you will be counted when the mint opens.</p>
-
-      <div class="viewer" aria-hidden="true">
-        <iframe id="vframe" title="A living Luom" loading="eager"></iframe>
-      </div>
-
-      <div class="phases">
-        <div class="phase">
-          <span class="no">PHASE 1</span>
-          <div>
-            <h3>Holders first.</h3>
-            <p>Every Bioms holder mints free. No signup needed: the snapshot reads the chain.</p>
-          </div>
-        </div>
-        <div class="phase">
-          <span class="no">PHASE 2</span>
-          <div>
-            <h3>Everyone on this list.</h3>
-            <p>Leave an address below. When phase two opens, the list becomes the allowlist.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="form-block">
-        <form id="rform" class="form-row" novalidate>
-          <input class="addr-input" id="addr" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
-                 placeholder="0x address or ENS name" aria-label="Wallet address or ENS name">
-          <button class="btn" id="rbtn" type="submit">Count me in</button>
-        </form>
-        <p class="status" id="rstatus" role="status" aria-live="polite"></p>
-        <p class="fineprint">One address is enough. Already listed addresses are recognised, not duplicated.<br>
-          The collection lives at <a href="https://etherscan.io/address/0xFc992f44555f413F5138d04496BEacC4b2AFf793" target="_blank" rel="noopener">0xFc99&hellip;F793</a> on Ethereum.</p>
-      </div>
-    </div>
-  </section>
+<main class="stage">
+  <h1>Reserve a spot.</h1>
+  <form id="rform" class="form-row" novalidate>
+    <input class="addr-input" id="addr" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"
+           placeholder="0x address or ENS name" aria-label="Wallet address or ENS name">
+    <button class="btn" id="rbtn" type="submit">Count me in</button>
+  </form>
+  <p class="status" id="rstatus" role="status" aria-live="polite"></p>
 </main>
 
 <script>
 (function(){
-  // A living Luom in the viewer — random pick, curated calm set.
-  var IDS = [13, 18, 44, 134, 135, 140, 171, 230, 357];
-  var id = IDS[Math.floor(Math.random() * IDS.length)];
-  var f = document.getElementById('vframe');
-  f.addEventListener('load', function(){ f.classList.add('on'); });
-  f.src = '/glass-500.html?id=' + id + '&token=1&full=1&flat=1&z=1.1';
-
   var form = document.getElementById('rform');
   var input = document.getElementById('addr');
   var btn = document.getElementById('rbtn');
@@ -212,7 +128,7 @@
     bad_address: 'That does not look like an address or ENS name.',
     ens_unresolvable: 'That ENS name does not resolve to an address.',
     rate_limited: 'Too many signups from this connection. Try again later.',
-    waitlist_closed: 'The list is closed. The snapshot has been taken.',
+    waitlist_closed: 'The list is closed.',
     value_too_long: 'That does not look like an address.',
     bad_value: 'That does not look like an address.'
   };
@@ -231,9 +147,9 @@
       .then(function(res){
         if (res.j && res.j.ok) {
           if (res.j.already_in_list) {
-            setStatus('This address is already on the list. You are counted.', 'ok');
+            setStatus('Already on the list. You are counted.', 'ok');
           } else {
-            setStatus('Done. This address will be in the phase two allowlist.', 'ok');
+            setStatus('Done. You are on the list.', 'ok');
             input.value = '';
           }
         } else {
