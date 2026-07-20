@@ -56,18 +56,6 @@
 /index.html
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
-/bioms
-  Content-Security-Policy: frame-ancestors 'none'
-  X-Frame-Options: DENY
-/bioms.html
-  Content-Security-Policy: frame-ancestors 'none'
-  X-Frame-Options: DENY
-/luoms
-  Content-Security-Policy: frame-ancestors 'none'
-  X-Frame-Options: DENY
-/luoms.html
-  Content-Security-Policy: frame-ancestors 'none'
-  X-Frame-Options: DENY
 /lab
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
@@ -149,29 +137,6 @@
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self' https://pngs.thebioms.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
   Cache-Control: public, max-age=60, must-revalidate
 
-# glass-500 — the Luoms renderer. Framed same-origin by / (the gate) and
-# /luoms, and potentially by marketplaces if a live animation_url is ever
-# used — so it gets the same permissive frame-ancestors treatment as
-# /preview. No wallet flows or user input on this page, so the
-# clickjacking concern that motivates the default 'none' doesn't apply.
-# Same consolidation rule as /preview: ALL headers for the path live in
-# this ONE block (CF Pages last-matching-rule semantics).
-/glass-500.html
-  ! Content-Security-Policy
-  ! X-Frame-Options
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self' https://pngs.thebioms.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
-  Cache-Control: public, max-age=60, must-revalidate
-/glass-500
-  ! Content-Security-Policy
-  ! X-Frame-Options
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self' https://pngs.thebioms.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
-  Cache-Control: public, max-age=60, must-revalidate
-
-# Three.js vendored module — content only changes when we bump the vendored
-# version, so cache a day + revalidate like the other shared JS.
-/vendor/three.module.js
-  Cache-Control: public, max-age=86400, must-revalidate
-
 # Metadata JSON — short cache so mutations can refresh quickly (Phase 2)
 # CORS open so OpenSea / marketplaces / explorers can fetch.
 /metadata/*
@@ -215,10 +180,6 @@
 /
   Cache-Control: public, max-age=60, must-revalidate
 /lab
-  Cache-Control: public, max-age=60, must-revalidate
-/bioms
-  Cache-Control: public, max-age=60, must-revalidate
-/luoms
   Cache-Control: public, max-age=60, must-revalidate
 /explore
   Cache-Control: public, max-age=60, must-revalidate
