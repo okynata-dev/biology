@@ -94,16 +94,20 @@ binding = "BROWSER"
 # Needs the four X_* secrets; without them scheduled() is a no-op.
 # ------------------------------------------------------------
 # Cron triggers — see worker.js scheduled(). Cadence set in Bangkok time
-# (owner's clock); cron is fixed UTC, Bangkok = UTC+7 (no DST). No-caption
-# random-Biom posts retired 2026-06-20 — only GM, burns, sales remain:
-#   0 6  * * *  — 13:00 BKK · GM + a living Biom loop
-#   0 13 * * *  — 20:00 BKK · GM + a living Biom loop (US morning)
-#   */5         — burn-tweet drip (retry-capped) + OpenSea sales (max 2/day)
-#   0 10 * * 1  — Monday colony report, skipped on quiet weeks
+# (owner's clock); cron is fixed UTC, Bangkok = UTC+7 (no DST).
+# Cut back to ONE daily post 2026-07-09 at the owner's request — the
+# timeline reads better with a single deliberate GM than with five slots:
+#   0 13 * * *  — 20:00 BKK · GM + a living Biom loop (09:00 New York,
+#                 the US-morning peak for crypto Twitter)
+#   */5         — chain-burn sweep (NOT a post) + burn-tweet drip
+#                 + OpenSea sales (max 2/day)
+# Retired but one line from returning — their scheduled() branches are
+# still wired, they simply have no trigger: `0 6 * * *` (second GM),
+# `0 10 * * *` (technical note), `0 11 * * 1` (Monday colony report).
 # Feature/trait-fact filler stays retired. Spend guard: every POST attempt
 # passes _postBudgetOk (cap via X_MONTHLY_POST_CAP).
 [triggers]
-crons = ["0 6 * * *", "0 13 * * *", "*/5 * * * *", "0 10 * * 1"]
+crons = ["0 13 * * *", "*/5 * * * *"]
 
 [vars]
 # Public config — fine to commit. Secrets go via `wrangler secret put`.
