@@ -154,6 +154,12 @@
 /specimen-engine.js
   Cache-Control: public, max-age=86400, must-revalidate
 
+# Biominers generator. Same rules as the Node generator that produced the
+# collection, so the sprites drawn here match the ones the contract points
+# at. Version-bust via ?v= when the trait tables change.
+/biominers.js
+  Cache-Control: public, max-age=86400, must-revalidate
+
 # Nav-wallet shared chrome (CSS+JS) — cache day, revalidate.
 # Version-bust via ?v= query param when contents change.
 /nav-wallet.css
@@ -184,6 +190,8 @@
 /explore
   Cache-Control: public, max-age=60, must-revalidate
 /activity
+  Cache-Control: public, max-age=60, must-revalidate
+/biominers
   Cache-Control: public, max-age=60, must-revalidate
 /manifesto
   Cache-Control: public, max-age=60, must-revalidate
