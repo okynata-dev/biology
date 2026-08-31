@@ -49,3 +49,9 @@ atlas-out/
 loops/
 posters/
 meta/glass/
+
+# Promo material and Claude's working files. Local only, never deployed:
+# Cloudflare Pages publishes this whole folder, so anything left untracked
+# and unignored here is noise in `git status` on every single commit.
+/ПРОМО/
+/_claude/
