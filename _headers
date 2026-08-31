@@ -137,6 +137,11 @@
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' https://pngs.thebioms.com data: blob:; connect-src 'self' https://api.thebioms.com; font-src 'self' data:; media-src 'self' https://pngs.thebioms.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors *; upgrade-insecure-requests
   Cache-Control: public, max-age=60, must-revalidate
 
+# Plods walking GIFs and og image — content-addressed by filename, never
+# edited in place, so cache forever.
+/plods/*
+  Cache-Control: public, max-age=31536000, immutable
+
 # Metadata JSON — short cache so mutations can refresh quickly (Phase 2)
 # CORS open so OpenSea / marketplaces / explorers can fetch.
 /metadata/*
@@ -192,6 +197,8 @@
 /activity
   Cache-Control: public, max-age=60, must-revalidate
 /biominers
+  Cache-Control: public, max-age=60, must-revalidate
+/bioms
   Cache-Control: public, max-age=60, must-revalidate
 /manifesto
   Cache-Control: public, max-age=60, must-revalidate

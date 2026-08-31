@@ -2986,6 +2986,53 @@ async function _postFeature(env, force = false) {
 }
 
 // ============================================================
+// TECHNICAL POST — one a day at 17:00 Bangkok (10:00 UTC), between the
+// two GMs. A dry, single-paragraph note on how the collection actually
+// works, with a random living Biom's loop attached. Sequential rotation
+// through the pool. Written to read human, not generated: varied shape,
+// no "X is not Y, it is Z" antithesis, no obligatory closing aphorism.
+// ============================================================
+const TECH_FACTS = [
+  "A Biom isn't stored anywhere as a picture. The token is a seed, and the seed runs through the same generator every time you open it. Same seed, same organism, identical down to where each granule sits. If our servers vanished and someone rebuilt the generator from the rules, every Biom would come back exactly as it is now.",
+  "Generation starts by hashing the seed into a run of bytes, which we read four at a time as a number between 0 and 1. Each number picks something: the body shape, then the stain, then which organelles appear. By the time you see the Biom none of it is still random. The dice were thrown once and baked into the seed.",
+  "We never decided which traits should be rare. The generator rolls against fixed weights and the scarcity falls out of that. A spirillum body shows up around 12% of the time, a tetrad about 7%, an axial filament near 15%. Whatever ends up rare is rare because the distribution made it so.",
+  "The stains come straight from microscopy. Gram, Ziehl-Neelsen, Schaeffer-Fulton, malachite green against safranin. These are protocols people actually run to make cells visible under a lens, and we kept them accurate. A lot of Bioms would look at home in a real lab notebook.",
+  "Mass adds up when you burn. Two Bioms combine into one whose mass is the sum, and the tier reads off that total on a power-of-two scale: 1, then 2 to 3, then 4 to 7, and upward. So a Biom's rank is basically how many doublings of organisms are folded into the one in front of you.",
+  "Burning is an actual Ethereum transaction, not a value we flip in a database. The donor leaves the supply for good and the survivor keeps its traits and accumulated mass. We don't really store the result, we read the chain back and recompute what each token has become.",
+  "Every Biom breathes on a fixed cycle, and we can ask the generator for any moment in that cycle and get an exact frame. So the motion is computed, never a recorded clip. That is why the loop has no seam, and why a render taken on your machine and one taken on ours land on the same frame at the same instant.",
+  "The still image OpenSea shows is a 3000-pixel screenshot of the live generator, taken on a headless browser the instant a token changes. We always shoot from the rules rather than touch pixels by hand. After a burn the picture is regenerated, so it can't quietly fall out of sync with what the contract says the token is.",
+  "Each organelle is just on or off: nucleoid, ribosomes, flagellum, pili, plasmid. When one Biom absorbs another, the survivor keeps every organelle either of them had. A Biom that has burned through a lot of others ends up carrying a lot of hardware, which is roughly how a real cell collects machinery over time.",
+  "When a Biom absorbs another it takes on the donor's stain, so color ends up tracking ancestry. A blue cell that ate a red one carries the red forward. Line up a heavily burned survivor's history and the palette more or less tells you the order it all happened in.",
+];
+
+async function _postTechnical(env, force = false) {
+  if (!_xConfigured(env)) return { ok: false, reason: 'not_configured' };
+  if (!force) {
+    const last = parseInt(await _botStateGet(env, 'last_tech_at') || '0', 10);
+    if (Date.now() - last < 20 * 3600000) return { ok: false, reason: 'too_soon' };
+  }
+  if (!(await _postBudgetOk(env))) return { ok: false, reason: 'monthly_cap' };
+  const idx = parseInt(await _botStateGet(env, 'tech_idx') || '0', 10) % TECH_FACTS.length;
+  const pick = await _randomAliveBiomVideo(env);
+  if (!pick) return { ok: false, reason: 'no_video_found' };
+
+  const mediaId = await _xUploadMedia(env, await pick.video.arrayBuffer(), 'video/mp4', 'tweet_video');
+  if (!mediaId) return { ok: false, reason: 'media_upload_failed' };
+
+  const r = await _xRequest(env, 'POST', 'https://api.x.com/2/tweets', {
+    json: { text: TECH_FACTS[idx], media: { media_ids: [mediaId] } },
+  });
+  if (r.status !== 201) {
+    console.warn(`[x] tech failed: ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+    return { ok: false, reason: `post_${r.status}` };
+  }
+  await _botStateSet(env, 'last_tech_at', Date.now());
+  await _botStateSet(env, 'tech_idx', (idx + 1) % TECH_FACTS.length);
+  console.log(`[x] tech ${idx} tweeted: ${r.body?.data?.id} (Biom #${pick.seed})`);
+  return { ok: true, tweetId: r.body?.data?.id, idx, seed: pick.seed };
+}
+
+// ============================================================
 // TRAIT FACTS — three a day (01:00 / 11:00 / 19:00 UTC). One
 // microbiology fact per post, cycling sequentially through the trait
 // catalogue (same content as /explore). Media: the trait's example
@@ -3248,11 +3295,11 @@ async function _sha256Hex(text) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Waitlist hard close: 2 hours before the WL mint (mint = 2026-06-08 19:00
-// GMT+7). After this, NEW sign-ups are rejected so the snapshot can be frozen,
-// processed, and the OpenSea allowlist set up in time. Existing rows are
-// untouched; reads (count / list / check) keep working so the owner can pull
-// the snapshot after close.
+// Waitlist hard close: 2h before the Bioms WL mint (2026-06-08 19:00 GMT+7),
+// so the snapshot could be frozen and the allowlist built in time. Long past;
+// the signup page is retired and every POST now bounces with waitlist_closed.
+// Reads (count / list / check) still work so the table stays inspectable from
+// /admin. Move this date forward if a signup surface is ever needed again.
 const WAITLIST_CLOSE_MS = new Date('2026-06-08T17:00:00+07:00').getTime();
 
 async function handleWaitlistAdd(req, env, origin) {
@@ -3865,6 +3912,14 @@ export default {
         const result = await _postRandomBiom(env);
         return json(result, {}, origin);
       }
+      if (path === '/api/admin/post-tech' && req.method === 'POST') {
+        // Manually fire one technical post (admin-gated) — for previewing
+        // the copy + attached loop before the daily cron runs.
+        const gate = _adminGate(req, env, origin);
+        if (gate) return gate;
+        const result = await _postTechnical(env, true);
+        return json(result, {}, origin);
+      }
       if (path === '/api/admin/refresh-opensea' && req.method === 'POST') {
         // Throttled bulk OpenSea metadata-refresh for the living colony.
         return await handleAdminRefreshOpenSea(req, env, origin);
@@ -3949,12 +4004,17 @@ export default {
     // burns and sales remain. _postRandomBiom stays callable via
     // /api/admin/post-biom for manual one-offs.
     //   0 6  * * *  — 13:00 BKK · GM + a living Biom loop
+    //   0 10 * * *  — 17:00 BKK · technical note + a living Biom loop
     //   0 13 * * *  — 20:00 BKK · GM + a living Biom loop (US morning)
     //   */5 * * * * — burns sweep + tweet + new OpenSea sales (event-driven)
-    //   0 10 * * 1  — Monday colony report, skipped on quiet weeks
+    //   0 11 * * 1  — 18:00 BKK Mon · colony report, skipped on quiet weeks
+    //                 (moved off 10:00 so it never collides with the daily
+    //                  technical post)
     if (event.cron === '0 6 * * *' || event.cron === '0 13 * * *') {
       ctx.waitUntil(_postGm(env).catch(e => console.warn('[x] gm crash:', e?.message || e)));
-    } else if (event.cron === '0 10 * * 1') {
+    } else if (event.cron === '0 10 * * *') {
+      ctx.waitUntil(_postTechnical(env).catch(e => console.warn('[x] tech crash:', e?.message || e)));
+    } else if (event.cron === '0 11 * * 1') {
       ctx.waitUntil(_tweetWeeklySummary(env).catch(e => console.warn('[x] weekly crash:', e?.message || e)));
     } else {
       // Reconcile chain burns FIRST so recovered/wild burns exist in D1

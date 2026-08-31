@@ -8,6 +8,10 @@
 /list           /   301
 /list.html      /   301
 
+# /bioms is BACK as the Bioms wing since 2026-08-31: the root became the
+# Plods homepage and the whole Bioms world (lab, activity, biominers) lives
+# under /bioms. Do not redirect it.
+
 # Luoms retired entirely 2026-07-20 — the second collection never minted
 # (totalSupply 0) and the announcement got no traction, so every surface
 # is gone: the collection page, the phase-two signup, the live renderer
@@ -21,5 +25,3 @@
 /glass-500.html /   301
 /reserve        /   301
 /reserve.html   /   301
-/bioms          /   301
-/bioms.html     /   301
