@@ -200,6 +200,8 @@
   Cache-Control: public, max-age=60, must-revalidate
 /bioms
   Cache-Control: public, max-age=60, must-revalidate
+/walk
+  Cache-Control: public, max-age=60, must-revalidate
 /manifesto
   Cache-Control: public, max-age=60, must-revalidate
 /make

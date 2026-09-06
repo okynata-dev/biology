@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Walk</title>
+<meta name="description" content="4,000 walking microbes, zero drawings. How a token number becomes a creature that walks: nine dice, a field instead of a picture, a foot that never slips, and a loop that closes to the pixel.">
+<meta name="theme-color" content="#CCFF01">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23CCFF01'/%3E%3Ccircle cx='16' cy='13' r='6.5' fill='%23141900'/%3E%3Cpath d='M12 19l-2 8M16 20v8M20 19l2 8' stroke='%23141900' stroke-width='2.2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+<link rel="canonical" href="https://thebioms.com/walk">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plods">
+<meta property="og:title" content="4,000 walking microbes, zero drawings">
+<meta property="og:description" content="How a token number becomes a creature that walks. Nine dice, a foot that never slips, a loop that closes to the pixel.">
+<meta property="og:url" content="https://thebioms.com/walk">
+<meta property="og:image" content="https://thebioms.com/plods/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@theBioms">
+<meta name="twitter:image" content="https://thebioms.com/plods/og.png">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --lime: #CCFF01; --lime-decor: #A9D400;
+    --walk: #8FB000; --walk-deep: #4C5E00;
+    --ink: #141900; --ink-2: rgba(20,25,0,.66); --ink-3: rgba(20,25,0,.45);
+    --line: rgba(20,25,0,.16);
+    --glass: rgba(255,255,255,.5); --glass-strong: rgba(255,255,255,.66);
+  }
+  html, body {
+    background: var(--lime); color: var(--ink);
+    font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+    font-size: 17.5px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection { background: var(--ink); color: var(--lime); }
+  a { color: inherit; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
+  a:focus-visible { outline: 2.5px solid var(--ink); outline-offset: 3px; border-radius: 8px; }
+  .skip-link { position: absolute; left: -9999px; top: 0; background: var(--ink); color: var(--lime); padding: 12px 18px; z-index: 999; }
+  .skip-link:focus { left: 0; }
+
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Cg fill='none' stroke='%23A9D400' stroke-width='3'%3E%3Cpath d='M60 80a26 26 0 1 1 26 26a19 19 0 1 1-19-19a12 12 0 1 0 12 12'/%3E%3Cpath d='M330 300a22 22 0 1 1 22 22a16 16 0 1 1-16-16a10 10 0 1 0 10 10'/%3E%3Ccircle cx='300' cy='90' r='9'/%3E%3Ccircle cx='300' cy='90' r='17'/%3E%3Ccircle cx='120' cy='330' r='7'/%3E%3Cpath d='M200 170v46M186 180l14 12M214 180l-14 12M188 202l12 10M212 202l-12 10'/%3E%3C/g%3E%3Cg fill='%23A9D400'%3E%3Crect x='240' y='210' width='7' height='7'/%3E%3Crect x='80' y='210' width='5' height='5'/%3E%3Crect x='360' y='170' width='6' height='6'/%3E%3Crect x='160' y='60' width='5' height='5'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 420px 420px; opacity: .5;
+  }
+  nav, main, footer { position: relative; z-index: 1; }
+
+  nav { position: sticky; top: 14px; z-index: 50; padding: 0 28px; }
+  .pill {
+    max-width: 760px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 18px;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3);
+    border: 1px solid var(--line); border-radius: 999px;
+    box-shadow: 0 10px 34px rgba(20,25,0,.10);
+  }
+  .brand { font-size: 19px; font-weight: 700; letter-spacing: -.045em; text-decoration: none; }
+  .brand:hover { opacity: .65; }
+  .pill a.back { font-size: 14px; font-weight: 500; color: var(--ink-2); text-decoration: none;
+    padding: 7px 13px; border-radius: 999px; }
+  .pill a.back:hover { background: rgba(255,255,255,.55); color: var(--ink); }
+
+  .sheet {
+    max-width: 760px; margin: clamp(26px,5vh,52px) auto clamp(40px,7vh,80px);
+    padding: 0 28px;
+  }
+  article {
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2);
+    border: 1px solid rgba(255,255,255,.75);
+    border-radius: 34px;
+    padding: clamp(30px,5vw,58px);
+    box-shadow: 0 34px 80px rgba(20,25,0,.16), inset 0 1px 0 rgba(255,255,255,.85);
+  }
+  .kicker { font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+    letter-spacing: .2em; text-transform: uppercase; color: var(--ink-2); }
+  h1 { font-size: clamp(34px, 5.4vw, 54px); font-weight: 700; letter-spacing: -.045em;
+    line-height: 1.02; margin: 12px 0 0; text-wrap: balance; }
+  .standfirst { margin-top: 18px; font-size: clamp(18px,2vw,21px); line-height: 1.5; color: var(--ink-2); }
+  .standfirst b { color: var(--ink); font-weight: 600; }
+
+  h2 { font-size: clamp(23px,2.8vw,29px); font-weight: 700; letter-spacing: -.03em;
+    margin: 44px 0 12px; }
+  p { margin: 14px 0 0; max-width: 62ch; }
+  p b { font-weight: 600; }
+  .aside { font-size: 14.5px; color: var(--ink-3); }
+
+  figure { margin: 24px 0 8px; }
+  figure .frame {
+    background: rgba(20,25,0,.88); border-radius: 20px; padding: 10px;
+    overflow-x: auto;
+  }
+  figure img { display: block; border-radius: 12px;
+    image-rendering: pixelated; image-rendering: crisp-edges; }
+  figure img.fit { width: 100%; height: auto; }
+  figure img.strip { height: 200px; width: auto; max-width: none; }
+  figcaption { margin-top: 10px; font-size: 14px; color: var(--ink-3); max-width: 62ch; }
+
+  .gifrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 24px 0 8px; }
+  @media (max-width: 560px) { .gifrow { grid-template-columns: 1fr; } }
+  .gifrow img { display: block; width: 100%; height: auto; border-radius: 16px;
+    image-rendering: pixelated; border: 1px solid rgba(255,255,255,.7); }
+
+  .haiku {
+    margin: 30px auto 6px; text-align: center;
+    font-size: clamp(21px, 3vw, 27px); line-height: 1.9; letter-spacing: .06em;
+  }
+  .haiku small { display: block; margin-top: 8px; font-size: 15px; letter-spacing: 0; color: var(--ink-3); }
+
+  .cta { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center;
+    padding: 14px 24px; border-radius: 999px;
+    background: var(--ink); color: var(--lime); text-decoration: none;
+    font-size: 15.5px; font-weight: 600;
+    box-shadow: 0 10px 26px rgba(20,25,0,.22);
+    transition: transform .12s;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.ghost { background: var(--glass); color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+
+  footer {
+    background:
+      repeating-linear-gradient(90deg, transparent 0 26px, rgba(20,25,0,.10) 26px 28px),
+      linear-gradient(var(--walk), var(--walk-deep));
+    border-top: 4px solid rgba(20,25,0,.28);
+    color: rgba(236,255,180,.92);
+  }
+  .foot-in { max-width: 760px; margin: 0 auto; padding: 26px 28px 40px;
+    display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; font-size: 14px; }
+  .foot-in a { color: rgba(236,255,180,.72); text-decoration: none; }
+  .foot-in a:hover { color: #fff; }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<nav aria-label="Main">
+  <div class="pill">
+    <a class="brand" href="/">plods</a>
+    <a class="back" href="/">Home</a>
+  </div>
+</nav>
+
+<main id="main">
+  <div class="sheet">
+    <article>
+      <div class="kicker mono">The making of plods</div>
+      <h1>4,000 walking microbes, zero drawings</h1>
+      <p class="standfirst">Nothing in this collection was drawn. Not one frame, not one sprite, not one pixel placed by hand. <b>A token number goes in, a small creature comes out, and it walks.</b> The same number always grows the same creature, forever. Here is how deep that goes.</p>
+
+      <div class="gifrow">
+        <img src="/plods/plod-124.gif" width="192" height="192" alt="Plod 124 walking through the lime world">
+        <img src="/plods/plod-121.gif" width="192" height="192" alt="Plod 121 walking through the lime world" loading="lazy">
+      </div>
+
+      <h2>First, the name</h2>
+      <p>plod is a real English verb: to walk slowly and heavily, like you are dragging yourself through mud. The word is onomatopoeic, it was born as the sound of a step pressed into wet ground. So the name is a meaning and a sound at the same time, and it is also the third person of the verb. It plods. The creature is named after the only thing it ever does, and I love it for that.</p>
+
+      <h2>One number, nine dice</h2>
+      <p>A plod is nine traits: Form, Skin, Organelle, Nucleus, Cilia, Texture, Habitat, Neighbours, Fibre. Each category holds exactly 200 variants, so the space is 200 to the ninth power, about 5 &times; 10&#178;&#8304; combinations. I minted 4,000 and checked that every trait set is unique. It is, 4,000 out of 4,000.</p>
+      <p>Each trait rolls from its own hash stream, sha256 of the category name and the token id. Separate streams matter because traits must not correlate: if skin and nucleus rolled from one stream, certain skins would always arrive with certain nuclei, and the rarity math would quietly rot underneath the whole collection.</p>
+      <p>Some rolls get overruled. A nucleus has to read through the shell, so if it lands within 46 luminance points of the skin it rerolls darker. A shell has to stand off the acid lime, so skins too close to the background swap for distant ones. These rules are computed, not curated. I never once picked a pretty pair by hand, and that is the part I am proudest of.</p>
+
+      <h2>A body is a field, not a picture</h2>
+      <p>The silhouette is a chain of metaballs along a spine. Threshold the field and you get the shape. Take the gradient of the field and you get surface normals, and normals are the whole game: light becomes the dot product of normal and light direction, quantized into four to seven bands. Shading by distance to the edge is the classic amateur move, the object glows in the middle like a pillow. Shading by normal gives you a real terminator, a core shadow and a rim.</p>
+      <p>The ramps are not darker copies of one colour either. Hue rotates along the ramp, shadows drift cold, highlights drift warm, saturation peaks in the middle. Dithering lives only in a narrow window around band boundaries. Dither everywhere and you get noise. Dither at the boundary and you get pixel art.</p>
+      <p>Inside the shell there is a nucleus shaded as a proper sphere, organelles stacked along the spine, granules that drift along closed loops so they always come home, vacuoles, texture. Everything is placed by the token's own stream, and everything moves with a slight lag behind the body, because soft parts catching up to a skeleton is what makes motion look alive.</p>
+
+      <h2>The walk</h2>
+      <p>The legs are two-bone IK with deliberately unequal bones, 0.38 upper to 0.62 lower. Equal bones throw the knee sideways and the leg reads broken.</p>
+      <p><b>One law governs everything: a planted foot does not move relative to the ground.</b> The world scrolls at 2 px per frame, so during stance the foot travels backward at exactly 2 px per frame, no easing, no mercy. Break this law and the creature moonwalks. I verify it numerically, printing foot positions frame by frame, because eyes forgive and numbers do not.</p>
+      <figure>
+        <div class="frame"><img class="strip" src="/plods/walk-cycle.png" alt="Eight frames of one step laid side by side"></div>
+        <figcaption>Eight frames of one step. Watch the planted foot: it slides back at exactly the speed of the world, which is what standing still on moving ground means. Scroll the strip sideways.</figcaption>
+      </figure>
+      <p>The cycle is 16 frames, the loop is 64, so every plod takes exactly four steps per loop, forever.</p>
+
+      <h2>A world that cannot stop</h2>
+      <p>Four parallax layers plus a backdrop. The scrolling layers obey one arithmetic law: frames times layer speed must divide evenly by that layer's tile width. Sixty-four frames at speed 2 against a 128 px tile lands exactly, so frame 64 equals frame 0 by construction, not by luck.</p>
+      <p>The backdrop refused to obey. It holds the big shapes, honeycombs, capillaries, a giant cell half the frame tall, twenty-five architectures in total, and big unique shapes cannot live inside a 32 px repeating tile. So the backdrop does not scroll at all. It sways on a sine with a whole number of periods per loop. A sine comes home on its own, the seam stays closed, and the image can be any width it wants.</p>
+      <figure>
+        <div class="frame"><img class="fit" src="/plods/loop-proof.png" alt="Frame 0 and frame 64 of the same plod, side by side, identical"></div>
+        <figcaption>The left picture is frame 0. The right picture is frame 64. The build renders both and compares them pixel by pixel, and across all 4,000 plods the difference came back zero. These two images are the same image. That is the point.</figcaption>
+      </figure>
+
+      <h2>The quiet window</h2>
+      <p>Right behind the creature the backdrop fades by almost half. The character always stands centre frame, so the layer under it can be hushed and nothing ever breaks. The rule this serves is the oldest one in picture-making: only one thing in the frame gets the full range of values, and here it belongs to the creature. The world keeps a narrow band and a large shape, and the plod gets the light.</p>
+
+      <h2>The output</h2>
+      <p>4,000 GIFs, 576 px, 64 frames at 70 ms, 256 colours with a fresh palette on every frame, about 2.4 MB each. The metadata lists all nine traits. The description is a single haiku, one for the whole colony:</p>
+      <p class="haiku">木枯らしや<br>微生物散る<br>侍よ
+        <small>The tree-drying wind, microbes scatter like leaves, oh samurai.</small>
+      </p>
+
+      <h2>They are coming</h2>
+      <p>The colony is generated, checked and sealed. Four thousand creatures, each one a number that learned to walk. Minting soon.</p>
+
+      <div class="cta">
+        <a class="btn" href="https://twitter.com/theBioms" target="_blank" rel="noopener">Follow the mint</a>
+        <a class="btn ghost" href="/">Watch them walk</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer>
+  <div class="foot-in">
+    <span style="font-weight:700">plods</span>
+    <a href="/">Home</a>
+  </div>
+</footer>
+
+</body>
+</html>
