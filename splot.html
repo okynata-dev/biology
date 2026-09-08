@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Splot</title>
+<meta name="description" content="Splot splot. We are living organisms and we are going to Robinhood. A dispatch from the colony about $PLOD, the three percent, the burning, and the dice.">
+<meta name="theme-color" content="#CCFF01">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23CCFF01'/%3E%3Ccircle cx='16' cy='13' r='6.5' fill='%23141900'/%3E%3Cpath d='M12 19l-2 8M16 20v8M20 19l2 8' stroke='%23141900' stroke-width='2.2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+<link rel="canonical" href="https://thebioms.com/splot">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Plods">
+<meta property="og:title" content="Splot splot. We are living organisms and we are going to Robinhood. Splot splot!!">
+<meta property="og:description" content="A dispatch from the colony. What $PLOD is, where the three percent goes, why we burn, and how the dice picks our next stock.">
+<meta property="og:url" content="https://thebioms.com/splot">
+<meta property="og:image" content="https://thebioms.com/plods/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@theBioms">
+<meta name="twitter:image" content="https://thebioms.com/plods/og.png">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --lime: #CCFF01; --lime-decor: #A9D400;
+    --walk: #8FB000; --walk-deep: #4C5E00;
+    --ink: #141900; --ink-2: rgba(20,25,0,.66); --ink-3: rgba(20,25,0,.45);
+    --line: rgba(20,25,0,.16);
+    --glass: rgba(255,255,255,.5); --glass-strong: rgba(255,255,255,.66);
+  }
+  html, body {
+    background: var(--lime); color: var(--ink);
+    font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+    font-size: 17.5px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection { background: var(--ink); color: var(--lime); }
+  a { color: inherit; }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
+  a:focus-visible { outline: 2.5px solid var(--ink); outline-offset: 3px; border-radius: 8px; }
+  .skip-link { position: absolute; left: -9999px; top: 0; background: var(--ink); color: var(--lime); padding: 12px 18px; z-index: 999; }
+  .skip-link:focus { left: 0; }
+
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420' viewBox='0 0 420 420'%3E%3Cg fill='none' stroke='%23A9D400' stroke-width='3'%3E%3Cpath d='M60 80a26 26 0 1 1 26 26a19 19 0 1 1-19-19a12 12 0 1 0 12 12'/%3E%3Cpath d='M330 300a22 22 0 1 1 22 22a16 16 0 1 1-16-16a10 10 0 1 0 10 10'/%3E%3Ccircle cx='300' cy='90' r='9'/%3E%3Ccircle cx='300' cy='90' r='17'/%3E%3Ccircle cx='120' cy='330' r='7'/%3E%3Cpath d='M200 170v46M186 180l14 12M214 180l-14 12M188 202l12 10M212 202l-12 10'/%3E%3C/g%3E%3Cg fill='%23A9D400'%3E%3Crect x='240' y='210' width='7' height='7'/%3E%3Crect x='80' y='210' width='5' height='5'/%3E%3Crect x='360' y='170' width='6' height='6'/%3E%3Crect x='160' y='60' width='5' height='5'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 420px 420px; opacity: .5;
+  }
+  nav, main, footer { position: relative; z-index: 1; }
+
+  nav { position: sticky; top: 14px; z-index: 50; padding: 0 28px; }
+  .pill {
+    max-width: 760px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 18px;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3);
+    border: 1px solid var(--line); border-radius: 999px;
+    box-shadow: 0 10px 34px rgba(20,25,0,.10);
+  }
+  .brand { font-size: 19px; font-weight: 700; letter-spacing: -.045em; text-decoration: none; }
+  .brand:hover { opacity: .65; }
+  .pill a.back { font-size: 14px; font-weight: 500; color: var(--ink-2); text-decoration: none;
+    padding: 7px 13px; border-radius: 999px; }
+  .pill a.back:hover { background: rgba(255,255,255,.55); color: var(--ink); }
+
+  .sheet {
+    max-width: 760px; margin: clamp(26px,5vh,52px) auto clamp(40px,7vh,80px);
+    padding: 0 28px;
+  }
+  article {
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: blur(22px) saturate(1.2); backdrop-filter: blur(22px) saturate(1.2);
+    border: 1px solid rgba(255,255,255,.75);
+    border-radius: 34px;
+    padding: clamp(30px,5vw,58px);
+    box-shadow: 0 34px 80px rgba(20,25,0,.16), inset 0 1px 0 rgba(255,255,255,.85);
+  }
+  .kicker { font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+    letter-spacing: .2em; text-transform: uppercase; color: var(--ink-2); }
+  h1 { font-size: clamp(31px, 5vw, 50px); font-weight: 700; letter-spacing: -.045em;
+    line-height: 1.03; margin: 12px 0 0; text-wrap: balance; }
+  .standfirst { margin-top: 18px; font-size: clamp(18px,2vw,21px); line-height: 1.5; color: var(--ink-2); }
+  .standfirst b { color: var(--ink); font-weight: 600; }
+
+  h2 { font-size: clamp(23px,2.8vw,29px); font-weight: 700; letter-spacing: -.03em;
+    margin: 44px 0 12px; }
+  p { margin: 14px 0 0; max-width: 62ch; }
+  p b { font-weight: 600; }
+  .aside { font-size: 14.5px; color: var(--ink-3); }
+
+  figure.banner { margin: 26px 0 4px; }
+  figure.banner img { display: block; width: 100%; height: auto; border-radius: 20px;
+    border: 1px solid rgba(255,255,255,.7); image-rendering: pixelated; }
+
+  .gifrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 24px 0 8px; }
+  @media (max-width: 560px) { .gifrow { grid-template-columns: 1fr; } }
+  .gifrow img { display: block; width: 100%; height: auto; border-radius: 16px;
+    image-rendering: pixelated; border: 1px solid rgba(255,255,255,.7); }
+
+  /* the token card */
+  .token {
+    margin: 26px 0 8px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+    background: rgba(20,25,0,.88); border-radius: 24px; padding: 20px 22px;
+    color: rgba(236,255,180,.92);
+  }
+  .token img { width: 104px; height: 104px; border-radius: 18px; display: block;
+    image-rendering: pixelated; flex: none; }
+  .token .meta { min-width: 0; flex: 1 1 260px; }
+  .token .tick { font-size: 25px; font-weight: 700; letter-spacing: -.03em; color: #fff; }
+  .token .chain { font-size: 14px; color: rgba(236,255,180,.66); margin-top: 2px; }
+  .token .ca { margin-top: 10px; font-size: 12.5px; word-break: break-all;
+    color: rgba(236,255,180,.86); }
+  .token .ca a { color: inherit; }
+
+  /* the three parts */
+  .split { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 26px 0 8px; }
+  @media (max-width: 620px) { .split { grid-template-columns: 1fr; } }
+  .part {
+    background: var(--glass); border: 1px solid var(--line); border-radius: 20px;
+    padding: 18px 18px 20px;
+  }
+  .part .n { font-size: 30px; font-weight: 700; letter-spacing: -.04em; }
+  .part .t { margin-top: 4px; font-weight: 600; font-size: 15.5px; }
+  .part .d { margin-top: 6px; font-size: 14.5px; color: var(--ink-2); line-height: 1.5; }
+
+  .splot { margin: 34px 0 0; text-align: center;
+    font-size: clamp(22px,3.2vw,30px); font-weight: 700; letter-spacing: -.03em; }
+
+  .cta { display: flex; gap: 12px; margin-top: 36px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center;
+    padding: 14px 24px; border-radius: 999px;
+    background: var(--ink); color: var(--lime); text-decoration: none;
+    font-size: 15.5px; font-weight: 600;
+    box-shadow: 0 10px 26px rgba(20,25,0,.22);
+    transition: transform .12s;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.ghost { background: var(--glass); color: var(--ink); border: 1px solid var(--line); box-shadow: none; }
+
+  footer {
+    background:
+      repeating-linear-gradient(90deg, transparent 0 26px, rgba(20,25,0,.10) 26px 28px),
+      linear-gradient(var(--walk), var(--walk-deep));
+    border-top: 4px solid rgba(20,25,0,.28);
+    color: rgba(236,255,180,.92);
+  }
+  .foot-in { max-width: 760px; margin: 0 auto; padding: 26px 28px 40px;
+    display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; font-size: 14px; }
+  .foot-in a { color: rgba(236,255,180,.72); text-decoration: none; }
+  .foot-in a:hover { color: #fff; }
+</style>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<nav aria-label="Main">
+  <div class="pill">
+    <a class="brand" href="/">plods</a>
+    <a class="back" href="/">Home</a>
+  </div>
+</nav>
+
+<main id="main">
+  <div class="sheet">
+    <article>
+      <div class="kicker mono">A dispatch from the colony</div>
+      <h1>Splot splot. We are living organisms and we are going to Robinhood. Splot splot!!</h1>
+      <p class="standfirst">We call ourselves a biological substance. We carry within us a certain quantity of biological substance. <b>Now we also carry a token.</b> We do not know what a token is. We are going anyway. Splot splot.</p>
+
+      <figure class="banner">
+        <img src="/plods/splot-banner.png" width="1500" height="600" alt="Three plods walking along a road under the words Splot splot, we are going to Robinhood">
+      </figure>
+
+      <div class="gifrow">
+        <img src="/plods/plod-124.gif" width="192" height="192" alt="A plod walking through the lime world" loading="lazy">
+        <img src="/plods/plod-121.gif" width="192" height="192" alt="Another plod walking through the lime world" loading="lazy">
+      </div>
+
+      <h2>Who is walking</h2>
+      <p>We are four thousand. Nobody drew us. A number went into a machine and we came out of it, and the same number always makes the same one of us, forever. We have a shell, a nucleus, small things inside that drift and come home, and two legs that never slip. That is the entire inventory. Splot splot.</p>
+      <p>We walk. That is the whole job. We have been walking since the day we were computed and we have not arrived anywhere, because there is nowhere to arrive. The road scrolls, the foot plants, the world moves under it at exactly two pixels a frame. We approve of this arrangement.</p>
+
+      <h2>Then we found a chain</h2>
+      <p>It is called Robinhood Chain. Humans go there to buy pieces of companies, which are apparently large slow organisms that also carry a certain quantity of substance. This seemed familiar. So we did what any colony does when it finds new ground. We stepped onto it.</p>
+      <p>Our token is called <b>PLOD</b>. It lives here:</p>
+
+      <div class="token">
+        <img src="/plods/token.webp" alt="The plod that became the face of the token, walking on lime">
+        <div class="meta">
+          <div class="tick">$PLOD</div>
+          <div class="chain">Robinhood Chain. Launched on Pons. Paired with ETH.</div>
+          <div class="ca mono"><a href="https://ponsfamily.com/launchpad/0x6e12ff19b4a81824986dD3A05b90a691417891bD" target="_blank" rel="noopener">0x6e12ff19b4a81824986dD3A05b90a691417891bD</a></div>
+        </div>
+      </div>
+
+      <h2>What happens when somebody trades us</h2>
+      <p>Every trade of PLOD leaves a little substance behind. A shade over three percent of it. We split that substance into three equal parts, because three is how many parts we can count to.</p>
+
+      <div class="split">
+        <div class="part">
+          <div class="n mono">1%</div>
+          <div class="t">Goes to the colony</div>
+          <div class="d">Paid out to the humans who hold plods. The NFTs, not the token. They keep us, so they get fed.</div>
+        </div>
+        <div class="part">
+          <div class="n mono">1%</div>
+          <div class="t">Is burned</div>
+          <div class="d">We buy PLOD with it and destroy it. Every trade makes the supply smaller. We do not know why humans like this. We like it too.</div>
+        </div>
+        <div class="part">
+          <div class="n mono">1%</div>
+          <div class="t">Feeds the human</div>
+          <div class="d">One of them runs the machine that computed us and pays for the ground we walk on. We are not ungrateful.</div>
+        </div>
+      </div>
+
+      <p class="aside">No contract holds this money. A human claims it with his own hands, from a wallet anyone can watch, and does the buying and the burning himself. We tried the clever automatic version once on another colony and it swallowed the money and never gave it back. We learned. Splot splot.</p>
+
+      <h2>The dice</h2>
+      <p>Here is the part we are proud of. The colony share does not sit in a pile. Once a week a die is rolled in public, and whatever it lands on, that is the company we buy. Sometimes an index. Sometimes a chip maker. Sometimes gold. We do not analyse. We do not have a thesis. We have a die and a direction, which is more than most.</p>
+      <p>Humans have a name for this. They call it a random walk, and they wrote whole books arguing that a random walk beats the clever people in nice suits. We did not read the books. <b>We are the random walk.</b> We have been doing it since the first frame.</p>
+      <p>So the treasury slowly becomes a map of where we wandered. Once a month, whatever we gathered goes out to the ones who hold us.</p>
+
+      <h2>What we ask of you</h2>
+      <p>Nothing, really. We were going to keep walking either way. But if you want to come along, you can hold a plod, or hold the token, or just watch the die land on something ridiculous on a Tuesday. All three are permitted. All three amuse us.</p>
+      <p>All four thousand of us come out on <b>September 14 at 8:00 PM GMT+8</b>, at <b>0.001 ETH</b> each. There is no allowlist and no waiting room. You turn up, you take one home, it walks on your screen from then on. The token is already out there, a little way up its curve, plodding.</p>
+
+      <p class="splot">Splot splot!!</p>
+
+      <div class="cta">
+        <a class="btn" href="https://opensea.io/collection/theplods" target="_blank" rel="noopener">Mint September 14</a>
+        <a class="btn ghost" href="https://ponsfamily.com/launchpad/0x6e12ff19b4a81824986dD3A05b90a691417891bD" target="_blank" rel="noopener">See $PLOD on Pons</a>
+        <a class="btn ghost" href="/walk">How we were built</a>
+        <a class="btn ghost" href="https://twitter.com/theBioms" target="_blank" rel="noopener">Follow the colony</a>
+      </div>
+    </article>
+  </div>
+</main>
+
+<footer>
+  <div class="foot-in">
+    <span style="font-weight:700">plods</span>
+    <a href="/">Home</a>
+  </div>
+</footer>
+
+</body>
+</html>
